@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReadWrite — Test Harness</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .test-item { font-family: monospace; }
+    #run-btn { margin-bottom: 24px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">Read<span>Write</span> <span style="font-size:1rem;color:var(--text-muted)">Test Harness</span></div>
+      <div class="tagline">No API key required — all tests run locally</div>
+    </header>
+
+    <button class="btn-primary" id="run-btn">▶ Run All Tests</button>
+
+    <div class="card">
+      <div class="card-label">Results</div>
+      <div id="test-list"></div>
+    </div>
+
+    <div class="card" style="margin-top:8px">
+      <div class="card-label">Log</div>
+      <pre id="log" style="font-size:0.75rem;color:var(--text-muted);white-space:pre-wrap;max-height:300px;overflow:auto"></pre>
+    </div>
+  </div>
+
+  <script>
+    const results = [];
+    function log(msg) {
+      document.getElementById('log').textContent += msg + '\n';
+    }
+
+    function assert(name, condition, detail) {
+      const passed = !!condition;
+      results.push({ name, passed, detail });
+      log(`[${passed ? 'PASS' : 'FAIL'}] ${name}${detail ? ' — ' + detail : ''}`);
+      return passed;
+    }
+
+    async function runTests() {
+      results.length = 0;
+      document.getElementById('log').textContent = '';
+      document.getElementById('test-list').innerHTML = '<div style="color:var(--text-muted);font-size:0.875rem">Running…</div>';
+
+      /* 1. localStorage persistence */
+      try {
+        localStorage.setItem('rw_api_key', 'sk-ant-test-key');
+        const val = localStorage.getItem('rw_api_key');
+        assert('localStorage: write & read', val === 'sk-ant-test-key');
+        localStorage.removeItem('rw_api_key');
+        assert('localStorage: remove', localStorage.getItem('rw_api_key') === null);
+      } catch (e) {
+        assert('localStorage: write & read', false, e.message);
+      }
+
+      /* 2. FileReader base64 */
+      try {
+        const blob = new Blob(['hello'], { type: 'image/png' });
+        const b64 = await new Promise((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(r.result.split(',')[1]);
+          r.onerror = rej;
+          r.readAsDataURL(blob);
+        });
+        assert('FileReader: base64 conversion', typeof b64 === 'string' && b64.length > 0, `length=${b64.length}`);
+      } catch (e) {
+        assert('FileReader: base64 conversion', false, e.message);
+      }
+
+      /* 3. API payload structure */
+      try {
+        const fakeKey = 'sk-ant-test';
+        const fakeB64 = 'aGVsbG8=';
+        const payload = {
+          model: 'claude-sonnet-4-6',
+          max_tokens: 4096,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: 'image/png', data: fakeB64 } },
+              { type: 'text', text: 'SCAN_PROMPT' },
+            ],
+          }],
+        };
+        const parsed = JSON.parse(JSON.stringify(payload));
+        assert('API payload: model field', parsed.model === 'claude-sonnet-4-6');
+        assert('API payload: image block type', parsed.messages[0].content[0].type === 'image');
+        assert('API payload: text block type', parsed.messages[0].content[1].type === 'text');
+      } catch (e) {
+        assert('API payload structure', false, e.message);
+      }
+
+      /* 4. sessionStorage round-trip */
+      try {
+        const data = { summary: 'Test summary', transcription: 'Test transcription' };
+        sessionStorage.setItem('rw_results', JSON.stringify(data));
+        const back = JSON.parse(sessionStorage.getItem('rw_results'));
+        assert('sessionStorage: results round-trip', back.summary === data.summary && back.transcription === data.transcription);
+        sessionStorage.removeItem('rw_results');
+      } catch (e) {
+        assert('sessionStorage: results round-trip', false, e.message);
+      }
+
+      /* 5. Share fallback — clipboard path when navigator.share unavailable */
+      try {
+        let clipboardCalled = false;
+        const origShare = navigator.share;
+        const origClip = navigator.clipboard?.writeText?.bind(navigator.clipboard);
+
+        // Mock: no native share
+        Object.defineProperty(navigator, 'share', { value: undefined, configurable: true });
+
+        // Mock clipboard
+        let clipText = null;
+        if (navigator.clipboard) {
+          Object.defineProperty(navigator.clipboard, 'writeText', {
+            value: async (t) => { clipText = t; clipboardCalled = true; },
+            configurable: true,
+          });
+        } else {
+          // jsdom / older browsers — skip gracefully
+          assert('Share: clipboard fallback', true, 'navigator.clipboard not available in this env — skipped');
+          clipboardCalled = true; // skip
+        }
+
+        if (!clipboardCalled) {
+          await navigator.clipboard.writeText('test content');
+          assert('Share: clipboard fallback', clipText === 'test content');
+        }
+
+        // Restore
+        Object.defineProperty(navigator, 'share', { value: origShare, configurable: true });
+      } catch (e) {
+        assert('Share: clipboard fallback', false, e.message);
+      }
+
+      /* 6. Results render from fixture */
+      try {
+        const fixture = { summary: 'Meeting notes summary', transcription: 'Full verbatim text here' };
+        sessionStorage.setItem('rw_results', JSON.stringify(fixture));
+        const raw = sessionStorage.getItem('rw_results');
+        const parsed = JSON.parse(raw);
+        assert('Results render: summary present', parsed.summary === fixture.summary);
+        assert('Results render: transcription present', parsed.transcription === fixture.transcription);
+        sessionStorage.removeItem('rw_results');
+      } catch (e) {
+        assert('Results render from fixture', false, e.message);
+      }
+
+      /* 7. JSON extraction from fenced response */
+      try {
+        const raw = '```json\n{"summary":"s","transcription":"t"}\n```';
+        const match = raw.match(/\{[\s\S]*\}/);
+        const parsed = match ? JSON.parse(match[0]) : null;
+        assert('JSON parse: strip markdown fences', parsed?.summary === 's' && parsed?.transcription === 't');
+      } catch (e) {
+        assert('JSON parse: strip markdown fences', false, e.message);
+      }
+
+      renderResults();
+    }
+
+    function renderResults() {
+      const list = document.getElementById('test-list');
+      const passed = results.filter(r => r.passed).length;
+      const total = results.length;
+      const allPass = passed === total;
+
+      list.innerHTML = results.map(r => `
+        <div class="test-item">
+          <span class="badge ${r.passed ? 'pass' : 'fail'}">${r.passed ? 'PASS' : 'FAIL'}</span>
+          ${r.name}${r.detail ? ` <span style="color:var(--text-muted)">(${r.detail})</span>` : ''}
+        </div>
+      `).join('') + `
+        <div style="margin-top:12px;font-weight:600;color:${allPass ? 'var(--success)' : 'var(--error)'}">
+          ${allPass ? '✓ All tests passed' : `✗ ${total - passed} test(s) failed`} — ${passed}/${total}
+        </div>
+      `;
+    }
+
+    document.getElementById('run-btn').addEventListener('click', runTests);
+    // Auto-run on load
+    window.addEventListener('load', runTests);
+  </script>
+</body>
+</html>

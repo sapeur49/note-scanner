@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReadWrite — Scan Your Notes</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">Read<span>Write</span></div>
+      <div class="tagline">Scan handwritten notes with AI</div>
+    </header>
+
+    <div class="card">
+      <div class="card-label">Anthropic API Key</div>
+      <div class="key-row">
+        <input type="password" id="api-key" placeholder="sk-ant-…" autocomplete="off">
+        <button class="btn-icon" id="toggle-key" title="Show/hide key">👁</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Note Images</div>
+      <div class="upload-zone" id="drop-zone">
+        <div class="upload-icon">📋</div>
+        <p>Drag &amp; drop images here, or use buttons below</p>
+        <p style="margin-top:4px"><strong>Multiple images supported</strong></p>
+        <div class="input-buttons">
+          <button class="btn-outline" id="btn-files">📁 Choose Files</button>
+          <button class="btn-outline" id="btn-camera">📷 Camera</button>
+        </div>
+      </div>
+      <input type="file" id="file-input" accept="image/*" multiple hidden>
+      <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
+      <div class="thumb-grid" id="thumb-grid"></div>
+    </div>
+
+    <button class="btn-primary" id="scan-btn" disabled>Scan Notes</button>
+    <div class="loading" id="loading">
+      <span class="spinner"></span>Reading your notes…
+    </div>
+    <div class="error-msg" id="error-msg"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

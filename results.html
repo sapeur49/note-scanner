@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReadWrite — Results</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <a href="index.html" class="back-btn">← Back</a>
+
+    <header>
+      <div class="logo">Read<span>Write</span></div>
+    </header>
+
+    <div class="card" id="summary-card">
+      <div class="section-title">✨ Summary</div>
+      <div class="result-text" id="summary-text"></div>
+      <div class="share-row">
+        <button class="btn-share" data-target="summary">⬆ Share Summary</button>
+      </div>
+    </div>
+
+    <div class="card" id="transcription-card">
+      <div class="section-title">📝 Full Transcription</div>
+      <div class="result-text" id="transcription-text"></div>
+      <div class="share-row">
+        <button class="btn-share" data-target="transcription">⬆ Share Transcription</button>
+        <button class="btn-share" data-target="both">⬆ Share Both</button>
+      </div>
+    </div>
+
+    <div class="copied-msg" id="copied-msg"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
