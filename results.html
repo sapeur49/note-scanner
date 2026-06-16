@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ReadWrite — Results</title>
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
   <div class="container">
@@ -27,6 +27,11 @@
     <div class="card" id="summary-card">
       <div class="section-title">✨ Summary <button class="btn-edit" data-section="summary">Edit</button></div>
       <div class="result-text" id="summary-text"></div>
+      <div id="additional-notes-section" hidden>
+        <hr class="notes-divider">
+        <div class="section-subtitle">Additional Notes</div>
+        <div class="result-text" id="additional-notes-text"></div>
+      </div>
       <div class="share-row">
         <button class="btn-share" data-target="summary">⬆ Share Summary</button>
       </div>
@@ -48,6 +53,6 @@
     <img id="lightbox-img" src="" alt="Full size">
   </div>
 
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
