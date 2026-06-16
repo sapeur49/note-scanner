@@ -36,10 +36,16 @@ async def scan_notes(files: List[UploadFile] = File(...)):
         data = await f.read()
         b64 = base64.b64encode(data).decode()
         media_type = f.content_type or "image/jpeg"
-        image_blocks.append({
-            "type": "image",
-            "source": {"type": "base64", "media_type": media_type, "data": b64},
-        })
+        if media_type == "application/pdf":
+            image_blocks.append({
+                "type": "document",
+                "source": {"type": "base64", "media_type": "application/pdf", "data": b64},
+            })
+        else:
+            image_blocks.append({
+                "type": "image",
+                "source": {"type": "base64", "media_type": media_type, "data": b64},
+            })
 
     image_blocks.append({"type": "text", "text": SCAN_PROMPT})
 

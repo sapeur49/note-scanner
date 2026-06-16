@@ -68,7 +68,9 @@ function initIndex() {
 
   function addFiles(files) {
     for (const file of files) {
-      if (file.type.startsWith('image/')) selectedFiles.push(file);
+      if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+        selectedFiles.push(file);
+      }
     }
     renderThumbs();
     updateScanBtn();
@@ -76,8 +78,13 @@ function initIndex() {
 
   function renderThumbs() {
     const count = selectedFiles.length;
-    document.getElementById('file-count').textContent =
-      count === 0 ? '' : `${count} image${count > 1 ? 's' : ''} selected`;
+    if (count === 0) { document.getElementById('file-count').textContent = ''; return; }
+    const imgs = selectedFiles.filter(f => f.type.startsWith('image/')).length;
+    const pdfs = selectedFiles.filter(f => f.type === 'application/pdf').length;
+    const parts = [];
+    if (imgs) parts.push(`${imgs} image${imgs > 1 ? 's' : ''}`);
+    if (pdfs) parts.push(`${pdfs} PDF${pdfs > 1 ? 's' : ''}`);
+    document.getElementById('file-count').textContent = parts.join(', ') + ' selected';
   }
 
   function updateScanBtn() {
@@ -96,11 +103,15 @@ function initIndex() {
 
     try {
       const [thumbs, lightboxImgs] = await Promise.all([
-        Promise.all(selectedFiles.map(f => resizeImage(f, 150, 0.5))),
-        Promise.all(selectedFiles.map(f => resizeImage(f, 1500, 0.85))),
+        Promise.all(selectedFiles.map(f => f.type === 'application/pdf' ? null : resizeImage(f, 150, 0.5))),
+        Promise.all(selectedFiles.map(f => f.type === 'application/pdf' ? null : resizeImage(f, 1500, 0.85))),
       ]);
-      const thumbsJson    = JSON.stringify(thumbs.filter(Boolean));
-      const lightboxJson  = JSON.stringify(lightboxImgs.filter(Boolean));
+      // Store per-file metadata for the strip (null = PDF placeholder)
+      const stripMeta = selectedFiles.map((f, i) =>
+        f.type === 'application/pdf' ? { pdf: true, name: f.name } : (thumbs[i] || null)
+      );
+      const thumbsJson    = JSON.stringify(stripMeta);
+      const lightboxJson  = JSON.stringify(lightboxImgs);
       const totalSize = thumbsJson.length + lightboxJson.length;
       if (totalSize < IMAGES_SIZE_LIMIT) {
         sessionStorage.setItem(IMAGES_KEY, thumbsJson);
@@ -153,17 +164,25 @@ function initResults() {
   const lightboxRaw = sessionStorage.getItem(LIGHTBOX_KEY);
   if (imagesRaw) {
     try {
-      const thumbs     = JSON.parse(imagesRaw);
-      const fullImages = lightboxRaw ? JSON.parse(lightboxRaw) : thumbs;
+      const stripMeta  = JSON.parse(imagesRaw);
+      const fullImages = lightboxRaw ? JSON.parse(lightboxRaw) : [];
       const strip = document.getElementById('image-strip');
-      if (strip && thumbs.length) {
-        thumbs.forEach((src, i) => {
-          const img = document.createElement('img');
-          img.src = src;
-          img.className = 'thumb';
-          img.alt = `Image ${i + 1}`;
-          img.addEventListener('click', () => openLightbox(fullImages[i] || src));
-          strip.appendChild(img);
+      if (strip && stripMeta.length) {
+        stripMeta.forEach((meta, i) => {
+          if (meta && meta.pdf) {
+            const tile = document.createElement('div');
+            tile.className = 'thumb pdf-thumb';
+            tile.title = meta.name;
+            tile.innerHTML = `<span class="pdf-icon">📄</span><span class="pdf-name">${meta.name}</span>`;
+            strip.appendChild(tile);
+          } else if (meta) {
+            const img = document.createElement('img');
+            img.src = meta;
+            img.className = 'thumb';
+            img.alt = `Image ${i + 1}`;
+            img.addEventListener('click', () => openLightbox(fullImages[i] || meta));
+            strip.appendChild(img);
+          }
         });
         document.getElementById('images-section').hidden = false;
       }
