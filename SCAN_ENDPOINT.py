@@ -3,8 +3,8 @@
 # everything below is already imported in main.py.
 
 SCAN_PROMPT = """You are processing scanned note images. For each image provided:
-1. Transcribe ALL visible text exactly as written, preserving structure, lists, and formatting.
-2. After transcribing, produce a concise summary highlighting key points and any action items.
+1. Transcribe ALL visible text. Use paragraph breaks between distinct sections. Use bullet points only where the original notes use them. Do NOT wrap text at arbitrary line lengths — write flowing prose where the original is prose.
+2. Produce a concise summary highlighting key points and any action items.
 
 Respond with ONLY valid JSON in this exact shape:
 {

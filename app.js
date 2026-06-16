@@ -52,14 +52,9 @@ function initIndex() {
   }
 
   function renderThumbs() {
-    thumbGrid.innerHTML = '';
-    selectedFiles.forEach(file => {
-      const img = document.createElement('img');
-      img.className = 'thumb';
-      img.src = URL.createObjectURL(file);
-      img.alt = file.name;
-      thumbGrid.appendChild(img);
-    });
+    const count = selectedFiles.length;
+    document.getElementById('file-count').textContent =
+      count === 0 ? '' : `${count} image${count > 1 ? 's' : ''} selected`;
   }
 
   function updateScanBtn() {
