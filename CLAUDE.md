@@ -22,7 +22,7 @@ Railway (personal account) — single service from this repo
 
 **Key decisions:**
 - No API key in the browser — key lives server-side only on Railway
-- All images sent in one Claude API call as multipart/form-data
+- All images/PDFs sent in one Claude API call as multipart/form-data
 - Client-side thumbnails (150px, JPEG 0.5) stored in `sessionStorage` as `rw_images` — shown as strip on results page
 - High-res lightbox images (1500px, JPEG 0.85) stored separately as `rw_lightbox` — loaded when tapping a thumbnail
 - Results stored in `sessionStorage` as `rw_results`, rendered on `results.html`
@@ -35,13 +35,13 @@ Railway (personal account) — single service from this repo
 
 | File | Purpose |
 |---|---|
-| `index.html` | Upload UI — drag-drop, file picker, camera, scan button |
-| `results.html` | Summary, transcription, collapsible image strip, edit + share |
+| `index.html` | Upload UI — drag-drop, file picker, camera, scan button, instructions field |
+| `results.html` | Summary, transcription, additional notes, collapsible image strip, edit + share |
 | `app.js` | All JS — thumbnail generation, image handling, POST, sessionStorage, lightbox, edit, share |
 | `style.css` | Shared styles, CSS variables for auto light/dark mode |
 | `test.html` | Self-contained QA harness — runs in browser, no API key needed |
 | `app/main.py` | FastAPI — `/api/scan` endpoint + static file mount |
-| `SCAN_ENDPOINT.py` | Superseded reference copy — ignore, kept for reference only |
+| `SCAN_ENDPOINT.py` | Superseded reference copy — ignore |
 | `requirements.txt` | Python deps: fastapi, uvicorn, anthropic, python-multipart |
 | `Procfile` | Railway start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
 
@@ -49,7 +49,9 @@ Railway (personal account) — single service from this repo
 
 ## Backend: app/main.py
 
-- **Endpoint**: `POST /api/scan` (multipart/form-data, field name `files`)
+- **Endpoint**: `POST /api/scan` (multipart/form-data)
+  - `files` — one or more image files or PDFs
+  - `instructions` — optional free-text string appended to the Claude prompt
 - **Prompt**: `SCAN_PROMPT` constant in `app/main.py`
 - **Static files**: mounted at `/` via `StaticFiles(directory=".", html=True)`
 
@@ -64,7 +66,8 @@ When updating the Claude prompt, edit `SCAN_PROMPT` in `app/main.py`.
 
 - **Model**: `claude-sonnet-4-6`
 - **Called from**: Railway (server-side, never browser)
-- **Response format**: JSON `{"summary": "...", "transcription": "..."}` — code strips markdown fences before parsing
+- **File types**: images sent as `image` blocks; PDFs sent as `document` blocks
+- **Response format**: JSON `{"summary": "...", "transcription": "...", "additional_notes": "..."}` — `additional_notes` only present when instructions were provided
 - **Prompt goal**: flowing prose transcription (no arbitrary line wrapping), concise summary with key points + action items
 - **Language**: handles multilingual input (e.g. Japanese) and returns English output without any prompt changes needed
 
@@ -74,20 +77,23 @@ When updating the Claude prompt, edit `SCAN_PROMPT` in `app/main.py`.
 
 ```
 index.html
-  → user selects images (file picker / drag-drop / camera)
+  → user selects images/PDFs (file picker / drag-drop / camera)
+  → optional instructions entered
   → app.js generates strip thumbnails (canvas, 150px, JPEG 0.5) → sessionStorage rw_images
   → app.js generates lightbox images (canvas, 1500px, JPEG 0.85) → sessionStorage rw_lightbox
-  → app.js builds FormData with original image files
+    (PDFs get a placeholder tile — no client-side render)
+  → app.js builds FormData with files + instructions
   → POST to /api/scan
-  → Railway calls Claude with all images in one request
-  → {summary, transcription} returned → sessionStorage rw_results
+  → Railway calls Claude with all files in one request
+  → {summary, transcription, additional_notes?} returned → sessionStorage rw_results
   → redirect to results.html
 
 results.html
   → reads rw_results + rw_images + rw_lightbox from sessionStorage
-  → shows collapsible image strip (thumbnails → lightbox on tap)
+  → shows collapsible image strip (thumbnails → lightbox on tap; PDFs show 📄 tile)
   → "Include images in share" checkbox visible on supported mobile browsers
-  → renders summary first, transcription below
+  → renders summary first, then additional_notes (if present) below a divider
+  → transcription below
   → Edit button toggles section to <textarea> for corrections
   → Share buttons call navigator.share() or clipboard fallback
 ```
