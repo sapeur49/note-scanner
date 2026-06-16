@@ -447,3 +447,29 @@ details[open] .images-toggle::before {
   margin-top: 8px;
   padding: 0 4px;
 }
+
+/* ── Instructions card ── */
+
+.instructions-card { margin-top: 0; }
+
+.optional-tag {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-left: 6px;
+}
+
+.instructions-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  padding: 0;
+}

@@ -5,7 +5,7 @@ import re
 from typing import List
 
 import anthropic
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
 
 MODEL = "claude-sonnet-4-6"
@@ -25,7 +25,7 @@ app = FastAPI()
 
 
 @app.post("/api/scan")
-async def scan_notes(files: List[UploadFile] = File(...)):
+async def scan_notes(files: List[UploadFile] = File(...), instructions: str = Form(default="")):
     if not client:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
     if not files:
@@ -47,7 +47,10 @@ async def scan_notes(files: List[UploadFile] = File(...)):
                 "source": {"type": "base64", "media_type": media_type, "data": b64},
             })
 
-    image_blocks.append({"type": "text", "text": SCAN_PROMPT})
+    prompt = SCAN_PROMPT
+    if instructions and instructions.strip():
+        prompt += f"\n\nAdditional instructions: {instructions.strip()}"
+    image_blocks.append({"type": "text", "text": prompt})
 
     response = client.messages.create(
         model=MODEL,

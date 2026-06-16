@@ -123,6 +123,8 @@ function initIndex() {
 
       const formData = new FormData();
       selectedFiles.forEach(file => formData.append('files', file));
+      const instructions = document.getElementById('instructions')?.value.trim();
+      if (instructions) formData.append('instructions', instructions);
 
       const response = await fetch(SCAN_URL, {
         method: 'POST',
