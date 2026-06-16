@@ -1,10 +1,9 @@
 /* ReadWrite — app.js */
 
-const RESULTS_KEY = 'rw_results';
-const IMAGES_KEY  = 'rw_images';
+const RESULTS_KEY  = 'rw_results';
+const IMAGES_KEY   = 'rw_images';
+const LIGHTBOX_KEY = 'rw_lightbox';
 const SCAN_URL = '/api/scan';
-const THUMB_MAX_PX = 300;
-const THUMB_QUALITY = 0.6;
 const IMAGES_SIZE_LIMIT = 4 * 1024 * 1024; // 4 MB
 
 /* ── Utilities ── */
@@ -21,18 +20,18 @@ function clearError() {
 
 /* ── Thumbnail helper ── */
 
-function makeThumbnail(file) {
+function resizeImage(file, maxPx, quality) {
   return new Promise(resolve => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      const scale = Math.min(1, THUMB_MAX_PX / Math.max(img.width, img.height));
+      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
       const canvas = document.createElement('canvas');
       canvas.width  = Math.round(img.width  * scale);
       canvas.height = Math.round(img.height * scale);
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/jpeg', THUMB_QUALITY));
+      resolve(canvas.toDataURL('image/jpeg', quality));
     };
     img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
     img.src = url;
@@ -96,13 +95,19 @@ function initIndex() {
     loading.style.display = 'block';
 
     try {
-      const thumbs = await Promise.all(selectedFiles.map(makeThumbnail));
-      const thumbsFiltered = thumbs.filter(Boolean);
-      const thumbsJson = JSON.stringify(thumbsFiltered);
-      if (thumbsJson.length < IMAGES_SIZE_LIMIT) {
+      const [thumbs, lightboxImgs] = await Promise.all([
+        Promise.all(selectedFiles.map(f => resizeImage(f, 150, 0.5))),
+        Promise.all(selectedFiles.map(f => resizeImage(f, 1500, 0.85))),
+      ]);
+      const thumbsJson    = JSON.stringify(thumbs.filter(Boolean));
+      const lightboxJson  = JSON.stringify(lightboxImgs.filter(Boolean));
+      const totalSize = thumbsJson.length + lightboxJson.length;
+      if (totalSize < IMAGES_SIZE_LIMIT) {
         sessionStorage.setItem(IMAGES_KEY, thumbsJson);
+        sessionStorage.setItem(LIGHTBOX_KEY, lightboxJson);
       } else {
         sessionStorage.removeItem(IMAGES_KEY);
+        sessionStorage.removeItem(LIGHTBOX_KEY);
       }
 
       const formData = new FormData();
@@ -144,10 +149,12 @@ function initResults() {
   document.getElementById('summary-text').textContent = data.summary || '';
   document.getElementById('transcription-text').textContent = data.transcription || '';
 
-  const imagesRaw = sessionStorage.getItem(IMAGES_KEY);
+  const imagesRaw   = sessionStorage.getItem(IMAGES_KEY);
+  const lightboxRaw = sessionStorage.getItem(LIGHTBOX_KEY);
   if (imagesRaw) {
     try {
-      const thumbs = JSON.parse(imagesRaw);
+      const thumbs     = JSON.parse(imagesRaw);
+      const fullImages = lightboxRaw ? JSON.parse(lightboxRaw) : thumbs;
       const strip = document.getElementById('image-strip');
       if (strip && thumbs.length) {
         thumbs.forEach((src, i) => {
@@ -155,7 +162,7 @@ function initResults() {
           img.src = src;
           img.className = 'thumb';
           img.alt = `Image ${i + 1}`;
-          img.addEventListener('click', () => openLightbox(src));
+          img.addEventListener('click', () => openLightbox(fullImages[i] || src));
           strip.appendChild(img);
         });
         document.getElementById('images-section').hidden = false;
