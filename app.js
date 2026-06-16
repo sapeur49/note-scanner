@@ -1,7 +1,7 @@
 /* ReadWrite — app.js */
 
 const RESULTS_KEY = 'rw_results';
-const SCAN_URL = 'https://ra-match-scanner.up.railway.app/api/scan';
+const SCAN_URL = '/api/scan';
 
 /* ── Utilities ── */
 
