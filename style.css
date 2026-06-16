@@ -452,6 +452,12 @@ details[open] .images-toggle::before {
 
 .instructions-card { margin-top: 0; }
 
+.instructions-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
 .optional-tag {
   font-size: 0.7rem;
   font-weight: 400;
