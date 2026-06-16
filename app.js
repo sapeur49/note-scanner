@@ -182,6 +182,29 @@ function initResults() {
 
   const copiedMsg = document.getElementById('copied-msg');
 
+  // Show "include images" checkbox only when file sharing is supported and images exist
+  const includeImagesLabel = document.getElementById('include-images-label');
+  const includeImagesCb    = document.getElementById('include-images-cb');
+  const lightboxRawShare   = sessionStorage.getItem(LIGHTBOX_KEY);
+  if (includeImagesLabel && lightboxRawShare && navigator.share) {
+    const testFiles = [new File([], 'test.jpg', { type: 'image/jpeg' })];
+    if (navigator.canShare && navigator.canShare({ files: testFiles })) {
+      includeImagesLabel.hidden = false;
+    }
+  }
+
+  function getShareFiles() {
+    if (!includeImagesCb || !includeImagesCb.checked || !lightboxRawShare) return [];
+    try {
+      return JSON.parse(lightboxRawShare).map((dataUrl, i) => {
+        const [header, b64] = dataUrl.split(',');
+        const mime = header.match(/:(.*?);/)[1];
+        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        return new File([bytes], `image-${i + 1}.jpg`, { type: mime });
+      });
+    } catch (_) { return []; }
+  }
+
   function getText(section) {
     const el = document.getElementById(`${section}-text`);
     return el.tagName === 'TEXTAREA' ? el.value : el.textContent;
@@ -214,9 +237,11 @@ function initResults() {
   });
 
   async function share(text) {
+    const files = getShareFiles();
     if (navigator.share) {
       try {
-        await navigator.share({ text });
+        const payload = files.length ? { text, files } : { text };
+        await navigator.share(payload);
         return;
       } catch (_) { /* user cancelled or not supported */ }
     }
