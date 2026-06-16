@@ -19,6 +19,9 @@
         <summary class="images-toggle">Scanned Images</summary>
         <div id="image-strip" class="image-strip"></div>
       </details>
+      <label id="include-images-label" class="include-images-label" hidden>
+        <input type="checkbox" id="include-images-cb"> Include images in share
+      </label>
     </section>
 
     <div class="card" id="summary-card">
@@ -39,16 +42,12 @@
     </div>
 
     <div class="copied-msg" id="copied-msg"></div>
-
-    <label id="include-images-label" class="include-images-label" hidden>
-      <input type="checkbox" id="include-images-cb"> Include images in share
-    </label>
   </div>
 
   <div id="lightbox" class="lightbox" hidden>
     <img id="lightbox-img" src="" alt="Full size">
   </div>
 
-  <script src="app.js?v=6"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>
