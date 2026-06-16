@@ -49,7 +49,9 @@ async def scan_notes(files: List[UploadFile] = File(...), instructions: str = Fo
 
     prompt = SCAN_PROMPT
     if instructions and instructions.strip():
-        prompt += f"\n\nAdditional instructions: {instructions.strip()}"
+        prompt += f"""\n\nAdditional instructions: {instructions.strip()}
+
+Also include an "additional_notes" key in your JSON response addressing the additional instructions above. Omit "additional_notes" entirely if no additional instructions were given."""
     image_blocks.append({"type": "text", "text": prompt})
 
     response = client.messages.create(

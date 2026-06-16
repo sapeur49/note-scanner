@@ -473,3 +473,20 @@ details[open] .images-toggle::before {
   outline: none;
   padding: 0;
 }
+
+/* ── Additional notes in summary card ── */
+
+.notes-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 14px 0;
+}
+
+.section-subtitle {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}

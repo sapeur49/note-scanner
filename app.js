@@ -161,6 +161,10 @@ function initResults() {
   const data = JSON.parse(raw);
   document.getElementById('summary-text').textContent = data.summary || '';
   document.getElementById('transcription-text').textContent = data.transcription || '';
+  if (data.additional_notes) {
+    document.getElementById('additional-notes-text').textContent = data.additional_notes;
+    document.getElementById('additional-notes-section').hidden = false;
+  }
 
   const imagesRaw   = sessionStorage.getItem(IMAGES_KEY);
   const lightboxRaw = sessionStorage.getItem(LIGHTBOX_KEY);
