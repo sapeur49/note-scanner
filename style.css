@@ -50,7 +50,7 @@ header {
   margin-bottom: 32px;
 }
 
-.logo {
+.logo, a.logo {
   font-size: 1.75rem;
   font-weight: 700;
   color: var(--accent);
@@ -58,6 +58,7 @@ header {
 }
 
 .logo span { color: var(--text); }
+a.logo { text-decoration: none; display: inline-block; }
 
 .tagline {
   font-size: 0.875rem;
