@@ -279,6 +279,37 @@ input:focus { border-color: var(--accent); }
 
 .btn-share:hover { background: var(--accent); color: #fff; }
 
+/* Edit button */
+.btn-edit {
+  margin-left: auto;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.btn-edit:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Editable textarea */
+.result-textarea {
+  width: 100%;
+  min-height: 160px;
+  padding: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.7;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+}
+
 .copied-msg {
   font-size: 0.8rem;
   color: var(--success);

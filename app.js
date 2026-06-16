@@ -107,11 +107,42 @@ function initResults() {
     return;
   }
 
-  const { summary, transcription } = JSON.parse(raw);
-  document.getElementById('summary-text').textContent = summary || '';
-  document.getElementById('transcription-text').textContent = transcription || '';
+  const data = JSON.parse(raw);
+  document.getElementById('summary-text').textContent = data.summary || '';
+  document.getElementById('transcription-text').textContent = data.transcription || '';
 
   const copiedMsg = document.getElementById('copied-msg');
+
+  function getText(section) {
+    const el = document.getElementById(`${section}-text`);
+    return el.tagName === 'TEXTAREA' ? el.value : el.textContent;
+  }
+
+  // Edit toggle
+  document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const section = btn.dataset.section;
+      const el = document.getElementById(`${section}-text`);
+      const isEditing = el.tagName === 'TEXTAREA';
+
+      if (isEditing) {
+        const div = document.createElement('div');
+        div.className = 'result-text';
+        div.id = `${section}-text`;
+        div.textContent = el.value;
+        el.replaceWith(div);
+        btn.textContent = 'Edit';
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.className = 'result-textarea';
+        textarea.id = `${section}-text`;
+        textarea.value = el.textContent;
+        el.replaceWith(textarea);
+        textarea.focus();
+        btn.textContent = 'Done';
+      }
+    });
+  });
 
   async function share(text) {
     if (navigator.share) {
@@ -132,9 +163,9 @@ function initResults() {
   document.querySelectorAll('.btn-share').forEach(btn => {
     btn.addEventListener('click', () => {
       const target = btn.dataset.target;
-      if (target === 'summary') share(summary || '');
-      else if (target === 'transcription') share(transcription || '');
-      else share(`Summary:\n${summary}\n\nTranscription:\n${transcription}`);
+      if (target === 'summary') share(getText('summary'));
+      else if (target === 'transcription') share(getText('transcription'));
+      else share(`Summary:\n${getText('summary')}\n\nTranscription:\n${getText('transcription')}`);
     });
   });
 }
