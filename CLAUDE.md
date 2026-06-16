@@ -2,7 +2,7 @@
 
 ## What This Is
 
-**ReadWrite** is a web app that scans photos of handwritten or printed notes using Claude's vision API. The frontend (HTML/CSS/JS) and backend (FastAPI) are served together from a single Railway service. The GitHub repo is private.
+**ReadWrite** is a web app that scans photos of handwritten or printed notes using Claude's vision API. The frontend (HTML/CSS/JS) and backend (FastAPI) are served together from a single Railway service. The GitHub repo is private (`sapeur49/readwrite`).
 
 **Live app**: served from Railway (personal account) — check Railway dashboard for current URL.
 
@@ -23,9 +23,10 @@ Railway (personal account) — single service from this repo
 **Key decisions:**
 - No API key in the browser — key lives server-side only on Railway
 - All images sent in one Claude API call as multipart/form-data
-- Client-side thumbnails stored in `sessionStorage` as `rw_images`, shown on results page with lightbox
+- Client-side thumbnails (150px, JPEG 0.5) stored in `sessionStorage` as `rw_images` — shown as strip on results page
+- High-res lightbox images (1500px, JPEG 0.85) stored separately as `rw_lightbox` — loaded when tapping a thumbnail
 - Results stored in `sessionStorage` as `rw_results`, rendered on `results.html`
-- Share via `navigator.share()` → clipboard fallback
+- Share via `navigator.share()` → clipboard fallback; file sharing (images) available on supported mobile browsers
 - `SCAN_URL` in `app.js` is `/api/scan` (relative — same origin, no hardcoded domain)
 
 ---
@@ -35,12 +36,12 @@ Railway (personal account) — single service from this repo
 | File | Purpose |
 |---|---|
 | `index.html` | Upload UI — drag-drop, file picker, camera, scan button |
-| `results.html` | Summary, transcription, image strip (collapsible), edit + share |
+| `results.html` | Summary, transcription, collapsible image strip, edit + share |
 | `app.js` | All JS — thumbnail generation, image handling, POST, sessionStorage, lightbox, edit, share |
 | `style.css` | Shared styles, CSS variables for auto light/dark mode |
 | `test.html` | Self-contained QA harness — runs in browser, no API key needed |
 | `app/main.py` | FastAPI — `/api/scan` endpoint + static file mount |
-| `SCAN_ENDPOINT.py` | Legacy reference copy of the scan endpoint (superseded by `app/main.py`) |
+| `SCAN_ENDPOINT.py` | Superseded reference copy — ignore, kept for reference only |
 | `requirements.txt` | Python deps: fastapi, uvicorn, anthropic, python-multipart |
 | `Procfile` | Railway start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
 
@@ -48,11 +49,9 @@ Railway (personal account) — single service from this repo
 
 ## Backend: app/main.py
 
-The FastAPI service lives in `app/main.py` in this repo and is deployed directly on Railway.
-
 - **Endpoint**: `POST /api/scan` (multipart/form-data, field name `files`)
 - **Prompt**: `SCAN_PROMPT` constant in `app/main.py`
-- **Static files**: mounted at `/` via `StaticFiles(directory=".", html=True)` — serves the HTML/CSS/JS frontend
+- **Static files**: mounted at `/` via `StaticFiles(directory=".", html=True)`
 
 When updating the Claude prompt, edit `SCAN_PROMPT` in `app/main.py`.
 
@@ -67,6 +66,7 @@ When updating the Claude prompt, edit `SCAN_PROMPT` in `app/main.py`.
 - **Called from**: Railway (server-side, never browser)
 - **Response format**: JSON `{"summary": "...", "transcription": "..."}` — code strips markdown fences before parsing
 - **Prompt goal**: flowing prose transcription (no arbitrary line wrapping), concise summary with key points + action items
+- **Language**: handles multilingual input (e.g. Japanese) and returns English output without any prompt changes needed
 
 ---
 
@@ -75,16 +75,18 @@ When updating the Claude prompt, edit `SCAN_PROMPT` in `app/main.py`.
 ```
 index.html
   → user selects images (file picker / drag-drop / camera)
-  → app.js generates compressed thumbnails (canvas, 300px, JPEG 0.6) → sessionStorage rw_images
-  → app.js builds FormData with all image files
+  → app.js generates strip thumbnails (canvas, 150px, JPEG 0.5) → sessionStorage rw_images
+  → app.js generates lightbox images (canvas, 1500px, JPEG 0.85) → sessionStorage rw_lightbox
+  → app.js builds FormData with original image files
   → POST to /api/scan
   → Railway calls Claude with all images in one request
   → {summary, transcription} returned → sessionStorage rw_results
   → redirect to results.html
 
 results.html
-  → reads rw_results + rw_images from sessionStorage
-  → shows collapsible image strip (thumbnails → lightbox on click)
+  → reads rw_results + rw_images + rw_lightbox from sessionStorage
+  → shows collapsible image strip (thumbnails → lightbox on tap)
+  → "Include images in share" checkbox visible on supported mobile browsers
   → renders summary first, transcription below
   → Edit button toggles section to <textarea> for corrections
   → Share buttons call navigator.share() or clipboard fallback
@@ -100,7 +102,7 @@ ANTHROPIC_API_KEY=sk-... uvicorn app.main:app --reload
 # Open http://localhost:8000
 ```
 
-Cache busting: asset files use `?v=N` query strings in HTML. Bump N when deploying JS/CSS changes.
+Cache busting: asset files use `?v=N` query strings in HTML. Bump N in both `index.html` and `results.html` when deploying JS/CSS changes.
 
 ---
 
@@ -123,8 +125,6 @@ Each utility (ReadWrite and future tools) lives in its **own Railway service and
 - Independent deploys, independent failure domains
 - If Stripe billing is added later, the subscription check is a second FastAPI dependency alongside auth — same pattern, per-service
 
-This contrasts with Option B (monorepo, single service, all tools as routes) which couples everything together.
-
 **Clerk auth implementation (not started):**
 - Frontend: Clerk JS SDK via CDN — wraps upload UI behind sign-in
 - Frontend: fetch session JWT, send as `Authorization: Bearer <token>` on `/api/scan`
@@ -132,9 +132,10 @@ This contrasts with Option B (monorepo, single service, all tools as routes) whi
 - Railway env vars: `CLERK_SECRET_KEY`, `CLERK_JWKS_URL`
 - Effort: ~half a day
 
-**Billing (future, after auth):**
-- Stripe subscriptions with `require_active_subscription()` FastAPI dependency
-- `402` response on expired subscription
+**Simple password protection (not started, optional interim step):**
+- Add `READWRITE_PASSWORD` env var to Railway
+- FastAPI HTTP Basic Auth middleware (~15 lines in `app/main.py`) — browser shows native login dialog
+- No frontend changes needed
 
 ---
 
