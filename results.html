@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ReadWrite — Results</title>
-  <link rel="stylesheet" href="style.css?v=3">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
   <div class="container">
@@ -13,6 +13,13 @@
     <header>
       <a href="index.html" class="logo">Read<span>Write</span></a>
     </header>
+
+    <section id="images-section" hidden>
+      <details open>
+        <summary class="images-toggle">Scanned Images</summary>
+        <div id="image-strip" class="image-strip"></div>
+      </details>
+    </section>
 
     <div class="card" id="summary-card">
       <div class="section-title">✨ Summary <button class="btn-edit" data-section="summary">Edit</button></div>
@@ -32,6 +39,10 @@
     </div>
 
     <div class="copied-msg" id="copied-msg"></div>
+  </div>
+
+  <div id="lightbox" class="lightbox" hidden>
+    <img id="lightbox-img" src="" alt="Full size">
   </div>
 
   <script src="app.js?v=4"></script>
