@@ -339,3 +339,72 @@ input:focus { border-color: var(--accent); }
   .share-row { flex-direction: column; }
   .btn-share { justify-content: center; }
 }
+
+/* ── Image strip (results page) ── */
+
+#images-section {
+  margin-bottom: 16px;
+}
+
+.images-toggle {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
+  list-style: none;
+}
+
+.images-toggle::marker,
+.images-toggle::-webkit-details-marker { display: none; }
+
+.images-toggle::before {
+  content: '▶ ';
+  font-size: 0.7em;
+  transition: transform 0.15s;
+  display: inline-block;
+}
+
+details[open] .images-toggle::before {
+  transform: rotate(90deg);
+}
+
+.image-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.image-strip .thumb {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.image-strip .thumb:hover { opacity: 0.8; }
+
+/* ── Lightbox ── */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  cursor: zoom-out;
+}
+
+.lightbox img {
+  max-width: 92vw;
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 6px;
+}

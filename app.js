@@ -1,7 +1,11 @@
 /* ReadWrite — app.js */
 
 const RESULTS_KEY = 'rw_results';
+const IMAGES_KEY  = 'rw_images';
 const SCAN_URL = '/api/scan';
+const THUMB_MAX_PX = 300;
+const THUMB_QUALITY = 0.6;
+const IMAGES_SIZE_LIMIT = 4 * 1024 * 1024; // 4 MB
 
 /* ── Utilities ── */
 
@@ -13,6 +17,26 @@ function showError(msg) {
 function clearError() {
   const el = document.getElementById('error-msg');
   if (el) el.textContent = '';
+}
+
+/* ── Thumbnail helper ── */
+
+function makeThumbnail(file) {
+  return new Promise(resolve => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const scale = Math.min(1, THUMB_MAX_PX / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.round(img.width  * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', THUMB_QUALITY));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
 }
 
 /* ── Index page logic ── */
@@ -72,6 +96,15 @@ function initIndex() {
     loading.style.display = 'block';
 
     try {
+      const thumbs = await Promise.all(selectedFiles.map(makeThumbnail));
+      const thumbsFiltered = thumbs.filter(Boolean);
+      const thumbsJson = JSON.stringify(thumbsFiltered);
+      if (thumbsJson.length < IMAGES_SIZE_LIMIT) {
+        sessionStorage.setItem(IMAGES_KEY, thumbsJson);
+      } else {
+        sessionStorage.removeItem(IMAGES_KEY);
+      }
+
       const formData = new FormData();
       selectedFiles.forEach(file => formData.append('files', file));
 
@@ -110,6 +143,35 @@ function initResults() {
   const data = JSON.parse(raw);
   document.getElementById('summary-text').textContent = data.summary || '';
   document.getElementById('transcription-text').textContent = data.transcription || '';
+
+  const imagesRaw = sessionStorage.getItem(IMAGES_KEY);
+  if (imagesRaw) {
+    try {
+      const thumbs = JSON.parse(imagesRaw);
+      const strip = document.getElementById('image-strip');
+      if (strip && thumbs.length) {
+        thumbs.forEach((src, i) => {
+          const img = document.createElement('img');
+          img.src = src;
+          img.className = 'thumb';
+          img.alt = `Image ${i + 1}`;
+          img.addEventListener('click', () => openLightbox(src));
+          strip.appendChild(img);
+        });
+        document.getElementById('images-section').hidden = false;
+      }
+    } catch (_) {}
+  }
+
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImg = document.getElementById('lightbox-img');
+  function openLightbox(src) {
+    lightboxImg.src = src;
+    lightbox.hidden = false;
+  }
+  if (lightbox) {
+    lightbox.addEventListener('click', () => { lightbox.hidden = true; lightboxImg.src = ''; });
+  }
 
   const copiedMsg = document.getElementById('copied-msg');
 
