@@ -282,9 +282,12 @@ function initResults() {
   document.querySelectorAll('.btn-share').forEach(btn => {
     btn.addEventListener('click', () => {
       const target = btn.dataset.target;
-      if (target === 'summary') share(getText('summary'));
+      const summaryText = getText('summary');
+      const additionalEl = document.getElementById('additional-notes-text');
+      const additionalText = additionalEl && additionalEl.textContent ? `\n\nAdditional Notes:\n${additionalEl.textContent}` : '';
+      if (target === 'summary') share(summaryText + additionalText);
       else if (target === 'transcription') share(getText('transcription'));
-      else share(`Summary:\n${getText('summary')}\n\nTranscription:\n${getText('transcription')}`);
+      else share(`Summary:\n${summaryText}${additionalText}\n\nTranscription:\n${getText('transcription')}`);
     });
   });
 }
