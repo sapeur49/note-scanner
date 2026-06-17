@@ -448,6 +448,39 @@ details[open] .images-toggle::before {
   padding: 0 4px;
 }
 
+/* ── Auth user row ── */
+
+.user-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.user-email {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.btn-signout {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.btn-signout:hover { border-color: var(--accent); color: var(--accent); }
+
 /* ── Instructions card ── */
 
 .instructions-card { margin-top: 0; }

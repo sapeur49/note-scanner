@@ -5,8 +5,10 @@ import re
 from typing import List
 
 import anthropic
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.staticfiles import StaticFiles
+
+from app.auth.verify import verify_clerk_token
 
 MODEL = "claude-sonnet-4-6"
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY")) if os.environ.get("ANTHROPIC_API_KEY") else None
@@ -24,8 +26,21 @@ Respond with ONLY valid JSON in this exact shape:
 app = FastAPI()
 
 
+def require_user(authorization: str = Header(default="")):
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+    try:
+        return verify_clerk_token(authorization[7:])
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
 @app.post("/api/scan")
-async def scan_notes(files: List[UploadFile] = File(...), instructions: str = Form(default="")):
+async def scan_notes(
+    files: List[UploadFile] = File(...),
+    instructions: str = Form(default=""),
+    _user: dict = Depends(require_user),
+):
     if not client:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
     if not files:

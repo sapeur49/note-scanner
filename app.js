@@ -6,6 +6,20 @@ const LIGHTBOX_KEY = 'rw_lightbox';
 const SCAN_URL = '/api/scan';
 const IMAGES_SIZE_LIMIT = 4 * 1024 * 1024; // 4 MB
 
+/* ── Clerk auth ── */
+
+async function waitForClerk() {
+  return new Promise(resolve => {
+    if (window.Clerk) { resolve(); return; }
+    const t = setInterval(() => { if (window.Clerk) { clearInterval(t); resolve(); } }, 50);
+  });
+}
+
+async function getToken() {
+  if (!window.Clerk || !window.Clerk.session) return null;
+  return window.Clerk.session.getToken();
+}
+
 /* ── Utilities ── */
 
 function showError(msg) {
@@ -40,7 +54,39 @@ function resizeImage(file, maxPx, quality) {
 
 /* ── Index page logic ── */
 
-function initIndex() {
+async function initIndex() {
+  await waitForClerk();
+  await window.Clerk.load();
+
+  const signInWall = document.getElementById('sign-in-wall');
+  const appEl      = document.getElementById('app');
+
+  function showApp() {
+    signInWall.hidden = true;
+    appEl.hidden = false;
+    const email = window.Clerk.user?.primaryEmailAddress?.emailAddress || '';
+    const emailEl = document.getElementById('user-email');
+    if (emailEl) emailEl.textContent = email;
+  }
+
+  function showSignIn() {
+    appEl.hidden = true;
+    signInWall.hidden = false;
+    window.Clerk.mountSignIn(document.getElementById('clerk-sign-in'));
+  }
+
+  if (window.Clerk.user) {
+    showApp();
+  } else {
+    showSignIn();
+    return;
+  }
+
+  document.getElementById('btn-signout')?.addEventListener('click', async () => {
+    await window.Clerk.signOut();
+    showSignIn();
+  });
+
   const dropZone = document.getElementById('drop-zone');
   const fileInput = document.getElementById('file-input');
   const cameraInput = document.getElementById('camera-input');
@@ -126,8 +172,10 @@ function initIndex() {
       const instructions = document.getElementById('instructions')?.value.trim();
       if (instructions) formData.append('instructions', instructions);
 
+      const token = await getToken();
       const response = await fetch(SCAN_URL, {
         method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         body: formData,
       });
 
@@ -295,7 +343,7 @@ function initResults() {
 /* ── Router ── */
 
 if (document.getElementById('scan-btn')) {
-  initIndex();
+  initIndex().catch(console.error);
 } else if (document.getElementById('summary-text')) {
   initResults();
 }
