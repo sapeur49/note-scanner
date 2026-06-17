@@ -1,25 +1,24 @@
 # Auth Hub — Handoff Document
 
-## What This Is
-
-A plan for adding Clerk-based user authentication to ReadWrite and future utilities. This document is self-contained — use it to start a new conversation or repo for the auth implementation.
+This document captures the agreed architecture for adding user authentication across ReadWrite and future utility tools. Take this to a new conversation/repo to implement.
 
 ---
 
-## Architecture Decision: Option A
+## The Goal
 
-**One Clerk app, one repo per utility, no central auth service.**
+Protect one or more web utilities (starting with ReadWrite) behind a shared login wall using [Clerk](https://clerk.com). Users sign in once and can access any tool that's been added to the hub.
 
-Each utility (ReadWrite, and future tools) is its own Railway service and GitHub repo. They all share the **same Clerk application** (same `CLERK_PUBLISHABLE_KEY` / JWKS URL), so a single user account works across all tools.
+---
 
-There is no central "auth gateway" service. Each FastAPI service verifies JWTs independently using a shared ~15-line `verify.py` module.
+## Architecture Decision: Option A — Separate Repos, Shared Clerk App
 
-### Why Option A
+Each utility lives in its **own Railway service and repo**. They all reference the same Clerk application (same `CLERK_PUBLISHABLE_KEY` / `CLERK_JWKS_URL`). A central hub page links out to all tools.
 
-- Independent deploys — a bug in one tool doesn't affect others
-- No single point of failure
-- Adding a new tool is a 15-minute copy-paste job
-- If you later want per-tool entitlements (e.g. "user has ReadWrite but not Tool B"), add a `subscriptions` check inside each tool's dependency — no cross-service coordination needed
+**Why this way:**
+- Independent deploys and failure domains
+- Adding a new tool doesn't touch existing ones
+- Each service verifies JWTs itself — no central auth service to maintain
+- Scales cleanly to Stripe billing later (second FastAPI dependency alongside auth)
 
 ---
 
@@ -27,167 +26,175 @@ There is no central "auth gateway" service. Each FastAPI service verifies JWTs i
 
 | Layer | What it does | Where it lives |
 |---|---|---|
-| **Clerk** | Identity — sign-up, sign-in, session tokens | clerk.com (hosted) |
-| **FastAPI dependency** | JWT verification — validates the Clerk session token on each request | `app/verify.py` in each service repo |
-| **Each service** | Applies the dependency to protected routes | `app/main.py` in each service repo |
+| **Clerk** | Identity — sign-up, sign-in, session JWTs | Clerk dashboard (one app shared across tools) |
+| **FastAPI middleware** | Verifies JWT on every protected request | `app/verify.py` in each service repo |
+| **Each service** | Declares auth as a FastAPI dependency | `app/main.py` in each service repo |
 
 ---
 
 ## Repo Structure
 
-### `readwrite` (this repo — existing)
-
-Add:
 ```
-app/
-  verify.py      ← shared JWT verification helper
+readwrite/            ← this repo (already exists)
+  app/
+    main.py           ← add auth dependency here
+    verify.py         ← NEW: JWT verification helper
+  index.html          ← wrap upload UI behind Clerk <SignedIn>
+  ...
+
+auth-hub/             ← NEW repo (optional — just a static hub page)
+  index.html          ← links to ReadWrite, future tools
+  style.css
 ```
 
-Modify:
-```
-app/main.py      ← add `Depends(require_auth)` to /api/scan
-index.html       ← add Clerk JS SDK, wrap UI in <SignedIn>/<SignedOut>
-```
-
-### Future tool repos
-
-Copy `app/verify.py` verbatim. Add Clerk JS to the frontend. Done.
-
-### Optional: `auth-hub` repo (hub page)
-
-A static page listing all tools with links — no auth logic needed here, each tool handles its own. Could be a GitHub Pages site or another Railway service.
+The `auth-hub` repo can be a simple static page deployed to Railway or GitHub Pages — it just needs the Clerk JS SDK to show a login button and route signed-in users to the right tool.
 
 ---
 
-## `verify.py` — Reusable JWT Verification
+## Reusable `verify.py` (copy into each service)
 
 ```python
+# app/verify.py
 import os
 import httpx
-import jwt  # PyJWT
+from jose import jwt, JWTError
+from fastapi import HTTPException, Security
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-JWKS_URL = os.environ["CLERK_JWKS_URL"]
-# e.g. https://<your-clerk-domain>/.well-known/jwks.json
+JWKS_URL = os.environ["CLERK_JWKS_URL"]  # e.g. https://<your-clerk-domain>/.well-known/jwks.json
+_jwks_cache = None
 
-_jwks_client = jwt.PyJWKClient(JWKS_URL)
+async def _get_jwks():
+    global _jwks_cache
+    if not _jwks_cache:
+        async with httpx.AsyncClient() as c:
+            _jwks_cache = (await c.get(JWKS_URL)).json()
+    return _jwks_cache
 
-def verify_clerk_token(token: str) -> dict:
-    signing_key = _jwks_client.get_signing_key_from_jwt(token)
-    return jwt.decode(
-        token,
-        signing_key.key,
-        algorithms=["RS256"],
-        options={"verify_aud": False},
-    )
+bearer = HTTPBearer()
+
+async def require_auth(creds: HTTPAuthorizationCredentials = Security(bearer)):
+    token = creds.credentials
+    try:
+        jwks = await _get_jwks()
+        jwt.decode(token, jwks, algorithms=["RS256"], options={"verify_aud": False})
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 ```
 
-Usage in `main.py`:
+Add to `requirements.txt`:
+```
+python-jose[cryptography]
+httpx
+```
+
+---
+
+## Wiring Auth into a Service (15-min recipe)
+
+### 1. Backend (`app/main.py`)
 
 ```python
-from fastapi import Depends, Header, HTTPException
-from app.verify import verify_clerk_token
-
-def require_auth(authorization: str = Header(...)):
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing token")
-    try:
-        return verify_clerk_token(authorization[7:])
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+from app.verify import require_auth
+from fastapi import Depends
 
 @app.post("/api/scan")
 async def scan_notes(
     files: List[UploadFile] = File(...),
     instructions: str = Form(default=""),
-    _user = Depends(require_auth),   # ← add this
+    _user=Depends(require_auth),   # ← add this line
 ):
     ...
 ```
 
----
-
-## Frontend: Clerk JS (CDN, no bundler needed)
+### 2. Frontend (`index.html` / any protected page)
 
 ```html
 <!-- In <head> -->
-<script
-  async
-  crossorigin="anonymous"
-  data-clerk-publishable-key="pk_live_..."
-  src="https://YOURFRONTENDAPI.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
-  type="text/javascript"
-></script>
+<script async crossorigin="anonymous"
+  src="https://YOUR_CLERK_DOMAIN/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+  data-clerk-publishable-key="pk_live_...">
+</script>
 
 <script>
-window.addEventListener('load', async () => {
+window.addEventListener("load", async () => {
   await window.Clerk.load();
-
-  if (window.Clerk.user) {
-    // User is signed in — show the app
-    document.getElementById('app').hidden = false;
-  } else {
-    // Not signed in — show sign-in UI
-    window.Clerk.mountSignIn(document.getElementById('sign-in'));
+  if (!Clerk.user) {
+    document.getElementById('app').hidden = true;
+    await Clerk.openSignIn();
   }
 });
 </script>
 ```
 
-Sending the token on API calls:
+**Important**: The Clerk JS script src must come from your Clerk domain (e.g. `https://glad-clam-42.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js`), not from a CDN like jsdelivr. Using the official Clerk domain is required for Google OAuth and other social providers to appear.
+
+### 3. Send JWT with each scan request (`app.js`)
 
 ```js
-const token = await window.Clerk.session.getToken();
-const response = await fetch('/api/scan', {
+// Ensure Clerk is initialized before allowing scan
+async function waitForClerk() {
+  return new Promise(resolve => {
+    if (window.Clerk?.loaded) return resolve();
+    document.addEventListener('clerk:loaded', resolve);
+    setTimeout(resolve, 3000); // fallback
+  });
+}
+
+// In scan handler:
+await waitForClerk();
+const session = window.Clerk?.session;
+const token = session ? await session.getToken() : null;
+if (!token) { showError('Please sign in to scan.'); return; }
+
+const response = await fetch(SCAN_URL, {
   method: 'POST',
   headers: { 'Authorization': `Bearer ${token}` },
   body: formData,
 });
 ```
 
----
-
-## 15-Minute Recipe: Wire Auth into a New Tool
-
-1. Copy `app/verify.py` into the new repo
-2. Add `PyJWT` and `httpx` to `requirements.txt`
-3. Add `CLERK_JWKS_URL` to Railway env vars (same value for every tool)
-4. Add `Depends(require_auth)` to protected endpoints in `main.py`
-5. Add Clerk JS CDN snippet to frontend HTML
-6. Replace direct `fetch('/api/...')` calls with token-bearing version above
-
----
-
-## Railway Environment Variables (per service)
+### 4. Railway env vars (add to each service)
 
 | Var | Value |
 |---|---|
-| `ANTHROPIC_API_KEY` | Your Claude API key |
-| `CLERK_JWKS_URL` | `https://<your-clerk-domain>/.well-known/jwks.json` — from Clerk dashboard |
+| `CLERK_JWKS_URL` | `https://<your-clerk-domain>/.well-known/jwks.json` |
 
-No `CLERK_SECRET_KEY` needed — JWT verification uses only public keys via JWKS.
+The Clerk publishable key goes in the HTML (it's public — safe to commit).
+
+---
+
+## Common Bugs
+
+**Google OAuth not appearing in sign-in modal**
+- Cause: Clerk JS loaded from a third-party CDN (e.g. jsdelivr) instead of your Clerk domain
+- Fix: Use `https://<your-clerk-domain>/npm/@clerk/clerk-js@5/dist/clerk.browser.js` as the script src
+
+**"Missing or invalid Authorization header" from backend**
+- Cause: `getToken()` returning null, or Clerk not yet initialized when scan is triggered
+- Fix: Check `window.Clerk.session` is non-null before calling `getToken()`, and await a `waitForClerk()` helper before the scan handler runs
+- Debug: `console.log('token:', await window.Clerk?.session?.getToken())` before the fetch
 
 ---
 
 ## First Milestones
 
 1. **Create Clerk app** at clerk.com — note the publishable key and JWKS URL
-2. **Add `verify.py`** to ReadWrite repo
-3. **Add Clerk JS** to `index.html` and `results.html` — gate the UI behind sign-in
-4. **Add `Depends(require_auth)`** to `/api/scan` in `main.py`
-5. **Set `CLERK_JWKS_URL`** in Railway env vars
-6. **Test**: sign in → scan notes → results appear; sign out → redirected to sign-in
+2. **Create `auth-hub` repo** — static page with Clerk sign-in and links to tools
+3. **Add auth to ReadWrite** — `verify.py` + `Depends(require_auth)` on `/api/scan` + Clerk JS in `index.html`
+4. **Test end-to-end** — sign in, scan, confirm 401 without token
+5. **Add second tool** — copy `verify.py`, same Clerk app, done
 
 ---
 
-## ReadWrite Context
+## ReadWrite Context (current state)
 
-- Repo: `sapeur49/note-scanner` (private, Railway personal account)
-- Live at: check Railway dashboard for current URL
-- Current state: fully working — scan images/PDFs, summary + transcription + optional additional notes
-- No auth today — anyone with the URL can scan
-- `ANTHROPIC_API_KEY` already set in Railway env vars
-- Backend: `app/main.py` (FastAPI) — single endpoint `POST /api/scan`
-- Frontend: `index.html`, `results.html`, `app.js` (version 10)
+- Repo: `sapeur49/note-scanner` (may be renamed to `readwrite`)
+- Railway service: personal account, auto-deploys from `main`
+- `SCAN_URL = '/api/scan'` — relative, same origin
+- No auth today — anyone with the Railway URL can scan
+- `app/main.py` is the only backend file; `verify.py` doesn't exist yet
+- Frontend is plain HTML/JS — no bundler, no framework
 
 ---
 
@@ -195,8 +202,9 @@ No `CLERK_SECRET_KEY` needed — JWT verification uses only public keys via JWKS
 
 | Task | Time |
 |---|---|
-| Create Clerk app + get keys | 10 min |
-| Add `verify.py` + backend wiring | 30 min |
-| Add Clerk JS to frontend (ReadWrite) | 45 min |
-| Test end-to-end on Railway | 15 min |
-| **Total** | **~1.5 hours** |
+| Clerk app setup + JWKS URL | 15 min |
+| `verify.py` + backend wiring | 30 min |
+| Frontend Clerk JS + token on fetch | 45 min |
+| Auth hub static page | 30 min |
+| Testing + Railway env vars | 15 min |
+| **Total** | **~2.5 hours** |
