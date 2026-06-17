@@ -45,6 +45,12 @@ body {
   padding: 24px 16px 48px;
 }
 
+/* Center the Clerk sign-in card within the container */
+#sign-in-wall {
+  display: flex;
+  justify-content: center;
+}
+
 /* Header */
 header {
   text-align: center;
