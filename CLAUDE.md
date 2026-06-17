@@ -1,102 +1,10 @@
-# ReadWrite — Developer Guide
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What This Is
 
-**ReadWrite** is a web app that scans photos of handwritten or printed notes using Claude's vision API. The frontend (HTML/CSS/JS) and backend (FastAPI) are served together from a single Railway service. The GitHub repo is private (`sapeur49/readwrite`).
-
-**Live app**: served from Railway (personal account) — check Railway dashboard for current URL.
-
----
-
-## Architecture
-
-```
-Railway (personal account) — single service from this repo
-  index.html    — upload UI
-  results.html  — results + image strip + share
-  app.js        — all frontend logic
-  style.css     — shared styles, auto light/dark mode
-  test.html     — QA harness
-  app/main.py   — FastAPI: serves static files + POST /api/scan
-```
-
-**Key decisions:**
-- No API key in the browser — key lives server-side only on Railway
-- All images/PDFs sent in one Claude API call as multipart/form-data
-- Client-side thumbnails (150px, JPEG 0.5) stored in `sessionStorage` as `rw_images` — shown as strip on results page
-- High-res lightbox images (1500px, JPEG 0.85) stored separately as `rw_lightbox` — loaded when tapping a thumbnail
-- Results stored in `sessionStorage` as `rw_results`, rendered on `results.html`
-- Share via `navigator.share()` → clipboard fallback; file sharing (images) available on supported mobile browsers
-- `SCAN_URL` in `app.js` is `/api/scan` (relative — same origin, no hardcoded domain)
-
----
-
-## File Responsibilities
-
-| File | Purpose |
-|---|---|
-| `index.html` | Upload UI — drag-drop, file picker, camera, scan button, instructions field |
-| `results.html` | Summary, transcription, additional notes, collapsible image strip, edit + share |
-| `app.js` | All JS — thumbnail generation, image handling, POST, sessionStorage, lightbox, edit, share |
-| `style.css` | Shared styles, CSS variables for auto light/dark mode |
-| `test.html` | Self-contained QA harness — runs in browser, no API key needed |
-| `app/main.py` | FastAPI — `/api/scan` endpoint + static file mount |
-| `SCAN_ENDPOINT.py` | Superseded reference copy — ignore |
-| `requirements.txt` | Python deps: fastapi, uvicorn, anthropic, python-multipart |
-| `Procfile` | Railway start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
-
----
-
-## Backend: app/main.py
-
-- **Endpoint**: `POST /api/scan` (multipart/form-data)
-  - `files` — one or more image files or PDFs
-  - `instructions` — optional free-text string appended to the Claude prompt
-- **Prompt**: `SCAN_PROMPT` constant in `app/main.py`
-- **Static files**: mounted at `/` via `StaticFiles(directory=".", html=True)`
-
-When updating the Claude prompt, edit `SCAN_PROMPT` in `app/main.py`.
-
-**Railway env vars required:**
-- `ANTHROPIC_API_KEY` — Claude API key
-
----
-
-## Claude API Details
-
-- **Model**: `claude-sonnet-4-6`
-- **Called from**: Railway (server-side, never browser)
-- **File types**: images sent as `image` blocks; PDFs sent as `document` blocks
-- **Response format**: JSON `{"summary": "...", "transcription": "...", "additional_notes": "..."}` — `additional_notes` only present when instructions were provided
-- **Prompt goal**: flowing prose transcription (no arbitrary line wrapping), concise summary with key points + action items
-- **Language**: handles multilingual input (e.g. Japanese) and returns English output without any prompt changes needed
-
----
-
-## Data Flow
-
-```
-index.html
-  → user selects images/PDFs (file picker / drag-drop / camera)
-  → optional instructions entered
-  → app.js generates strip thumbnails (canvas, 150px, JPEG 0.5) → sessionStorage rw_images
-  → app.js generates lightbox images (canvas, 1500px, JPEG 0.85) → sessionStorage rw_lightbox
-    (PDFs get a placeholder tile — no client-side render)
-  → app.js builds FormData with files + instructions
-  → POST to /api/scan
-  → Railway calls Claude with all files in one request
-  → {summary, transcription, additional_notes?} returned → sessionStorage rw_results
-  → redirect to results.html
-
-results.html
-  → reads rw_results + rw_images + rw_lightbox from sessionStorage
-  → shows collapsible image strip (thumbnails → lightbox on tap; PDFs show 📄 tile)
-  → "Include images in share" checkbox visible on supported mobile browsers
-  → renders summary first, then additional_notes (if present) below a divider
-  → transcription below
-  → Edit button toggles section to <textarea> for corrections
-  → Share buttons call navigator.share() or clipboard fallback
-```
+**ReadWrite** is a web app that scans photos of handwritten or printed notes using Claude's vision API. A single Railway service hosts both the FastAPI backend and static frontend files. Repo: `sapeur49/readwrite`.
 
 ---
 
@@ -104,51 +12,84 @@ results.html
 
 ```bash
 pip install -r requirements.txt
-ANTHROPIC_API_KEY=sk-... uvicorn app.main:app --reload
+ANTHROPIC_API_KEY=sk-... CLERK_JWKS_URL=https://... uvicorn app.main:app --reload
 # Open http://localhost:8000
 ```
 
-Cache busting: asset files use `?v=N` query strings in HTML. Bump N in both `index.html` and `results.html` when deploying JS/CSS changes.
+No build step. No test runner — QA is done via `test.html` in the browser (self-contained, no API key needed).
+
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in both `index.html` and `results.html`. Bump N in both files when deploying JS/CSS changes.
 
 ---
 
 ## Deployment
 
-Push to `main` → Railway auto-deploys from this repo (~1-2 min).
+Push to `main` → Railway auto-deploys (~1-2 min). The `.github/workflows/` files are unused leftovers — harmless.
 
-The `.github/workflows/` files are unused (left over from the GitHub Pages era) — harmless.
+**Railway env vars required:**
+| Var | Purpose |
+|---|---|
+| `ANTHROPIC_API_KEY` | Claude API key |
+| `CLERK_JWKS_URL` | Clerk JWKS endpoint, e.g. `https://<clerk-domain>/.well-known/jwks.json` |
+| `CLERK_ISSUER` | Optional — Clerk issuer URL for stricter JWT validation |
 
 ---
 
-## Future: Multi-Utility Platform with Auth
+## Architecture
 
-**Architecture decision (Option A — recommended):**
+```
+app/main.py        FastAPI: POST /api/scan + static file mount
+app/auth/verify.py JWT verification via Clerk JWKS (PyJWT + PyJWKClient)
+index.html         Upload UI (sign-in wall + app div, shown/hidden by Clerk JS)
+results.html       Results: image strip, summary, additional notes, transcription, share
+app.js             All frontend logic — auth, thumbnails, scan POST, sessionStorage, lightbox, edit, share
+style.css          Shared styles, CSS variables, auto light/dark mode
+test.html          Browser-based QA harness
+```
 
-Each utility (ReadWrite and future tools) lives in its **own Railway service and repo**. Auth is verified independently in each service using the same Clerk app. A central hub page links to all tools.
+**Key decisions:**
+- `ANTHROPIC_API_KEY` stays server-side only; never sent to browser
+- All files sent in one Claude API call (multipart/form-data); images as `image` blocks, PDFs as `document` blocks
+- Client-side image resizing before POST: 150px/JPEG-0.5 thumbnails → `rw_images`, 1500px/JPEG-0.85 lightbox images → `rw_lightbox`, both in `sessionStorage`; PDFs get a placeholder tile (no client-side render)
+- Results stored as `rw_results` in `sessionStorage`; `results.html` reads and renders them
+- `SCAN_URL = '/api/scan'` is relative — same origin, no hardcoded domain
 
-- Each service includes the same ~10-line JWT verification function
-- Adding/removing a utility doesn't touch other services
-- Independent deploys, independent failure domains
-- If Stripe billing is added later, the subscription check is a second FastAPI dependency alongside auth — same pattern, per-service
+---
 
-**Clerk auth implementation (not started):**
-- Frontend: Clerk JS SDK via CDN — wraps upload UI behind sign-in
-- Frontend: fetch session JWT, send as `Authorization: Bearer <token>` on `/api/scan`
-- Backend: verify JWT using Clerk's JWKS endpoint (PyJWT + httpx, ~10 lines)
-- Railway env vars: `CLERK_SECRET_KEY`, `CLERK_JWKS_URL`
-- Effort: ~half a day
+## Auth (Clerk — active)
 
-**Simple password protection (not started, optional interim step):**
-- Add `READWRITE_PASSWORD` env var to Railway
-- FastAPI HTTP Basic Auth middleware (~15 lines in `app/main.py`) — browser shows native login dialog
-- No frontend changes needed
+Sign-in is enforced client-side via the Clerk JS SDK loaded from the Clerk domain (not a CDN):
+```html
+<script src="https://<clerk-domain>/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+  data-clerk-publishable-key="pk_test_..."></script>
+```
+Using the official Clerk domain (not jsdelivr) is required for Google OAuth to appear.
+
+The scan `fetch` sends `Authorization: Bearer <token>` where token = `await window.Clerk.session.getToken()`. The backend's `require_user` dependency (`app/auth/verify.py`) validates the JWT via JWKS. Ensure `window.Clerk.session` is non-null before calling `getToken()` — null means the user isn't signed in.
+
+To update the Clerk publishable key: change `data-clerk-publishable-key` in both `index.html` and `results.html`.
+
+---
+
+## Backend: app/main.py
+
+- `POST /api/scan` — multipart/form-data: `files` (images/PDFs) + optional `instructions` string
+- `SCAN_PROMPT` constant controls the Claude prompt; edit it there to change transcription/summary behaviour
+- When `instructions` is non-empty, Claude also returns `additional_notes` in the JSON response
+- Response shape: `{"summary": "...", "transcription": "...", "additional_notes": "..."}` (`additional_notes` omitted when no instructions)
+- Static files mounted at `/` via `StaticFiles(directory=".", html=True)` — must come after API routes
 
 ---
 
 ## Making Changes
 
 - **Claude prompt**: edit `SCAN_PROMPT` in `app/main.py`
-- **Styling**: edit CSS variables at top of `style.css`
-- **Share formats**: add button in `results.html` with `data-target`, handle in `share()` in `app.js`
+- **Styling**: CSS variables at top of `style.css`
+- **Share formats**: add `data-target` button in `results.html`, handle in `share()` in `app.js`
 - **Tests**: add blocks inside `runTests()` in `test.html`
-- **New utility**: new repo + new Railway service, copy the Clerk JWT verification pattern
+
+---
+
+## Future Auth / Multi-Utility Platform
+
+See `AUTH_HANDOFF.md` for the full architecture plan. Summary: each future utility gets its own repo + Railway service, all sharing the same Clerk app. Copy `app/auth/verify.py` into each service.
