@@ -93,6 +93,25 @@ a.logo { text-decoration: none; display: inline-block; }
   margin-top: 6px;
 }
 
+.note-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.note-inline-input {
+  font-size: inherit;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 2px 8px;
+  width: 100%;
+  max-width: 480px;
+}
+
 /* Card */
 .card {
   background: var(--surface);

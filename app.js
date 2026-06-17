@@ -298,32 +298,50 @@ function initResults() {
     } catch (_) { return []; }
   }
 
+  // note-title and note-date are edited directly by id; others use the id+'-text' convention
+  const INLINE_SECTIONS = ['note-title', 'note-date'];
+
+  function getEditEl(section) {
+    return INLINE_SECTIONS.includes(section)
+      ? document.getElementById(section)
+      : document.getElementById(`${section}-text`);
+  }
+
   function getText(section) {
-    const el = document.getElementById(`${section}-text`);
-    return el.tagName === 'TEXTAREA' ? el.value : el.textContent;
+    const el = getEditEl(section);
+    if (!el) return '';
+    return el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' ? el.value : el.textContent;
   }
 
   // Edit toggle
   document.querySelectorAll('.btn-edit').forEach(btn => {
     btn.addEventListener('click', () => {
       const section = btn.dataset.section;
-      const el = document.getElementById(`${section}-text`);
-      const isEditing = el.tagName === 'TEXTAREA';
+      const el = getEditEl(section);
+      const isInline = INLINE_SECTIONS.includes(section);
+      const isEditing = el.tagName === 'TEXTAREA' || el.tagName === 'INPUT';
 
       if (isEditing) {
-        const div = document.createElement('div');
-        div.className = 'result-text';
-        div.id = `${section}-text`;
-        div.textContent = el.value;
-        el.replaceWith(div);
+        const restored = document.createElement(isInline ? (section === 'note-title' ? 'h1' : 'div') : 'div');
+        restored.className = isInline ? el.dataset.origClass || '' : 'result-text';
+        restored.id = section === 'note-title' ? 'note-title' : section === 'note-date' ? 'note-date' : `${section}-text`;
+        if (section === 'note-title') restored.className = 'note-title';
+        if (section === 'note-date') restored.className = 'note-date';
+        restored.textContent = el.value;
+        el.replaceWith(restored);
         btn.textContent = 'Edit';
       } else {
-        const textarea = document.createElement('textarea');
-        textarea.className = 'result-textarea';
-        textarea.id = `${section}-text`;
-        textarea.value = el.textContent;
-        el.replaceWith(textarea);
-        textarea.focus();
+        const input = document.createElement(isInline ? 'input' : 'textarea');
+        input.className = isInline ? 'note-inline-input' : 'result-textarea';
+        input.id = el.id;
+        if (isInline) {
+          input.type = 'text';
+          input.value = el.textContent;
+        } else {
+          input.value = el.textContent;
+        }
+        el.replaceWith(input);
+        input.focus();
         btn.textContent = 'Done';
       }
     });
@@ -356,10 +374,10 @@ function initResults() {
     shareBtn.addEventListener('click', () => {
       const parts = [];
       if (document.getElementById('share-title').checked && data.title) {
-        parts.push(data.title);
+        parts.push(getText('note-title'));
       }
       if (document.getElementById('share-date').checked && friendlyDate) {
-        parts.push(friendlyDate);
+        parts.push(getText('note-date'));
       }
       if (document.getElementById('share-summary').checked) {
         const additionalEl = document.getElementById('additional-notes-text');
