@@ -24,7 +24,7 @@ No build step. No test runner — QA is done via `test.html` in the browser (sel
 
 ## Deployment
 
-Push to `main` → Railway auto-deploys (~1-2 min). The `.github/workflows/` files are unused leftovers — harmless.
+Push to `main` → Railway auto-deploys (~1-2 min). `Procfile` defines the start command (`uvicorn app.main:app --host 0.0.0.0 --port $PORT`). The `.github/workflows/` files and the root `SCAN_ENDPOINT.py` (a paste-in snippet authored for a different repo) are unused leftovers — harmless, not wired into anything.
 
 **Railway env vars required:**
 | Var | Purpose |
@@ -74,7 +74,9 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in both
 ## Backend: app/main.py
 
 - `POST /api/scan` — multipart/form-data: `files` (images/PDFs) + optional `instructions` string
+- `MODEL` constant (top of `app/main.py`) selects the Claude model — currently `claude-sonnet-4-6`; `max_tokens=4096`
 - `SCAN_PROMPT` constant controls the Claude prompt; edit it there to change transcription/summary behaviour
+- Claude's reply is parsed by extracting the first `{...}` block via regex, then `json.loads` — the prompt forcing JSON-only output is load-bearing
 - When `instructions` is non-empty, Claude also returns `additional_notes` in the JSON response
 - Response shape: `{"summary": "...", "transcription": "...", "additional_notes": "..."}` (`additional_notes` omitted when no instructions)
 - Static files mounted at `/` via `StaticFiles(directory=".", html=True)` — must come after API routes
@@ -84,6 +86,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in both
 ## Making Changes
 
 - **Claude prompt**: edit `SCAN_PROMPT` in `app/main.py`
+- **Claude model**: edit the `MODEL` constant in `app/main.py`
 - **Styling**: CSS variables at top of `style.css`
 - **Share formats**: add `data-target` button in `results.html`, handle in `share()` in `app.js`
 - **Tests**: add blocks inside `runTests()` in `test.html`
