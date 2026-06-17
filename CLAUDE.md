@@ -78,7 +78,8 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in both
 - `SCAN_PROMPT` constant controls the Claude prompt; edit it there to change transcription/summary behaviour
 - Claude's reply is parsed by extracting the first `{...}` block via regex, then `json.loads` — the prompt forcing JSON-only output is load-bearing
 - When `instructions` is non-empty, Claude also returns `additional_notes` in the JSON response
-- Response shape: `{"summary": "...", "transcription": "...", "additional_notes": "..."}` (`additional_notes` omitted when no instructions)
+- `scanned_at` (ISO-8601 UTC) is added server-side after parsing Claude's reply — Claude never generates the timestamp (no clock); the frontend formats it friendly per locale
+- Response shape: `{"title": "...", "summary": "...", "transcription": "...", "scanned_at": "...", "additional_notes": "..."}` (`additional_notes` omitted when no instructions)
 - Static files mounted at `/` via `StaticFiles(directory=".", html=True)` — must come after API routes
 
 ---
@@ -88,7 +89,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in both
 - **Claude prompt**: edit `SCAN_PROMPT` in `app/main.py`
 - **Claude model**: edit the `MODEL` constant in `app/main.py`
 - **Styling**: CSS variables at top of `style.css`
-- **Share formats**: add `data-target` button in `results.html`, handle in `share()` in `app.js`
+- **Share**: single Share panel (`#share-card` in `results.html`) with per-section checkboxes (title/date/image/summary/transcription); the `#share-btn` handler in `app.js` assembles checked sections and calls `share()`
 - **Tests**: add blocks inside `runTests()` in `test.html`
 
 ---

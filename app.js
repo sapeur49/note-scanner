@@ -214,6 +214,26 @@ function initResults() {
     document.getElementById('additional-notes-section').hidden = false;
   }
 
+  // Title + friendly date header
+  const noteMeta  = document.getElementById('note-meta');
+  const titleEl   = document.getElementById('note-title');
+  const dateEl    = document.getElementById('note-date');
+  let friendlyDate = '';
+  if (data.title) titleEl.textContent = data.title;
+  else titleEl.hidden = true;
+  if (data.scanned_at) {
+    const d = new Date(data.scanned_at);
+    if (!isNaN(d)) {
+      friendlyDate = d.toLocaleString(undefined, {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        hour: 'numeric', minute: '2-digit',
+      });
+      dateEl.textContent = friendlyDate;
+    }
+  }
+  if (!friendlyDate) dateEl.hidden = true;
+  if (data.title || friendlyDate) noteMeta.hidden = false;
+
   const imagesRaw   = sessionStorage.getItem(IMAGES_KEY);
   const lightboxRaw = sessionStorage.getItem(LIGHTBOX_KEY);
   if (imagesRaw) {
@@ -255,19 +275,19 @@ function initResults() {
 
   const copiedMsg = document.getElementById('copied-msg');
 
-  // Show "include images" checkbox only when file sharing is supported and images exist
-  const includeImagesLabel = document.getElementById('include-images-label');
-  const includeImagesCb    = document.getElementById('include-images-cb');
-  const lightboxRawShare   = sessionStorage.getItem(LIGHTBOX_KEY);
-  if (includeImagesLabel && lightboxRawShare && navigator.share) {
+  // Show "Image(s)" share checkbox only when file sharing is supported and images exist
+  const shareImageLabel = document.getElementById('share-image-label');
+  const shareImageCb     = document.getElementById('share-image');
+  const lightboxRawShare = sessionStorage.getItem(LIGHTBOX_KEY);
+  if (shareImageLabel && lightboxRawShare && navigator.share) {
     const testFiles = [new File([], 'test.jpg', { type: 'image/jpeg' })];
     if (navigator.canShare && navigator.canShare({ files: testFiles })) {
-      includeImagesLabel.hidden = false;
+      shareImageLabel.hidden = false;
     }
   }
 
   function getShareFiles() {
-    if (!includeImagesCb || !includeImagesCb.checked || !lightboxRawShare) return [];
+    if (!shareImageCb || !shareImageCb.checked || !lightboxRawShare) return [];
     try {
       return JSON.parse(lightboxRawShare).map((dataUrl, i) => {
         const [header, b64] = dataUrl.split(',');
@@ -327,17 +347,32 @@ function initResults() {
     }
   }
 
-  document.querySelectorAll('.btn-share').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const target = btn.dataset.target;
-      const summaryText = getText('summary');
-      const additionalEl = document.getElementById('additional-notes-text');
-      const additionalText = additionalEl && additionalEl.textContent ? `\n\nAdditional Notes:\n${additionalEl.textContent}` : '';
-      if (target === 'summary') share(summaryText + additionalText);
-      else if (target === 'transcription') share(getText('transcription'));
-      else share(`Summary:\n${summaryText}${additionalText}\n\nTranscription:\n${getText('transcription')}`);
+  // Hide share checkboxes for sections that have no content
+  if (!data.title) document.getElementById('share-title-label').hidden = true;
+  if (!friendlyDate) document.getElementById('share-date-label').hidden = true;
+
+  const shareBtn = document.getElementById('share-btn');
+  if (shareBtn) {
+    shareBtn.addEventListener('click', () => {
+      const parts = [];
+      if (document.getElementById('share-title').checked && data.title) {
+        parts.push(data.title);
+      }
+      if (document.getElementById('share-date').checked && friendlyDate) {
+        parts.push(friendlyDate);
+      }
+      if (document.getElementById('share-summary').checked) {
+        const additionalEl = document.getElementById('additional-notes-text');
+        const additionalText = additionalEl && additionalEl.textContent
+          ? `\n\nAdditional Notes:\n${additionalEl.textContent}` : '';
+        parts.push(`Summary:\n${getText('summary')}${additionalText}`);
+      }
+      if (document.getElementById('share-transcription').checked) {
+        parts.push(`Transcription:\n${getText('transcription')}`);
+      }
+      share(parts.join('\n\n'));
     });
-  });
+  }
 }
 
 /* ── Router ── */

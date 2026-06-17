@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import re
+from datetime import datetime, timezone
 from typing import List
 
 import anthropic
@@ -15,11 +16,13 @@ client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY")) if os.
 
 SCAN_PROMPT = """You are processing scanned note images. For each image provided:
 1. Transcribe ALL visible text. Use paragraph breaks between distinct sections. Use bullet points only where the original notes use them. Do NOT wrap text at arbitrary line lengths — write flowing prose where the original is prose.
-2. Produce a concise summary highlighting key points and any action items.
+2. Produce a concise summary highlighting key points and any action items. Keep the summary under 200 words.
+3. Create a short descriptive title (max ~8 words) capturing the note's subject.
 
 Respond with ONLY valid JSON in this exact shape:
 {
-  "summary": "concise summary with key points and action items",
+  "title": "a short descriptive title (max ~8 words) capturing the note's subject",
+  "summary": "concise summary with key points and action items, under 200 words",
   "transcription": "full verbatim transcription of all text across all images"
 }"""
 
@@ -80,7 +83,9 @@ Also include an "additional_notes" key in your JSON response addressing the addi
     if not match:
         raise HTTPException(status_code=502, detail="Unexpected response from Claude")
 
-    return json.loads(match.group())
+    result = json.loads(match.group())
+    result["scanned_at"] = datetime.now(timezone.utc).isoformat()
+    return result
 
 
 # Serve static frontend — must come after API routes
