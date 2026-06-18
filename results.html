@@ -4,11 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ReadWrite — Results</title>
-  <link rel="stylesheet" href="style.css?v=15">
+  <link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
   <div class="container">
-    <a href="index.html" class="back-btn">← Back</a>
+    <a href="index.html" class="back-btn">
+      <svg class="icon"><use href="#icon-arrow-left"/></svg> Back
+    </a>
 
     <header>
       <a href="index.html" class="logo">Read<span>Write</span></a>
@@ -33,7 +35,10 @@
     </section>
 
     <div class="card" id="summary-card">
-      <div class="section-title">✨ Summary <button class="btn-edit" data-section="summary">Edit</button></div>
+      <div class="section-title">
+        <svg class="icon"><use href="#icon-sparkle"/></svg> Summary
+        <button class="btn-edit" data-section="summary">Edit</button>
+      </div>
       <div class="result-text" id="summary-text"></div>
       <div id="additional-notes-section" hidden>
         <hr class="notes-divider">
@@ -43,12 +48,17 @@
     </div>
 
     <div class="card" id="transcription-card">
-      <div class="section-title">📝 Full Transcription <button class="btn-edit" data-section="transcription">Edit</button></div>
+      <div class="section-title">
+        <svg class="icon"><use href="#icon-align-left"/></svg> Full Transcription
+        <button class="btn-edit" data-section="transcription">Edit</button>
+      </div>
       <div class="result-text" id="transcription-text"></div>
     </div>
 
     <div class="card" id="share-card">
-      <div class="section-title">⬆ Share</div>
+      <div class="section-title">
+        <svg class="icon"><use href="#icon-share-2"/></svg> Share
+      </div>
       <div class="share-options">
         <label id="share-title-label"><input type="checkbox" id="share-title" checked> Title</label>
         <label id="share-date-label"><input type="checkbox" id="share-date" checked> Date</label>
@@ -56,7 +66,21 @@
         <label id="share-summary-label"><input type="checkbox" id="share-summary" checked> Summary</label>
         <label id="share-transcription-label"><input type="checkbox" id="share-transcription" checked> Transcription</label>
       </div>
-      <button class="btn-share" id="share-btn">⬆ Share</button>
+      <button class="btn-share" id="share-btn">
+        <svg class="icon"><use href="#icon-share-2"/></svg> Share
+      </button>
+    </div>
+
+    <div class="note-actions" id="note-actions">
+      <button class="btn-save" id="save-btn">
+        <svg class="icon"><use href="#icon-save"/></svg> Save Note
+      </button>
+      <button class="btn-outline" id="update-btn" hidden>
+        <svg class="icon"><use href="#icon-check"/></svg> Update
+      </button>
+      <button class="btn-danger" id="delete-btn" hidden>
+        <svg class="icon"><use href="#icon-trash-2"/></svg> Delete
+      </button>
     </div>
 
     <div class="copied-msg" id="copied-msg"></div>
@@ -66,6 +90,51 @@
     <img id="lightbox-img" src="" alt="Full size">
   </div>
 
+  <svg hidden xmlns="http://www.w3.org/2000/svg">
+    <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 12H5"/>
+      <polyline points="12 19 5 12 12 5"/>
+    </symbol>
+    <symbol id="icon-sparkle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/>
+      <path d="M5 3l.7 2 2 .7-2 .7L5 9l-.7-2-2-.7 2-.7z"/>
+      <path d="M19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>
+    </symbol>
+    <symbol id="icon-align-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="17" y1="10" x2="3" y2="10"/>
+      <line x1="21" y1="6" x2="3" y2="6"/>
+      <line x1="21" y1="14" x2="3" y2="14"/>
+      <line x1="13" y1="18" x2="3" y2="18"/>
+    </symbol>
+    <symbol id="icon-share-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="18" cy="5" r="3"/>
+      <circle cx="6" cy="12" r="3"/>
+      <circle cx="18" cy="19" r="3"/>
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+    </symbol>
+    <symbol id="icon-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+      <polyline points="17 21 17 13 7 13 7 21"/>
+      <polyline points="7 3 7 8 15 8"/>
+    </symbol>
+    <symbol id="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </symbol>
+    <symbol id="icon-trash-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="3 6 5 6 21 6"/>
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+      <line x1="10" y1="11" x2="10" y2="17"/>
+      <line x1="14" y1="11" x2="14" y2="17"/>
+    </symbol>
+    <symbol id="icon-file-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+    </symbol>
+  </svg>
+
   <script
     async
     crossorigin="anonymous"
@@ -73,6 +142,6 @@
     src="https://glad-clam-42.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
     type="text/javascript"
   ></script>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

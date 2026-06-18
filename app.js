@@ -356,7 +356,7 @@ async function initResults() {
     tile.className = 'thumb pdf-thumb';
     tile.title = name || 'PDF';
     if (href) { tile.href = href; tile.target = '_blank'; tile.rel = 'noopener'; }
-    tile.innerHTML = `<span class="pdf-icon">📄</span><span class="pdf-name">${name || 'PDF'}</span>`;
+    tile.innerHTML = `<span class="pdf-icon"><svg class="icon" style="width:24px;height:24px"><use href="#icon-file-text"/></svg></span><span class="pdf-name">${name || 'PDF'}</span>`;
     strip.appendChild(tile);
   }
 
