@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 try:
     from PIL import Image as _PILImage
-    from PIL.ExifTags import GPSTAGS as _GPSTAGS, TAGS as _EXIF_TAGS
+    from PIL.ExifTags import TAGS as _EXIF_TAGS
     _PIL_AVAILABLE = True
 except ImportError:
     _PIL_AVAILABLE = False
@@ -51,22 +51,6 @@ Respond with ONLY valid JSON in this exact shape:
 app = FastAPI()
 
 
-def _parse_gps(gps_ifd: dict):
-    try:
-        gps = {_GPSTAGS.get(k, k): v for k, v in gps_ifd.items()}
-
-        def dms_to_decimal(vals, ref):
-            d, m, s = [float(v) for v in vals]
-            dec = d + m / 60 + s / 3600
-            return -dec if ref in ("S", "W") else dec
-
-        lat = dms_to_decimal(gps["GPSLatitude"], gps.get("GPSLatitudeRef", "N"))
-        lon = dms_to_decimal(gps["GPSLongitude"], gps.get("GPSLongitudeRef", "E"))
-        return {"lat": round(lat, 6), "lon": round(lon, 6)}
-    except Exception:
-        return None
-
-
 def _extract_exif(data: bytes, mime_type: str):
     """Return a dict of EXIF fields of interest, or None if unavailable."""
     if not _PIL_AVAILABLE or not mime_type.startswith("image/"):
@@ -76,35 +60,45 @@ def _extract_exif(data: bytes, mime_type: str):
         raw = img.getexif()
         if not raw:
             return None
-        tags = {_EXIF_TAGS.get(k, k): v for k, v in raw.items()}
+
+        # Main IFD: Make, Model
+        main_tags = {_EXIF_TAGS.get(k, k): v for k, v in raw.items()}
         result = {}
-        for field in ("Make", "Model", "DateTimeOriginal", "DateTime", "LensModel"):
-            if field in tags:
-                result[field] = str(tags[field]).strip("\x00").strip()
-        if "ISOSpeedRatings" in tags:
-            try:
-                result["ISOSpeedRatings"] = int(tags["ISOSpeedRatings"])
-            except (TypeError, ValueError):
-                pass
-        if "FNumber" in tags:
-            try:
-                result["FNumber"] = round(float(tags["FNumber"]), 1)
-            except (TypeError, ValueError):
-                pass
-        if "ExposureTime" in tags:
-            try:
-                v = float(tags["ExposureTime"])
-                result["ExposureTime"] = f"1/{round(1/v)}" if v < 1 and v > 0 else f"{v}s"
-            except (TypeError, ValueError, ZeroDivisionError):
-                pass
+        for field in ("Make", "Model"):
+            if field in main_tags:
+                result[field] = str(main_tags[field]).strip("\x00").strip()
+
+        # ExifIFD sub-IFD (0x8769): shooting data not present in main IFD
         try:
-            gps_ifd = raw.get_ifd(0x8825)
-            if gps_ifd:
-                gps = _parse_gps(dict(gps_ifd))
-                if gps:
-                    result["GPS"] = gps
+            exif_ifd = raw.get_ifd(0x8769)
+            if exif_ifd:
+                exif_tags = {_EXIF_TAGS.get(k, k): v for k, v in exif_ifd.items()}
+                for field in ("DateTimeOriginal", "DateTimeDigitized", "LensModel"):
+                    if field in exif_tags and field not in result:
+                        result[field] = str(exif_tags[field]).strip("\x00").strip()
+                if "ISOSpeedRatings" not in result and "ISOSpeedRatings" in exif_tags:
+                    try:
+                        result["ISOSpeedRatings"] = int(exif_tags["ISOSpeedRatings"])
+                    except (TypeError, ValueError):
+                        pass
+                if "FNumber" not in result and "FNumber" in exif_tags:
+                    try:
+                        result["FNumber"] = round(float(exif_tags["FNumber"]), 1)
+                    except (TypeError, ValueError):
+                        pass
+                if "ExposureTime" not in result and "ExposureTime" in exif_tags:
+                    try:
+                        v = float(exif_tags["ExposureTime"])
+                        result["ExposureTime"] = f"1/{round(1/v)}" if 0 < v < 1 else f"{v}s"
+                    except (TypeError, ValueError, ZeroDivisionError):
+                        pass
         except Exception:
             pass
+
+        # Fall back to DateTime from main IFD if no DateTimeOriginal
+        if "DateTimeOriginal" not in result and "DateTime" in main_tags:
+            result["DateTime"] = str(main_tags["DateTime"]).strip("\x00").strip()
+
         return result if result else None
     except Exception:
         return None
@@ -165,11 +159,11 @@ async def scan_notes(
 
 Also include an "additional_notes" key in your JSON response addressing the additional instructions above. Omit "additional_notes" entirely if no additional instructions were given."""
 
-    # Append camera/date context from first image with EXIF (GPS excluded for privacy)
+    # Append camera/date context from first image with EXIF (no location data)
     for ex in file_exif_list:
         if ex:
             parts = []
-            dt = ex.get("DateTimeOriginal") or ex.get("DateTime")
+            dt = ex.get("DateTimeOriginal") or ex.get("DateTimeDigitized") or ex.get("DateTime")
             if dt:
                 parts.append(f"taken {dt}")
             camera = " ".join(filter(None, [ex.get("Make", "").strip(), ex.get("Model", "").strip()]))

@@ -374,27 +374,18 @@ async function initResults() {
         dl.appendChild(dd);
       }
 
-      const taken = exif.DateTimeOriginal || exif.DateTime;
-      if (taken) addExifRow('Taken', taken);
+      const taken = exif.DateTimeOriginal || exif.DateTimeDigitized || exif.DateTime;
+      if (taken) {
+        // EXIF date format: "YYYY:MM:DD HH:MM:SS" → "YYYY-MM-DD HH:MM"
+        const fmt = taken.replace(/^(\d{4}):(\d{2}):(\d{2})/, '$1-$2-$3').slice(0, 16);
+        addExifRow('Taken', fmt);
+      }
       const camera = [exif.Make, exif.Model].filter(Boolean).join(' ');
       if (camera) addExifRow('Camera', camera);
       if (exif.LensModel) addExifRow('Lens', exif.LensModel);
       if (exif.ISOSpeedRatings) addExifRow('ISO', String(exif.ISOSpeedRatings));
       if (exif.FNumber) addExifRow('Aperture', `f/${exif.FNumber}`);
       if (exif.ExposureTime) addExifRow('Shutter', exif.ExposureTime);
-      if (exif.GPS) {
-        const { lat, lon } = exif.GPS;
-        const a = document.createElement('a');
-        a.href = `https://maps.google.com/?q=${lat},${lon}`;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        a.textContent = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-        const span = document.createElement('span');
-        span.appendChild(a);
-        span.appendChild(document.createTextNode(' (private)'));
-        addExifRow('Location', span);
-      }
-
       details.appendChild(dl);
       figure.appendChild(details);
     }

@@ -738,12 +738,15 @@ details[open] .images-toggle::before {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  position: relative;
+  z-index: 1;
 }
+
+.thumb-figure:has(details[open]) { z-index: 50; }
 
 .exif-details {
   font-size: 0.72rem;
   color: var(--text-muted);
-  width: 80px;
   margin-top: 3px;
 }
 
@@ -754,30 +757,39 @@ details[open] .images-toggle::before {
   font-size: 0.7rem;
   list-style: none;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .exif-details summary::-webkit-details-marker { display: none; }
 
 .exif-dl {
+  position: absolute;
+  top: 90px;
+  left: 0;
+  width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  z-index: 100;
   display: grid;
   grid-template-columns: auto 1fr;
-  column-gap: 5px;
-  row-gap: 1px;
-  margin: 4px 0 0;
-  padding: 0;
+  column-gap: 10px;
+  row-gap: 3px;
+  margin: 0;
 }
 
 .exif-dl dt {
   font-weight: 600;
   color: var(--text-muted);
   white-space: nowrap;
+  font-size: 0.75rem;
 }
 
 .exif-dl dd {
   margin: 0;
   color: var(--text);
+  font-size: 0.75rem;
   word-break: break-word;
 }
 
