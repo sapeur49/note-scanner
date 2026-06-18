@@ -8,11 +8,15 @@ API. One Railway service hosts the FastAPI backend + static frontend. Repo: `sap
 
 ## Current State (continuity)
 - **Saved-notes feature** (MySQL persistence + Railway volume, Save/My Notes/edit/delete)
-  is complete on branch **`claude/beautiful-cerf-86quxm`** — **not yet merged to `main`**,
-  so it is **not live** yet.
+  is code-complete on branch **`claude/beautiful-cerf-86quxm`** — **not yet merged to
+  `main`**, so it is **not live** yet. Currently in **deploy-and-debug** against real
+  Railway infra (Railway Source points at the branch for testing).
+- **Live snapshot + open items live in `HANDOVER.md`** — read it first when resuming.
 - **Pending Railway setup** before/at merge:
-  1. Set `DATABASE_URL` on the ReadWrite service → reference the existing MySQL service
-     (`${{MySQL.MYSQL_URL}}` or `${{MySQL.DATABASE_URL}}`). App accepts `MYSQL_URL` too.
+  1. Set `DATABASE_URL` to a full connection string — reference the MySQL service's
+     `MYSQL_URL` (`${{MySQL.MYSQL_URL}}`). NOT `MYSQL_DATABASE` (just the DB name). App
+     accepts `MYSQL_URL` too; a bad value now falls back to SQLite with a warning instead
+     of crashing.
   2. Add a **Volume** mounted at `/data`; set `VOLUME_PATH=/data`.
   3. Tables auto-create on startup (`db.init_db()`); no manual SQL required.
 - To deploy/test the branch first: Railway service → Settings → Source → point at the
