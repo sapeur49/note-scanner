@@ -314,10 +314,10 @@ async function initResults() {
     await window.Clerk.load();
   }
 
-  document.getElementById('summary-text').textContent = data.summary || '';
-  document.getElementById('transcription-text').textContent = data.transcription || '';
+  setMd(document.getElementById('summary-text'), data.summary || '');
+  setMd(document.getElementById('transcription-text'), data.transcription || '');
   if (data.additional_notes) {
-    document.getElementById('additional-notes-text').textContent = data.additional_notes;
+    setMd(document.getElementById('additional-notes-text'), data.additional_notes);
     document.getElementById('additional-notes-section').hidden = false;
   }
 
@@ -428,7 +428,7 @@ async function initResults() {
   function getText(section) {
     const el = getEditEl(section);
     if (!el) return '';
-    return el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' ? el.value : el.textContent;
+    return el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' ? el.value : (el.dataset.rawMd ?? el.textContent);
   }
 
   // Edit toggle
@@ -445,7 +445,11 @@ async function initResults() {
         restored.id = section === 'note-title' ? 'note-title' : section === 'note-date' ? 'note-date' : `${section}-text`;
         if (section === 'note-title') restored.className = 'note-title';
         if (section === 'note-date') restored.className = 'note-date';
-        restored.textContent = el.value;
+        if (isInline) {
+          restored.textContent = el.value;
+        } else {
+          setMd(restored, el.value);
+        }
         el.replaceWith(restored);
         btn.textContent = 'Edit';
       } else {
@@ -456,7 +460,7 @@ async function initResults() {
           input.type = 'text';
           input.value = el.textContent;
         } else {
-          input.value = el.textContent;
+          input.value = el.dataset.rawMd ?? el.textContent;
         }
         el.replaceWith(input);
         input.focus();
@@ -498,9 +502,8 @@ async function initResults() {
         parts.push(getText('note-date'));
       }
       if (document.getElementById('share-summary').checked) {
-        const additionalEl = document.getElementById('additional-notes-text');
-        const additionalText = additionalEl && additionalEl.textContent
-          ? `\n\nAdditional Notes:\n${additionalEl.textContent}` : '';
+        const addNotes = getText('additional-notes');
+        const additionalText = addNotes ? `\n\nAdditional Notes:\n${addNotes}` : '';
         parts.push(`Summary:\n${getText('summary')}${additionalText}`);
       }
       if (document.getElementById('share-transcription').checked) {
@@ -515,7 +518,7 @@ async function initResults() {
       title: getText('note-title') || data.title || '',
       summary: getText('summary'),
       transcription: getText('transcription'),
-      additional_notes: document.getElementById('additional-notes-text')?.textContent || '',
+      additional_notes: getText('additional-notes') || '',
     };
   }
 
@@ -661,6 +664,37 @@ async function initNotes() {
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  const lines = text.split('\n');
+  const out = [];
+  let listType = null;
+  function closeList() { if (listType) { out.push(`</${listType}>`); listType = null; } }
+  function inlineFormat(s) {
+    return escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  }
+  for (const line of lines) {
+    const t = line.trim();
+    if (t === '') { closeList(); continue; }
+    if (/^### (.+)/.test(t)) { closeList(); out.push(`<h3>${inlineFormat(t.slice(4))}</h3>`); }
+    else if (/^## (.+)/.test(t)) { closeList(); out.push(`<h2>${inlineFormat(t.slice(3))}</h2>`); }
+    else if (/^[-*] (.+)/.test(t)) {
+      if (listType !== 'ul') { closeList(); out.push('<ul>'); listType = 'ul'; }
+      out.push(`<li>${inlineFormat(t.slice(2))}</li>`);
+    } else if (/^\d+\. (.+)/.test(t)) {
+      if (listType !== 'ol') { closeList(); out.push('<ol>'); listType = 'ol'; }
+      out.push(`<li>${inlineFormat(t.replace(/^\d+\. /, ''))}</li>`);
+    } else { closeList(); out.push(`<p>${inlineFormat(t)}</p>`); }
+  }
+  closeList();
+  return out.join('\n');
+}
+
+function setMd(el, text) {
+  el.innerHTML = renderMarkdown(text);
+  el.dataset.rawMd = text;
 }
 
 /* ── Router ── */

@@ -23,15 +23,21 @@ MODEL = "claude-sonnet-4-6"
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY")) if os.environ.get("ANTHROPIC_API_KEY") else None
 
 SCAN_PROMPT = """You are processing scanned note images. For each image provided:
-1. Transcribe ALL visible text. Use paragraph breaks between distinct sections. Use bullet points only where the original notes use them. Do NOT wrap text at arbitrary line lengths — write flowing prose where the original is prose.
-2. Produce a concise summary highlighting key points and any action items. Keep the summary under 200 words.
-3. Create a short descriptive title (max ~8 words) capturing the note's subject.
+1. Transcribe ALL visible text accurately. Mirror the structure of the original:
+   - Use `## Heading` for any section headings or titled sections in the notes
+   - Use `- item` for bullet or list items that appear as such in the original
+   - Use `1. item` for numbered lists
+   - Use `**term**` to bold key terms, headings within paragraphs, or important phrases
+   - Separate distinct sections or paragraphs with a blank line
+   - Write prose as flowing prose — do NOT wrap at arbitrary line lengths
+2. Produce a concise summary (under 200 words) highlighting key points and action items. Use markdown formatting where it aids clarity: `## ` for major themes, `- ` for action items or key points, `**bold**` for critical terms.
+3. Create a short descriptive title (max ~8 words) capturing the note's subject — plain text, no markdown.
 
 Respond with ONLY valid JSON in this exact shape:
 {
   "title": "a short descriptive title (max ~8 words) capturing the note's subject",
-  "summary": "concise summary with key points and action items, under 200 words",
-  "transcription": "full verbatim transcription of all text across all images"
+  "summary": "concise markdown-formatted summary with key points and action items, under 200 words",
+  "transcription": "full verbatim transcription using markdown to reflect the original structure"
 }"""
 
 app = FastAPI()
