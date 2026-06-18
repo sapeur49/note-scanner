@@ -54,6 +54,13 @@ test.html          Browser-based QA harness
 - Results stored as `rw_results` in `sessionStorage`; `results.html` reads and renders them
 - `SCAN_URL = '/api/scan'` is relative — same origin, no hardcoded domain
 
+**sessionStorage keys** (shared contract between `app.js` and `results.html`):
+| Key | Contents |
+|---|---|
+| `rw_images` | JSON array of 150px JPEG data-URLs (thumbnails, one per file) |
+| `rw_lightbox` | JSON array of 1500px JPEG data-URLs (full-res, one per file) |
+| `rw_results` | JSON object — the full `/api/scan` response |
+
 ---
 
 ## Auth (Clerk — active)
@@ -76,7 +83,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in both
 - `POST /api/scan` — multipart/form-data: `files` (images/PDFs) + optional `instructions` string
 - `MODEL` constant (top of `app/main.py`) selects the Claude model — currently `claude-sonnet-4-6`; `max_tokens=4096`
 - `SCAN_PROMPT` constant controls the Claude prompt; edit it there to change transcription/summary behaviour
-- Claude's reply is parsed by extracting the first `{...}` block via regex, then `json.loads` — the prompt forcing JSON-only output is load-bearing
+- Claude's reply is parsed by extracting the first `{...}` block via regex, then `json.loads` — the prompt forcing JSON-only output is load-bearing. If you change `SCAN_PROMPT` in a way that allows Claude to emit prose before or after the JSON, parsing will break silently (returns 502)
 - When `instructions` is non-empty, Claude also returns `additional_notes` in the JSON response
 - `scanned_at` (ISO-8601 UTC) is added server-side after parsing Claude's reply — Claude never generates the timestamp (no clock); the frontend formats it friendly per locale
 - Response shape: `{"title": "...", "summary": "...", "transcription": "...", "scanned_at": "...", "additional_notes": "..."}` (`additional_notes` omitted when no instructions)
@@ -94,6 +101,6 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in both
 
 ---
 
-## Future Auth / Multi-Utility Platform
+## Multi-Utility Platform
 
-See `AUTH_HANDOFF.md` for the full architecture plan. Summary: each future utility gets its own repo + Railway service, all sharing the same Clerk app. Copy `app/auth/verify.py` into each service.
+Auth is live. For future utilities: each gets its own repo + Railway service, sharing the same Clerk app (same `CLERK_PUBLISHABLE_KEY` / `CLERK_JWKS_URL`). Copy `app/auth/verify.py` into each service — no central auth service needed. The `AUTH_HANDOFF.md` in this repo has the full pattern including a reusable `verify.py` template and common gotchas.
