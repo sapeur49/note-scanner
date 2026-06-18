@@ -1,108 +1,117 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code working in this repo. These instructions override default behavior.
 
 ## What This Is
+**ReadWrite** — web app that scans photos of handwritten/printed notes via Claude's vision
+API. One Railway service hosts the FastAPI backend + static frontend. Repo: `sapeur49/readwrite`.
 
-**ReadWrite** is a web app that scans photos of handwritten or printed notes using Claude's vision API. A single Railway service hosts both the FastAPI backend and static frontend files. Repo: `sapeur49/readwrite`.
-
----
+## Current State (continuity)
+- **Saved-notes feature** (MySQL persistence + Railway volume, Save/My Notes/edit/delete)
+  is code-complete on branch **`claude/beautiful-cerf-86quxm`** — **not yet merged to
+  `main`**, so it is **not live** yet. Currently in **deploy-and-debug** against real
+  Railway infra (Railway Source points at the branch for testing).
+- **Live snapshot + open items live in `HANDOVER.md`** — read it first when resuming.
+- **Pending Railway setup** before/at merge:
+  1. Set `DATABASE_URL` to a full connection string — reference the MySQL service's
+     `MYSQL_URL` (`${{MySQL.MYSQL_URL}}`). NOT `MYSQL_DATABASE` (just the DB name). App
+     accepts `MYSQL_URL` too; a bad value now falls back to SQLite with a warning instead
+     of crashing.
+  2. Add a **Volume** mounted at `/data`; set `VOLUME_PATH=/data`.
+  3. Tables auto-create on startup (`db.init_db()`); no manual SQL required.
+- To deploy/test the branch first: Railway service → Settings → Source → point at the
+  branch, verify, then switch back to `main` and merge. Env vars live on the service, so
+  they persist across the branch switch.
+- **Cache-buster currently `?v=16`** on `app.js`/`style.css` in index/results/notes.html.
 
 ## Local Development
-
 ```bash
 pip install -r requirements.txt
 ANTHROPIC_API_KEY=sk-... CLERK_JWKS_URL=https://... uvicorn app.main:app --reload
-# Open http://localhost:8000
+# http://localhost:8000  (no DATABASE_URL → SQLite file; set VOLUME_PATH to a local dir)
 ```
-
-No build step. No test runner — QA is done via `test.html` in the browser (self-contained, no API key needed).
-
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in both `index.html` and `results.html`. Bump N in both files when deploying JS/CSS changes.
-
----
+No build step. No test runner — QA via `test.html` in the browser.
+**Cache busting**: bump `?v=N` on `app.js`/`style.css` in index.html, results.html,
+notes.html when deploying JS/CSS changes.
 
 ## Deployment
+Push to `main` → Railway auto-deploys (~1-2 min) via `Procfile`. The `.github/workflows/`
+files and root `SCAN_ENDPOINT.py` are unused leftovers — harmless.
 
-Push to `main` → Railway auto-deploys (~1-2 min). `Procfile` defines the start command (`uvicorn app.main:app --host 0.0.0.0 --port $PORT`). The `.github/workflows/` files and the root `SCAN_ENDPOINT.py` (a paste-in snippet authored for a different repo) are unused leftovers — harmless, not wired into anything.
-
-**Railway env vars required:**
+**Railway env vars:**
 | Var | Purpose |
 |---|---|
-| `ANTHROPIC_API_KEY` | Claude API key |
-| `CLERK_JWKS_URL` | Clerk JWKS endpoint, e.g. `https://<clerk-domain>/.well-known/jwks.json` |
-| `CLERK_ISSUER` | Optional — Clerk issuer URL for stricter JWT validation |
-
----
+| `ANTHROPIC_API_KEY` | Claude API key (server-side only; never sent to browser) |
+| `CLERK_JWKS_URL` | Clerk JWKS endpoint |
+| `CLERK_ISSUER` | Optional — stricter JWT validation |
+| `DATABASE_URL` | MySQL (also accepts `MYSQL_URL`); `mysql://`→`mysql+pymysql://` auto. Unset → SQLite dev file |
+| `VOLUME_PATH` | Railway volume mount for saved files; default `/data`. Files at `<VOLUME_PATH>/notes/<id>/` |
 
 ## Architecture
-
 ```
-app/main.py        FastAPI: POST /api/scan + static file mount
+app/main.py        FastAPI: /api/scan, /api/notes CRUD + file serving, static mount
+app/db.py          SQLAlchemy Core persistence (MySQL prod / SQLite dev) — notes table
 app/auth/verify.py JWT verification via Clerk JWKS (PyJWT + PyJWKClient)
-index.html         Upload UI (sign-in wall + app div, shown/hidden by Clerk JS)
-results.html       Results: image strip, summary, additional notes, transcription, share
-app.js             All frontend logic — auth, thumbnails, scan POST, sessionStorage, lightbox, edit, share
-style.css          Shared styles, CSS variables, auto light/dark mode
-test.html          Browser-based QA harness
+index.html         Upload UI (sign-in wall + app); "My Notes" button
+results.html       Results / saved-note view: images, summary, transcription, share, Save/Update/Delete
+notes.html         "My Notes" list (search + rows → results.html?id=…)
+app.js             All frontend logic — auth, scan, sessionStorage, IndexedDB, lightbox, edit, share, notes CRUD
+style.css          Shared styles, CSS vars, auto light/dark
+test.html          Browser QA harness
 ```
 
 **Key decisions:**
-- `ANTHROPIC_API_KEY` stays server-side only; never sent to browser
-- All files sent in one Claude API call (multipart/form-data); images as `image` blocks, PDFs as `document` blocks
-- Client-side image resizing before POST: 150px/JPEG-0.5 thumbnails → `rw_images`, 1500px/JPEG-0.85 lightbox images → `rw_lightbox`, both in `sessionStorage`; PDFs get a placeholder tile (no client-side render)
-- Results stored as `rw_results` in `sessionStorage`; `results.html` reads and renders them
-- `SCAN_URL = '/api/scan'` is relative — same origin, no hardcoded domain
+- `ANTHROPIC_API_KEY` server-side only.
+- All files sent in one Claude call; images as `image` blocks, PDFs as `document` blocks.
+- Client resizes images before POST: 150px/JPEG-0.5 thumbs → `rw_images`,
+  1500px/JPEG-0.85 → `rw_lightbox` (both sessionStorage); PDFs get a placeholder tile.
+- Results in `rw_results` (sessionStorage); `results.html` renders them.
+- `SCAN_URL = '/api/scan'` — relative, same origin.
 
-**sessionStorage keys** (shared contract between `app.js` and `results.html`):
-| Key | Contents |
-|---|---|
-| `rw_images` | JSON array of 150px JPEG data-URLs (thumbnails, one per file) |
-| `rw_lightbox` | JSON array of 1500px JPEG data-URLs (full-res, one per file) |
-| `rw_results` | JSON object — the full `/api/scan` response |
+**Saved notes:**
+- One `notes` table (`app/db.py`): text columns + `files` JSON
+  (`[{position, kind, filename, mime, original_name}]`), scoped by `user_id` = Clerk `sub`.
+  Tables auto-create on startup; every query filters by `user_id`.
+- Files persist on the Railway volume under `<VOLUME_PATH>/notes/<note_id>/`; images as the
+  browser's 1500px JPEGs, PDFs as original bytes. No server-side image processing.
+- **Save carries blobs via IndexedDB**: scan-time `app.js` stashes 1500px blobs + PDF files
+  in IndexedDB (`readwrite`/`pending`, keyed by `scanId` in sessionStorage); Save reads
+  them back and POSTs. Nothing persists until Save.
+- **Images served auth'd**: `<img>` can't send a bearer token, so saved view fetches each
+  file via `GET /api/notes/{id}/files/{position}` and renders `URL.createObjectURL(blob)`.
+- `results.html` two modes: fresh scan (sessionStorage → **Save**) and saved (`?id=` →
+  **Update**/**Delete**) — same render/edit/share path.
 
----
+## Auth (Clerk)
+Client-side sign-in via Clerk JS SDK loaded from the **Clerk domain** (not a CDN — required
+for Google OAuth). Scan/notes `fetch` send `Authorization: Bearer <token>` where token =
+`await window.Clerk.session.getToken()`; backend `require_user` (`app/auth/verify.py`)
+validates via JWKS. Ensure `window.Clerk.session` is non-null before `getToken()`.
+Auth state changes (sign-in after sign-out, session expiry) are handled via
+`window.Clerk.addListener(({ user }) => ...)` — do not rely on a one-time `window.Clerk.user`
+check at load time.
+To change the publishable key: edit `data-clerk-publishable-key` in index.html,
+results.html, notes.html.
 
-## Auth (Clerk — active)
-
-Sign-in is enforced client-side via the Clerk JS SDK loaded from the Clerk domain (not a CDN):
-```html
-<script src="https://<clerk-domain>/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
-  data-clerk-publishable-key="pk_test_..."></script>
-```
-Using the official Clerk domain (not jsdelivr) is required for Google OAuth to appear.
-
-The scan `fetch` sends `Authorization: Bearer <token>` where token = `await window.Clerk.session.getToken()`. The backend's `require_user` dependency (`app/auth/verify.py`) validates the JWT via JWKS. Ensure `window.Clerk.session` is non-null before calling `getToken()` — null means the user isn't signed in.
-
-**Auth state changes** are handled via `window.Clerk.addListener(({ user }) => ...)` in `initIndex()`. This covers the initial load, sign-in after sign-out (without a page reload), and session expiry. Do not rely solely on a one-time `window.Clerk.user` check — it won't respond to state changes after load.
-
-To update the Clerk publishable key: change `data-clerk-publishable-key` in both `index.html` and `results.html`.
-
----
-
-## Backend: app/main.py
-
-- `POST /api/scan` — multipart/form-data: `files` (images/PDFs) + optional `instructions` string
-- `MODEL` constant (top of `app/main.py`) selects the Claude model — currently `claude-sonnet-4-6`; `max_tokens=4096`
-- `SCAN_PROMPT` constant controls the Claude prompt; edit it there to change transcription/summary behaviour
-- Claude's reply is parsed by extracting the first `{...}` block via regex, then `json.loads` — the prompt forcing JSON-only output is load-bearing. If you change `SCAN_PROMPT` in a way that allows Claude to emit prose before or after the JSON, parsing will break silently (returns 502)
-- When `instructions` is non-empty, Claude also returns `additional_notes` in the JSON response
-- `scanned_at` (ISO-8601 UTC) is added server-side after parsing Claude's reply — Claude never generates the timestamp (no clock); the frontend formats it friendly per locale
-- Response shape: `{"title": "...", "summary": "...", "transcription": "...", "scanned_at": "...", "additional_notes": "..."}` (`additional_notes` omitted when no instructions)
-- Static files mounted at `/` via `StaticFiles(directory=".", html=True)` — must come after API routes
-
----
+## Backend (app/main.py)
+- `POST /api/scan` — multipart: `files` (+ optional `instructions`).
+- `MODEL` constant selects the Claude model (`claude-sonnet-4-6`); `max_tokens=4096`.
+- `SCAN_PROMPT` controls the prompt; reply parsed by extracting first `{...}` + `json.loads`
+  (JSON-only output is load-bearing).
+- `instructions` non-empty → Claude also returns `additional_notes`.
+- `scanned_at` (ISO-8601 UTC) added server-side after parsing.
+- Static mounted at `/` via `StaticFiles(directory=".", html=True)` — after API routes.
+- Notes endpoints (all `Depends(require_user)`, filtered by `sub`): `POST /api/notes`
+  (multipart: `note` JSON + `files` + `files_meta`), `GET /api/notes?q=`,
+  `GET/PUT/DELETE /api/notes/{id}`, `GET /api/notes/{id}/files/{position}`.
+  `PUT` edits text fields only — images/PDFs immutable in v1.
 
 ## Making Changes
+- **Prompt**: `SCAN_PROMPT` in app/main.py · **Model**: `MODEL` in app/main.py
+- **Styling**: CSS vars atop style.css
+- **Share**: `#share-card` in results.html with per-section checkboxes; `#share-btn` in app.js
+- **Tests**: blocks inside `runTests()` in test.html
 
-- **Claude prompt**: edit `SCAN_PROMPT` in `app/main.py`
-- **Claude model**: edit the `MODEL` constant in `app/main.py`
-- **Styling**: CSS variables at top of `style.css`
-- **Share**: single Share panel (`#share-card` in `results.html`) with per-section checkboxes (title/date/image/summary/transcription); the `#share-btn` handler in `app.js` assembles checked sections and calls `share()`
-- **Tests**: add blocks inside `runTests()` in `test.html`
-
----
-
-## Multi-Utility Platform
-
-Auth is live. For future utilities: each gets its own repo + Railway service, sharing the same Clerk app (same `CLERK_PUBLISHABLE_KEY` / `CLERK_JWKS_URL`). Copy `app/auth/verify.py` into each service — no central auth service needed. The `AUTH_HANDOFF.md` in this repo has the full pattern including a reusable `verify.py` template and common gotchas.
+## Future
+See `AUTH_HANDOFF.md`: each future utility gets its own repo + Railway service, sharing the
+same Clerk app. Copy `app/auth/verify.py` into each service.
