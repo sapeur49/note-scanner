@@ -87,6 +87,9 @@ Client-side sign-in via Clerk JS SDK loaded from the **Clerk domain** (not a CDN
 for Google OAuth). Scan/notes `fetch` send `Authorization: Bearer <token>` where token =
 `await window.Clerk.session.getToken()`; backend `require_user` (`app/auth/verify.py`)
 validates via JWKS. Ensure `window.Clerk.session` is non-null before `getToken()`.
+Auth state changes (sign-in after sign-out, session expiry) are handled via
+`window.Clerk.addListener(({ user }) => ...)` — do not rely on a one-time `window.Clerk.user`
+check at load time.
 To change the publishable key: edit `data-clerk-publishable-key` in index.html,
 results.html, notes.html.
 
