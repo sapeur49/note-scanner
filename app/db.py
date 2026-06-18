@@ -27,10 +27,23 @@ from sqlalchemy import (
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
 
 
+_SQLITE_FALLBACK = "sqlite:///./readwrite_local.db"
+
+
 def _db_url() -> str:
     url = os.environ.get("DATABASE_URL") or os.environ.get("MYSQL_URL")
     if not url:
-        return "sqlite:///./readwrite_local.db"
+        return _SQLITE_FALLBACK
+    # Guard against a bare value (e.g. DATABASE_URL set to a DB name like
+    # "railway" instead of a full connection string). create_engine() would
+    # raise at import and crash the whole app before main.py can catch it.
+    if "://" not in url:
+        print(
+            f"[db] DATABASE_URL/MYSQL_URL is not a valid connection string "
+            f"({url!r}); expected e.g. mysql://user:pass@host:port/db. "
+            f"Falling back to SQLite — saved notes will NOT persist."
+        )
+        return _SQLITE_FALLBACK
     # Railway hands out mysql:// — SQLAlchemy needs an explicit driver.
     if url.startswith("mysql://"):
         url = url.replace("mysql://", "mysql+pymysql://", 1)
