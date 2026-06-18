@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 try:
     from PIL import Image as _PILImage
-    from PIL.ExifTags import TAGS as _EXIF_TAGS
+    from PIL.ExifTags import GPSTAGS as _GPSTAGS, TAGS as _EXIF_TAGS
     _PIL_AVAILABLE = True
 except ImportError:
     _PIL_AVAILABLE = False
@@ -49,6 +49,22 @@ Respond with ONLY valid JSON in this exact shape:
 }"""
 
 app = FastAPI()
+
+
+def _parse_gps(gps_ifd: dict):
+    try:
+        gps = {_GPSTAGS.get(k, k): v for k, v in gps_ifd.items()}
+
+        def dms_to_decimal(vals, ref):
+            d, m, s = [float(v) for v in vals]
+            dec = d + m / 60 + s / 3600
+            return -dec if ref in ("S", "W") else dec
+
+        lat = dms_to_decimal(gps["GPSLatitude"], gps.get("GPSLatitudeRef", "N"))
+        lon = dms_to_decimal(gps["GPSLongitude"], gps.get("GPSLongitudeRef", "E"))
+        return {"lat": round(lat, 6), "lon": round(lon, 6)}
+    except Exception:
+        return None
 
 
 def _extract_exif(data: bytes, mime_type: str):
@@ -98,6 +114,16 @@ def _extract_exif(data: bytes, mime_type: str):
         # Fall back to DateTime from main IFD if no DateTimeOriginal
         if "DateTimeOriginal" not in result and "DateTime" in main_tags:
             result["DateTime"] = str(main_tags["DateTime"]).strip("\x00").strip()
+
+        # GPS sub-IFD (0x8825)
+        try:
+            gps_ifd = raw.get_ifd(0x8825)
+            if gps_ifd:
+                gps = _parse_gps(dict(gps_ifd))
+                if gps:
+                    result["GPS"] = gps
+        except Exception:
+            pass
 
         return result if result else None
     except Exception:
@@ -159,7 +185,7 @@ async def scan_notes(
 
 Also include an "additional_notes" key in your JSON response addressing the additional instructions above. Omit "additional_notes" entirely if no additional instructions were given."""
 
-    # Append camera/date context from first image with EXIF (no location data)
+    # Append camera/date/location context from first image with EXIF
     for ex in file_exif_list:
         if ex:
             parts = []
@@ -169,6 +195,9 @@ Also include an "additional_notes" key in your JSON response addressing the addi
             camera = " ".join(filter(None, [ex.get("Make", "").strip(), ex.get("Model", "").strip()]))
             if camera:
                 parts.append(f"Camera: {camera}")
+            gps = ex.get("GPS")
+            if gps:
+                parts.append(f"Location: {gps['lat']}, {gps['lon']}")
             if parts:
                 prompt += f"\n\n[Photo metadata: {'; '.join(parts)}]"
             break

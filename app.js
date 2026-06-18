@@ -386,6 +386,15 @@ async function initResults() {
       if (exif.ISOSpeedRatings) addExifRow('ISO', String(exif.ISOSpeedRatings));
       if (exif.FNumber) addExifRow('Aperture', `f/${exif.FNumber}`);
       if (exif.ExposureTime) addExifRow('Shutter', exif.ExposureTime);
+      if (exif.GPS) {
+        const { lat, lon } = exif.GPS;
+        const a = document.createElement('a');
+        a.href = `https://maps.google.com/?q=${lat},${lon}`;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+        addExifRow('Location', a);
+      }
       details.appendChild(dl);
       figure.appendChild(details);
     }
