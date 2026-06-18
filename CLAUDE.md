@@ -18,7 +18,7 @@ API. One Railway service hosts the FastAPI backend + static frontend. Repo: `sap
 - To deploy/test the branch first: Railway service → Settings → Source → point at the
   branch, verify, then switch back to `main` and merge. Env vars live on the service, so
   they persist across the branch switch.
-- **Cache-buster currently `?v=15`** on `app.js`/`style.css` in index/results/notes.html.
+- **Cache-buster currently `?v=16`** on `app.js`/`style.css` in index/results/notes.html.
 
 ## Local Development
 ```bash

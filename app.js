@@ -303,6 +303,10 @@ async function initResults() {
       return;
     }
     data = JSON.parse(raw);
+    // Load Clerk so a session/token is available when Save is clicked
+    // (Save POSTs to /api/notes behind require_user).
+    await waitForClerk();
+    await window.Clerk.load();
   }
 
   document.getElementById('summary-text').textContent = data.summary || '';
