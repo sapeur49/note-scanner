@@ -74,6 +74,8 @@ Using the official Clerk domain (not jsdelivr) is required for Google OAuth to a
 
 The scan `fetch` sends `Authorization: Bearer <token>` where token = `await window.Clerk.session.getToken()`. The backend's `require_user` dependency (`app/auth/verify.py`) validates the JWT via JWKS. Ensure `window.Clerk.session` is non-null before calling `getToken()` — null means the user isn't signed in.
 
+**Auth state changes** are handled via `window.Clerk.addListener(({ user }) => ...)` in `initIndex()`. This covers the initial load, sign-in after sign-out (without a page reload), and session expiry. Do not rely solely on a one-time `window.Clerk.user` check — it won't respond to state changes after load.
+
 To update the Clerk publishable key: change `data-clerk-publishable-key` in both `index.html` and `results.html`.
 
 ---

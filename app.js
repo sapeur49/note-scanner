@@ -75,16 +75,21 @@ async function initIndex() {
     window.Clerk.mountSignIn(document.getElementById('clerk-sign-in'));
   }
 
+  // React to auth state changes (covers initial load, sign-in after sign-out, session expiry)
+  window.Clerk.addListener(({ user }) => {
+    if (user) showApp();
+    else showSignIn();
+  });
+
   if (window.Clerk.user) {
     showApp();
   } else {
     showSignIn();
-    return;
   }
 
   document.getElementById('btn-signout')?.addEventListener('click', async () => {
     await window.Clerk.signOut();
-    showSignIn();
+    // addListener above handles the UI transition
   });
 
   const dropZone = document.getElementById('drop-zone');
