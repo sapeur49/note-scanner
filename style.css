@@ -731,13 +731,94 @@ details[open] .images-toggle::before {
   text-align: center;
 }
 
-@media print {
-  .back-btn, .btn-edit, .btn-signout,
-  #images-section, #share-card, .note-actions, .copied-msg { display: none !important; }
+/* ── EXIF info under thumbnails ── */
 
-  .container { max-width: 100%; padding: 0; }
-  .card { border: none; box-shadow: none; padding: 0; margin-bottom: 20px; }
-  .section-title { border-bottom: 1px solid #ccc; padding-bottom: 4px; margin-bottom: 8px; }
-  .note-title { font-size: 1.6rem; }
-  body { font-size: 11pt; color: #000; background: #fff; }
+.thumb-figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
+
+.exif-details {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  width: 80px;
+  margin-top: 3px;
+}
+
+.exif-details summary {
+  cursor: pointer;
+  user-select: none;
+  color: var(--accent);
+  font-size: 0.7rem;
+  list-style: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.exif-details summary::-webkit-details-marker { display: none; }
+
+.exif-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 5px;
+  row-gap: 1px;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.exif-dl dt {
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.exif-dl dd {
+  margin: 0;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.exif-dl a { color: var(--accent); }
+
+/* ── Share link row ── */
+
+#share-link-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+#share-link-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  font-size: 0.82rem;
+  font-family: monospace;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.btn-sm {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.btn-sm:hover { border-color: var(--accent); color: var(--accent); }

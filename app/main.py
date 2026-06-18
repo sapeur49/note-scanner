@@ -5,6 +5,7 @@ import re
 import shutil
 import uuid
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 from typing import List
 
@@ -12,6 +13,13 @@ import anthropic
 from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+
+try:
+    from PIL import Image as _PILImage
+    from PIL.ExifTags import GPSTAGS as _GPSTAGS, TAGS as _EXIF_TAGS
+    _PIL_AVAILABLE = True
+except ImportError:
+    _PIL_AVAILABLE = False
 
 from app import db
 from app.auth.verify import verify_clerk_token
@@ -42,6 +50,66 @@ Respond with ONLY valid JSON in this exact shape:
 
 app = FastAPI()
 
+
+def _parse_gps(gps_ifd: dict):
+    try:
+        gps = {_GPSTAGS.get(k, k): v for k, v in gps_ifd.items()}
+
+        def dms_to_decimal(vals, ref):
+            d, m, s = [float(v) for v in vals]
+            dec = d + m / 60 + s / 3600
+            return -dec if ref in ("S", "W") else dec
+
+        lat = dms_to_decimal(gps["GPSLatitude"], gps.get("GPSLatitudeRef", "N"))
+        lon = dms_to_decimal(gps["GPSLongitude"], gps.get("GPSLongitudeRef", "E"))
+        return {"lat": round(lat, 6), "lon": round(lon, 6)}
+    except Exception:
+        return None
+
+
+def _extract_exif(data: bytes, mime_type: str):
+    """Return a dict of EXIF fields of interest, or None if unavailable."""
+    if not _PIL_AVAILABLE or not mime_type.startswith("image/"):
+        return None
+    try:
+        img = _PILImage.open(BytesIO(data))
+        raw = img.getexif()
+        if not raw:
+            return None
+        tags = {_EXIF_TAGS.get(k, k): v for k, v in raw.items()}
+        result = {}
+        for field in ("Make", "Model", "DateTimeOriginal", "DateTime", "LensModel"):
+            if field in tags:
+                result[field] = str(tags[field]).strip("\x00").strip()
+        if "ISOSpeedRatings" in tags:
+            try:
+                result["ISOSpeedRatings"] = int(tags["ISOSpeedRatings"])
+            except (TypeError, ValueError):
+                pass
+        if "FNumber" in tags:
+            try:
+                result["FNumber"] = round(float(tags["FNumber"]), 1)
+            except (TypeError, ValueError):
+                pass
+        if "ExposureTime" in tags:
+            try:
+                v = float(tags["ExposureTime"])
+                result["ExposureTime"] = f"1/{round(1/v)}" if v < 1 and v > 0 else f"{v}s"
+            except (TypeError, ValueError, ZeroDivisionError):
+                pass
+        try:
+            gps_ifd = raw.get_ifd(0x8825)
+            if gps_ifd:
+                gps = _parse_gps(dict(gps_ifd))
+                if gps:
+                    result["GPS"] = gps
+        except Exception:
+            pass
+        return result if result else None
+    except Exception:
+        return None
+
+
 try:
     db.init_db()
 except Exception as e:  # noqa: BLE001 — don't block static serving if DB is unreachable
@@ -68,11 +136,18 @@ async def scan_notes(
     if not files:
         raise HTTPException(status_code=400, detail="No images provided")
 
-    image_blocks = []
+    # Read all files upfront so EXIF can be extracted before encoding
+    file_data = []
+    file_exif_list = []
     for f in files:
         data = await f.read()
+        mime = f.content_type or "image/jpeg"
+        file_data.append((data, mime))
+        file_exif_list.append(_extract_exif(data, mime))
+
+    image_blocks = []
+    for data, media_type in file_data:
         b64 = base64.b64encode(data).decode()
-        media_type = f.content_type or "image/jpeg"
         if media_type == "application/pdf":
             image_blocks.append({
                 "type": "document",
@@ -89,6 +164,21 @@ async def scan_notes(
         prompt += f"""\n\nAdditional instructions: {instructions.strip()}
 
 Also include an "additional_notes" key in your JSON response addressing the additional instructions above. Omit "additional_notes" entirely if no additional instructions were given."""
+
+    # Append camera/date context from first image with EXIF (GPS excluded for privacy)
+    for ex in file_exif_list:
+        if ex:
+            parts = []
+            dt = ex.get("DateTimeOriginal") or ex.get("DateTime")
+            if dt:
+                parts.append(f"taken {dt}")
+            camera = " ".join(filter(None, [ex.get("Make", "").strip(), ex.get("Model", "").strip()]))
+            if camera:
+                parts.append(f"Camera: {camera}")
+            if parts:
+                prompt += f"\n\n[Photo metadata: {'; '.join(parts)}]"
+            break
+
     image_blocks.append({"type": "text", "text": prompt})
 
     response = client.messages.create(
@@ -104,6 +194,7 @@ Also include an "additional_notes" key in your JSON response addressing the addi
 
     result = json.loads(match.group())
     result["scanned_at"] = datetime.now(timezone.utc).isoformat()
+    result["file_exif"] = file_exif_list
     return result
 
 
@@ -136,13 +227,16 @@ async def save_note(
         filename = f"{position}{ext}"
         data = await f.read()
         (folder / filename).write_bytes(data)
-        stored.append({
+        entry = {
             "position": position,
             "kind": kind,
             "filename": filename,
             "mime": f.content_type or ("application/pdf" if kind == "pdf" else "image/jpeg"),
             "original_name": m.get("original_name"),
-        })
+        }
+        if m.get("exif"):
+            entry["exif"] = m["exif"]
+        stored.append(entry)
 
     db.create_note(user_id, note_data, stored, note_id=note_id)
     return {"id": note_id}
@@ -191,6 +285,42 @@ def get_note_file(note_id: str, position: int, _user: dict = Depends(require_use
     if not path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(path, media_type=entry.get("mime", "application/octet-stream"))
+
+
+# ── Publish / share ──────────────────────────────────────────────────────────
+
+@app.post("/api/notes/{note_id}/publish")
+def publish_note_route(note_id: str, _user: dict = Depends(require_user)):
+    token = db.publish_note(_user["sub"], note_id)
+    if token is None:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return {"share_token": token}
+
+
+@app.delete("/api/notes/{note_id}/publish")
+def unpublish_note_route(note_id: str, _user: dict = Depends(require_user)):
+    found = db.unpublish_note(_user["sub"], note_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return {}
+
+
+@app.get("/share/{token}", include_in_schema=False)
+def share_page_route(token: str):
+    path = Path("share.html")
+    if not path.exists():
+        raise HTTPException(status_code=404)
+    return FileResponse(str(path))
+
+
+@app.get("/api/share/{token}")
+def share_data_route(token: str):
+    note = db.get_note_by_share_token(token)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not published or not found")
+    note.pop("user_id", None)
+    note.pop("share_token", None)
+    return note
 
 
 # Serve static frontend — must come after API routes

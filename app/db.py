@@ -20,8 +20,10 @@ from sqlalchemy import (
     create_engine,
     delete as sa_delete,
     insert,
+    inspect as sa_inspect,
     or_,
     select,
+    text,
     update as sa_update,
 )
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
@@ -68,13 +70,29 @@ notes = Table(
     Column("scanned_at", DateTime),
     Column("created_at", DateTime, nullable=False),
     Column("updated_at", DateTime, nullable=False),
-    # [{position, kind: "image"|"pdf", filename, mime, original_name}]
+    # [{position, kind: "image"|"pdf", filename, mime, original_name, exif?}]
     Column("files", JSON),
+    Column("share_token", String(36), nullable=True),
 )
 
 
 def init_db() -> None:
     metadata.create_all(engine)
+    _migrate_schema()
+
+
+def _migrate_schema() -> None:
+    """Idempotent: add new columns to existing tables if absent."""
+    try:
+        inspector = sa_inspect(engine)
+        if "notes" not in inspector.get_table_names():
+            return  # create_all handles new tables
+        existing = {c["name"] for c in inspector.get_columns("notes")}
+        with engine.begin() as conn:
+            if "share_token" not in existing:
+                conn.execute(text("ALTER TABLE notes ADD COLUMN share_token VARCHAR(36) NULL"))
+    except Exception as e:
+        print(f"[db] migration warning: {e}")
 
 
 def _utcnow() -> datetime:
@@ -198,3 +216,50 @@ def delete_note(user_id: str, note_id: str) -> int:
     with engine.begin() as conn:
         result = conn.execute(stmt)
     return result.rowcount
+
+
+def publish_note(user_id: str, note_id: str):
+    """Generate a share token for this note (idempotent). Returns token or None if not found."""
+    stmt = select(notes.c.share_token).where(
+        notes.c.id == note_id, notes.c.user_id == user_id
+    )
+    with engine.connect() as conn:
+        row = conn.execute(stmt).mappings().first()
+    if row is None:
+        return None
+    token = row["share_token"] or str(uuid.uuid4())
+    if not row["share_token"]:
+        with engine.begin() as conn:
+            conn.execute(
+                sa_update(notes)
+                .where(notes.c.id == note_id, notes.c.user_id == user_id)
+                .values(share_token=token)
+            )
+    return token
+
+
+def unpublish_note(user_id: str, note_id: str) -> bool:
+    """Remove share token from a note. Returns True if note was found."""
+    stmt = (
+        sa_update(notes)
+        .where(notes.c.id == note_id, notes.c.user_id == user_id)
+        .values(share_token=None)
+    )
+    with engine.begin() as conn:
+        result = conn.execute(stmt)
+    return result.rowcount > 0
+
+
+def get_note_by_share_token(token: str):
+    """Fetch a note by share_token (no user auth check)."""
+    stmt = select(notes).where(notes.c.share_token == token)
+    with engine.connect() as conn:
+        row = conn.execute(stmt).mappings().first()
+    if not row:
+        return None
+    d = dict(row)
+    d["scanned_at"] = _iso(d.get("scanned_at"))
+    d["created_at"] = _iso(d.get("created_at"))
+    d["updated_at"] = _iso(d.get("updated_at"))
+    d["files"] = d.get("files") or []
+    return d

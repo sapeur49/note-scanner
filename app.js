@@ -343,13 +343,63 @@ async function initResults() {
 
   const shareFiles = [];  // File objects offered to the share sheet when "Image(s)" is checked
 
-  function addImageTile(thumbSrc, fullSrc, i) {
+  function addImageTile(thumbSrc, fullSrc, i, exif) {
+    const figure = document.createElement('figure');
+    figure.className = 'thumb-figure';
+
     const img = document.createElement('img');
     img.src = thumbSrc;
     img.className = 'thumb';
     img.alt = `Image ${i + 1}`;
     img.addEventListener('click', () => openLightbox(fullSrc || thumbSrc));
-    strip.appendChild(img);
+    figure.appendChild(img);
+
+    if (exif) {
+      const details = document.createElement('details');
+      details.className = 'exif-details';
+      const sumEl = document.createElement('summary');
+      sumEl.textContent = 'Image info';
+      details.appendChild(sumEl);
+
+      const dl = document.createElement('dl');
+      dl.className = 'exif-dl';
+
+      function addExifRow(label, valueNode) {
+        const dt = document.createElement('dt');
+        dt.textContent = label;
+        const dd = document.createElement('dd');
+        if (typeof valueNode === 'string') dd.textContent = valueNode;
+        else dd.appendChild(valueNode);
+        dl.appendChild(dt);
+        dl.appendChild(dd);
+      }
+
+      const taken = exif.DateTimeOriginal || exif.DateTime;
+      if (taken) addExifRow('Taken', taken);
+      const camera = [exif.Make, exif.Model].filter(Boolean).join(' ');
+      if (camera) addExifRow('Camera', camera);
+      if (exif.LensModel) addExifRow('Lens', exif.LensModel);
+      if (exif.ISOSpeedRatings) addExifRow('ISO', String(exif.ISOSpeedRatings));
+      if (exif.FNumber) addExifRow('Aperture', `f/${exif.FNumber}`);
+      if (exif.ExposureTime) addExifRow('Shutter', exif.ExposureTime);
+      if (exif.GPS) {
+        const { lat, lon } = exif.GPS;
+        const a = document.createElement('a');
+        a.href = `https://maps.google.com/?q=${lat},${lon}`;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+        const span = document.createElement('span');
+        span.appendChild(a);
+        span.appendChild(document.createTextNode(' (private)'));
+        addExifRow('Location', span);
+      }
+
+      details.appendChild(dl);
+      figure.appendChild(details);
+    }
+
+    strip.appendChild(figure);
   }
   function addPdfTile(name, href) {
     const tile = document.createElement(href ? 'a' : 'div');
@@ -367,9 +417,10 @@ async function initResults() {
       try {
         const stripMeta  = JSON.parse(imagesRaw);
         const fullImages = lightboxRaw ? JSON.parse(lightboxRaw) : [];
+        const exifList = data.file_exif || [];
         stripMeta.forEach((meta, i) => {
           if (meta && meta.pdf) addPdfTile(meta.name, null);
-          else if (meta) addImageTile(meta, fullImages[i], i);
+          else if (meta) addImageTile(meta, fullImages[i], i, exifList[i] || null);
         });
         (fullImages || []).forEach((dataUrl, i) => {
           if (dataUrl) shareFiles.push(new File([dataURLtoBlob(dataUrl)], `image-${i + 1}.jpg`, { type: 'image/jpeg' }));
@@ -390,7 +441,7 @@ async function initResults() {
           if (f.kind === 'pdf') {
             addPdfTile(f.original_name, url);
           } else {
-            addImageTile(url, url, f.position);
+            addImageTile(url, url, f.position, f.exif || null);
             shareFiles.push(new File([blob], `image-${f.position + 1}.jpg`, { type: blob.type || 'image/jpeg' }));
           }
         } catch (_) {}
@@ -527,6 +578,97 @@ async function initResults() {
   const updateBtn = document.getElementById('update-btn');
   const deleteBtn = document.getElementById('delete-btn');
 
+  // ── Publish / unpublish ──
+  const publishBtn    = document.getElementById('publish-btn');
+  const unpublishBtn  = document.getElementById('unpublish-btn');
+  const shareLinkRow  = document.getElementById('share-link-row');
+  const shareLinkInput = document.getElementById('share-link-input');
+  const copyLinkBtn   = document.getElementById('copy-link-btn');
+
+  let currentNoteId = savedId;  // set after fresh save
+
+  function showShareLink(token) {
+    const url = `${window.location.origin}/share/${token}`;
+    if (shareLinkInput) shareLinkInput.value = url;
+    if (shareLinkRow) shareLinkRow.hidden = false;
+    if (publishBtn) publishBtn.hidden = true;
+    if (unpublishBtn) unpublishBtn.hidden = false;
+  }
+
+  function hideShareLink() {
+    if (shareLinkRow) shareLinkRow.hidden = true;
+    if (unpublishBtn) unpublishBtn.hidden = true;
+    if (publishBtn) publishBtn.hidden = false;
+  }
+
+  // Initial publish state in saved mode
+  if (mode === 'saved') {
+    if (data.share_token) {
+      showShareLink(data.share_token);
+    } else if (publishBtn) {
+      publishBtn.hidden = false;
+    }
+  }
+
+  if (publishBtn) {
+    publishBtn.addEventListener('click', async () => {
+      if (!currentNoteId) return;
+      publishBtn.disabled = true;
+      copiedMsg.textContent = 'Publishing…';
+      try {
+        const token = await getToken();
+        const resp = await fetch(`${NOTES_URL}/${currentNoteId}/publish`, {
+          method: 'POST',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        });
+        if (!resp.ok) throw new Error('Publish failed');
+        const { share_token } = await resp.json();
+        showShareLink(share_token);
+        copiedMsg.textContent = '';
+      } catch (e) {
+        copiedMsg.textContent = e.message || 'Publish failed';
+      } finally {
+        publishBtn.disabled = false;
+      }
+    });
+  }
+
+  if (unpublishBtn) {
+    unpublishBtn.addEventListener('click', async () => {
+      if (!currentNoteId) return;
+      unpublishBtn.disabled = true;
+      copiedMsg.textContent = 'Unpublishing…';
+      try {
+        const token = await getToken();
+        const resp = await fetch(`${NOTES_URL}/${currentNoteId}/publish`, {
+          method: 'DELETE',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        });
+        if (!resp.ok) throw new Error('Unpublish failed');
+        hideShareLink();
+        copiedMsg.textContent = 'Page unpublished.';
+        setTimeout(() => { copiedMsg.textContent = ''; }, 2500);
+      } catch (e) {
+        copiedMsg.textContent = e.message || 'Unpublish failed';
+      } finally {
+        unpublishBtn.disabled = false;
+      }
+    });
+  }
+
+  if (copyLinkBtn && shareLinkInput) {
+    copyLinkBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(shareLinkInput.value);
+        copiedMsg.textContent = 'Link copied!';
+        setTimeout(() => { copiedMsg.textContent = ''; }, 2500);
+      } catch (_) {
+        shareLinkInput.select();
+        copiedMsg.textContent = 'Select and copy the link above.';
+      }
+    });
+  }
+
   if (mode === 'fresh' && saveBtn) {
     saveBtn.addEventListener('click', async () => {
       saveBtn.disabled = true;
@@ -534,10 +676,12 @@ async function initResults() {
       try {
         const scanId = sessionStorage.getItem(SCAN_ID_KEY);
         const persist = scanId ? (await idbGet(scanId)) || [] : [];
+        const exifList = data.file_exif || [];
         const fd = new FormData();
         fd.append('note', JSON.stringify({ ...currentTextFields(), scanned_at: data.scanned_at || '' }));
         fd.append('files_meta', JSON.stringify(persist.map(e => ({
           position: e.position, kind: e.kind, original_name: e.original_name || null,
+          exif: exifList[e.position] || null,
         }))));
         persist.forEach(e => {
           fd.append('files', e.blob, `${e.position}${e.kind === 'pdf' ? '.pdf' : '.jpg'}`);
@@ -548,11 +692,15 @@ async function initResults() {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {},
           body: fd,
         });
-        if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || 'Save failed');
+        const respJson = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(respJson.detail || 'Save failed');
+        currentNoteId = respJson.id;
         if (scanId) await idbDelete(scanId);
         saveBtn.textContent = 'Saved ✓';
+        saveBtn.disabled = true;
         copiedMsg.textContent = 'Note saved!';
         setTimeout(() => { copiedMsg.textContent = ''; }, 2500);
+        if (publishBtn) publishBtn.hidden = false;
       } catch (e) {
         saveBtn.disabled = false;
         copiedMsg.textContent = e.message || 'Save failed';
@@ -697,12 +845,79 @@ function setMd(el, text) {
   el.dataset.rawMd = text;
 }
 
+/* ── Share page logic ── */
+
+async function initShare() {
+  // Token is the last path segment: /share/{token}
+  const pathParts = location.pathname.split('/').filter(Boolean);
+  const token = pathParts[pathParts.length - 1] || null;
+  const loadingEl = document.getElementById('share-loading');
+  const contentEl = document.getElementById('share-content');
+  const errorEl   = document.getElementById('share-error');
+
+  if (!token) {
+    if (loadingEl) loadingEl.hidden = true;
+    if (errorEl) errorEl.hidden = false;
+    return;
+  }
+
+  try {
+    const resp = await fetch(`/api/share/${encodeURIComponent(token)}`);
+    if (!resp.ok) throw new Error('not found');
+    const data = await resp.json();
+
+    if (loadingEl) loadingEl.hidden = true;
+
+    const titleEl = document.getElementById('share-title');
+    const dateEl  = document.getElementById('share-date');
+    const metaEl  = document.getElementById('share-note-meta');
+
+    if (data.title && titleEl) {
+      titleEl.textContent = data.title;
+      document.title = `${data.title} — ReadWrite`;
+    }
+    const dateStr = friendlyDate(data.scanned_at);
+    if (dateStr && dateEl) dateEl.textContent = dateStr;
+    if ((data.title || dateStr) && metaEl) metaEl.hidden = false;
+
+    const summaryCard = document.getElementById('share-summary-card');
+    const summaryText = document.getElementById('share-summary-text');
+    if (data.summary && summaryText) {
+      setMd(summaryText, data.summary);
+      if (summaryCard) summaryCard.hidden = false;
+    }
+
+    const transcriptionCard = document.getElementById('share-transcription-card');
+    const transcriptionText = document.getElementById('share-transcription-text');
+    if (data.transcription && transcriptionText) {
+      setMd(transcriptionText, data.transcription);
+      if (transcriptionCard) transcriptionCard.hidden = false;
+    }
+
+    if (data.additional_notes) {
+      const addlCard = document.getElementById('share-additional-card');
+      const addlText = document.getElementById('share-additional-text');
+      if (addlText) {
+        setMd(addlText, data.additional_notes);
+        if (addlCard) addlCard.hidden = false;
+      }
+    }
+
+    if (contentEl) contentEl.hidden = false;
+  } catch (_) {
+    if (loadingEl) loadingEl.hidden = true;
+    if (errorEl) errorEl.hidden = false;
+  }
+}
+
 /* ── Router ── */
 
 if (document.getElementById('scan-btn')) {
   initIndex().catch(console.error);
 } else if (document.getElementById('notes-list')) {
   initNotes().catch(console.error);
+} else if (document.getElementById('share-view')) {
+  initShare().catch(console.error);
 } else if (document.getElementById('summary-text')) {
   initResults().catch(console.error);
 }

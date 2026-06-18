@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReadWrite — Shared Note</title>
+  <link rel="stylesheet" href="style.css?v=19">
+</head>
+<body>
+  <div class="container" id="share-view">
+    <header>
+      <a href="index.html" class="logo">Read<span>Write</span></a>
+    </header>
+
+    <div id="share-loading" style="text-align:center;padding:40px 0;color:var(--text-muted)">Loading…</div>
+
+    <div id="share-content" hidden>
+      <div id="share-note-meta" hidden style="text-align:center;margin-bottom:24px">
+        <h1 id="share-title" class="note-title"></h1>
+        <div id="share-date" class="note-date"></div>
+      </div>
+
+      <div class="card" id="share-summary-card" hidden>
+        <div class="section-title">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/>
+            <path d="M5 3l.7 2 2 .7-2 .7L5 9l-.7-2-2-.7 2-.7z"/>
+            <path d="M19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>
+          </svg> Summary
+        </div>
+        <div class="result-text" id="share-summary-text"></div>
+      </div>
+
+      <div class="card" id="share-transcription-card" hidden>
+        <div class="section-title">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="17" y1="10" x2="3" y2="10"/>
+            <line x1="21" y1="6" x2="3" y2="6"/>
+            <line x1="21" y1="14" x2="3" y2="14"/>
+            <line x1="13" y1="18" x2="3" y2="18"/>
+          </svg> Full Transcription
+        </div>
+        <div class="result-text" id="share-transcription-text"></div>
+      </div>
+
+      <div class="card" id="share-additional-card" hidden>
+        <div class="section-title">Additional Notes</div>
+        <div class="result-text" id="share-additional-text"></div>
+      </div>
+    </div>
+
+    <div id="share-error" hidden style="margin-top:32px;color:var(--text-muted);text-align:center">
+      This note is not available. It may have been unpublished or the link is invalid.
+    </div>
+  </div>
+
+  <!-- No Clerk — this page is public -->
+  <script src="app.js?v=19"></script>
+</body>
+</html>
