@@ -32,17 +32,21 @@ Push to `main` → Railway auto-deploys (~1-2 min). `Procfile` defines the start
 | `ANTHROPIC_API_KEY` | Claude API key |
 | `CLERK_JWKS_URL` | Clerk JWKS endpoint, e.g. `https://<clerk-domain>/.well-known/jwks.json` |
 | `CLERK_ISSUER` | Optional — Clerk issuer URL for stricter JWT validation |
+| `DATABASE_URL` | MySQL connection (saved notes). Also accepts `MYSQL_URL`. `mysql://` is auto-rewritten to `mysql+pymysql://`. Unset → local SQLite file (`readwrite_local.db`) for dev |
+| `VOLUME_PATH` | Mount path of the Railway volume for saved note files; default `/data`. Files live under `<VOLUME_PATH>/notes/<note_id>/` |
 
 ---
 
 ## Architecture
 
 ```
-app/main.py        FastAPI: POST /api/scan + static file mount
+app/main.py        FastAPI: /api/scan, /api/notes CRUD + file serving, static mount
+app/db.py          SQLAlchemy Core persistence (MySQL prod / SQLite dev) — notes table
 app/auth/verify.py JWT verification via Clerk JWKS (PyJWT + PyJWKClient)
-index.html         Upload UI (sign-in wall + app div, shown/hidden by Clerk JS)
-results.html       Results: image strip, summary, additional notes, transcription, share
-app.js             All frontend logic — auth, thumbnails, scan POST, sessionStorage, lightbox, edit, share
+index.html         Upload UI (sign-in wall + app div); "My Notes" button
+results.html       Results/saved-note view: image strip, summary, transcription, share, Save/Update/Delete
+notes.html         "My Notes" list page (search + rows linking to results.html?id=…)
+app.js             All frontend logic — auth, scan, sessionStorage, IndexedDB, lightbox, edit, share, notes CRUD
 style.css          Shared styles, CSS variables, auto light/dark mode
 test.html          Browser-based QA harness
 ```
@@ -53,6 +57,13 @@ test.html          Browser-based QA harness
 - Client-side image resizing before POST: 150px/JPEG-0.5 thumbnails → `rw_images`, 1500px/JPEG-0.85 lightbox images → `rw_lightbox`, both in `sessionStorage`; PDFs get a placeholder tile (no client-side render)
 - Results stored as `rw_results` in `sessionStorage`; `results.html` reads and renders them
 - `SCAN_URL = '/api/scan'` is relative — same origin, no hardcoded domain
+
+**Saved notes (persistence):**
+- One `notes` table (`app/db.py`): text columns + a `files` JSON column (`[{position, kind, filename, mime, original_name}]`), scoped by `user_id` = Clerk `sub`. Tables auto-create on startup (`db.init_db()`); every query filters by `user_id` for isolation
+- Files persist on the Railway **volume** under `<VOLUME_PATH>/notes/<note_id>/`; images stored as the browser's 1500px JPEGs, PDFs as original bytes. No server-side image processing
+- **Save carries blobs via IndexedDB**: at scan time `app.js` stashes 1500px image blobs + original PDF files in IndexedDB (`readwrite`/`pending`, keyed by a `scanId` in `sessionStorage`) because `results.html` is a separate page; the Save button reads them back and POSTs. Nothing persists until Save
+- **Images served auth'd**: `<img>` can't send a bearer token, so `results.html?id=…` fetches each file via `GET /api/notes/{id}/files/{position}` with the token and renders `URL.createObjectURL(blob)` into the existing strip/lightbox
+- `results.html` has two modes: fresh scan (reads `sessionStorage`, shows **Save**) and saved (`?id=`, fetches the note, shows **Update**/**Delete**) — same render/edit/share code path
 
 ---
 
@@ -81,6 +92,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in both
 - `scanned_at` (ISO-8601 UTC) is added server-side after parsing Claude's reply — Claude never generates the timestamp (no clock); the frontend formats it friendly per locale
 - Response shape: `{"title": "...", "summary": "...", "transcription": "...", "scanned_at": "...", "additional_notes": "..."}` (`additional_notes` omitted when no instructions)
 - Static files mounted at `/` via `StaticFiles(directory=".", html=True)` — must come after API routes
+- Saved-note endpoints (all `Depends(require_user)`, filtered by `sub`): `POST /api/notes` (multipart: `note` JSON + `files` + `files_meta`), `GET /api/notes?q=` (list/full-content search), `GET/PUT/DELETE /api/notes/{id}`, `GET /api/notes/{id}/files/{position}` (auth'd file stream). `PUT` edits text fields only — images/PDFs are immutable in v1
 
 ---
 
