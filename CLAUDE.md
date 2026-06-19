@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in `index.html`, `results.html`, and `notes.html`. Bump N in all three files when deploying JS/CSS changes. Currently at **`v=19`**. (`share.html` uses absolute paths `/style.css?v=N` and `/app.js?v=N` — update it too.)
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in `index.html`, `results.html`, and `notes.html`. Bump N in all three files when deploying JS/CSS changes. Currently at **`v=20`**. (`share.html` uses absolute paths `/style.css?v=N` and `/app.js?v=N` — update it too.)
 
 ---
 

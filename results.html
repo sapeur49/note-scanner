@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ReadWrite — Results</title>
-  <link rel="stylesheet" href="style.css?v=19">
+  <link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
   <div class="container">
@@ -71,33 +71,92 @@
       </button>
     </div>
 
+    <div class="card" id="publish-card" hidden>
+      <div class="section-title">
+        <svg class="icon"><use href="#icon-link"/></svg> Publish Page
+      </div>
+      <div class="pub-options">
+        <div class="pub-opt-group">
+          <div class="pub-opt-label">Include</div>
+          <div class="pub-opt-checks">
+            <label><input type="checkbox" id="pub-images" checked> Images</label>
+            <label><input type="checkbox" id="pub-section-titles" checked> Section Titles</label>
+            <label><input type="checkbox" id="pub-summary" checked> Summary</label>
+            <label><input type="checkbox" id="pub-transcription" checked> Transcription</label>
+            <label><input type="checkbox" id="pub-additional" checked> Additional Notes</label>
+          </div>
+        </div>
+        <div class="pub-opt-group">
+          <div class="pub-opt-label">Logo</div>
+          <div class="pub-opt-radios">
+            <label><input type="radio" name="pub-logo" value="top" checked> Top</label>
+            <label><input type="radio" name="pub-logo" value="bottom"> Bottom</label>
+            <label><input type="radio" name="pub-logo" value="off"> Off</label>
+          </div>
+        </div>
+        <div class="pub-opt-group">
+          <div class="pub-opt-label">Image Position</div>
+          <div class="pub-opt-radios">
+            <label><input type="radio" name="pub-img-pos" value="top" checked> Top</label>
+            <label><input type="radio" name="pub-img-pos" value="after-summary"> After Summary</label>
+            <label><input type="radio" name="pub-img-pos" value="after-transcription"> After Transcription</label>
+            <label><input type="radio" name="pub-img-pos" value="bottom"> Bottom</label>
+          </div>
+        </div>
+        <div class="pub-opt-group">
+          <div class="pub-opt-label">Template</div>
+          <div class="template-picker">
+            <label class="tpl-opt">
+              <input type="radio" name="pub-template" value="minimal" checked>
+              <span class="tpl-swatch tpl-minimal">Aa</span>
+              <span class="tpl-name">Minimal</span>
+            </label>
+            <label class="tpl-opt">
+              <input type="radio" name="pub-template" value="bold">
+              <span class="tpl-swatch tpl-bold">Aa</span>
+              <span class="tpl-name">Bold</span>
+            </label>
+            <label class="tpl-opt">
+              <input type="radio" name="pub-template" value="magazine">
+              <span class="tpl-swatch tpl-magazine">Aa</span>
+              <span class="tpl-name">Magazine</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div id="share-link-row" hidden>
+        <a id="share-link-a" href="#" target="_blank" rel="noopener" class="share-link-display"></a>
+      </div>
+      <div class="pub-actions">
+        <button class="btn-save" id="publish-btn">
+          <svg class="icon"><use href="#icon-link"/></svg> Publish
+        </button>
+        <button class="btn-outline" id="unpublish-btn" hidden>
+          <svg class="icon"><use href="#icon-link-off"/></svg> Unpublish
+        </button>
+      </div>
+    </div>
+
     <div class="note-actions" id="note-actions">
       <button class="btn-save" id="save-btn">
         <svg class="icon"><use href="#icon-save"/></svg> Save Note
       </button>
       <button class="btn-outline" id="update-btn" hidden>
-        <svg class="icon"><use href="#icon-check"/></svg> Update
+        <svg class="icon"><use href="#icon-check"/></svg> Save edits
       </button>
       <button class="btn-danger" id="delete-btn" hidden>
         <svg class="icon"><use href="#icon-trash-2"/></svg> Delete
       </button>
-      <button class="btn-outline" id="publish-btn" hidden>
-        <svg class="icon"><use href="#icon-link"/></svg> Publish Page
-      </button>
-      <button class="btn-outline" id="unpublish-btn" hidden>
-        <svg class="icon"><use href="#icon-link-off"/></svg> Unpublish
-      </button>
-    </div>
-    <div id="share-link-row" hidden>
-      <input id="share-link-input" type="text" readonly>
-      <button id="copy-link-btn" class="btn-sm">Copy link</button>
     </div>
 
     <div class="copied-msg" id="copied-msg"></div>
   </div>
 
   <div id="lightbox" class="lightbox" hidden>
+    <button class="lb-close" aria-label="Close">&#10005;</button>
+    <button class="lb-prev" aria-label="Previous">&#8592;</button>
     <img id="lightbox-img" src="" alt="Full size">
+    <button class="lb-next" aria-label="Next">&#8594;</button>
   </div>
 
   <svg hidden xmlns="http://www.w3.org/2000/svg">
@@ -162,6 +221,6 @@
     src="https://glad-clam-42.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
     type="text/javascript"
   ></script>
-  <script src="app.js?v=19"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>

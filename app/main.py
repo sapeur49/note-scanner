@@ -346,5 +346,22 @@ def share_data_route(token: str):
     return note
 
 
+@app.get("/api/share/{token}/images/{position}")
+def share_note_image(token: str, position: int):
+    note = db.get_note_by_share_token(token)
+    if not note:
+        raise HTTPException(status_code=404, detail="Not found")
+    entry = next(
+        (f for f in note.get("files", []) if int(f.get("position", -1)) == position and f.get("kind") == "image"),
+        None,
+    )
+    if not entry:
+        raise HTTPException(status_code=404, detail="Not found")
+    path = NOTES_DIR / note["id"] / entry["filename"]
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(path, media_type=entry.get("mime", "image/jpeg"))
+
+
 # Serve static frontend — must come after API routes
 app.mount("/", StaticFiles(directory=".", html=True), name="static")

@@ -3,58 +3,68 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ReadWrite — Shared Note</title>
-  <link rel="stylesheet" href="/style.css?v=19">
+  <title>ReadWrite</title>
+  <link rel="stylesheet" href="/style.css?v=20">
 </head>
 <body>
-  <div class="container" id="share-view">
-    <header>
-      <a href="index.html" class="logo">Read<span>Write</span></a>
-    </header>
+  <div id="share-view">
+    <div id="share-loading" class="sp-loading">Loading…</div>
 
-    <div id="share-loading" style="text-align:center;padding:40px 0;color:var(--text-muted)">Loading…</div>
-
-    <div id="share-content" hidden>
-      <div id="share-note-meta" hidden style="text-align:center;margin-bottom:24px">
-        <h1 id="share-title" class="note-title"></h1>
-        <div id="share-date" class="note-date"></div>
-      </div>
-
-      <div class="card" id="share-summary-card" hidden>
-        <div class="section-title">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z"/>
-            <path d="M5 3l.7 2 2 .7-2 .7L5 9l-.7-2-2-.7 2-.7z"/>
-            <path d="M19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>
-          </svg> Summary
-        </div>
-        <div class="result-text" id="share-summary-text"></div>
-      </div>
-
-      <div class="card" id="share-transcription-card" hidden>
-        <div class="section-title">
-          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="17" y1="10" x2="3" y2="10"/>
-            <line x1="21" y1="6" x2="3" y2="6"/>
-            <line x1="21" y1="14" x2="3" y2="14"/>
-            <line x1="13" y1="18" x2="3" y2="18"/>
-          </svg> Full Transcription
-        </div>
-        <div class="result-text" id="share-transcription-text"></div>
-      </div>
-
-      <div class="card" id="share-additional-card" hidden>
-        <div class="section-title">Additional Notes</div>
-        <div class="result-text" id="share-additional-text"></div>
-      </div>
+    <div id="share-error" hidden class="sp-error">
+      This note is not available. It may have been unpublished or the link is invalid.
     </div>
 
-    <div id="share-error" hidden style="margin-top:32px;color:var(--text-muted);text-align:center">
-      This note is not available. It may have been unpublished or the link is invalid.
+    <div id="share-content" hidden>
+      <div id="sp-logo-top" class="sp-logo" hidden>
+        <a href="/" class="sp-logo-link">Read<span>Write</span></a>
+      </div>
+
+      <div id="share-images-top" class="sp-images" hidden></div>
+
+      <header class="sp-header">
+        <h1 id="share-title" class="sp-title"></h1>
+        <p id="share-date" class="sp-date" hidden></p>
+      </header>
+
+      <main class="sp-body">
+        <section id="share-summary-section" hidden>
+          <h2 id="share-summary-heading" class="sp-section-title">Summary</h2>
+          <div id="share-summary-text" class="sp-text"></div>
+        </section>
+
+        <div id="share-images-after-summary" class="sp-images" hidden></div>
+
+        <section id="share-transcription-section" hidden>
+          <h2 id="share-transcription-heading" class="sp-section-title">Full Transcription</h2>
+          <div id="share-transcription-text" class="sp-text"></div>
+        </section>
+
+        <div id="share-images-after-transcription" class="sp-images" hidden></div>
+
+        <section id="share-additional-section" hidden>
+          <h2 id="share-additional-heading" class="sp-section-title">Additional Notes</h2>
+          <div id="share-additional-text" class="sp-text"></div>
+        </section>
+
+        <div id="share-images-bottom" class="sp-images" hidden></div>
+      </main>
+
+      <footer class="sp-footer">
+        <div id="sp-logo-bottom" class="sp-logo" hidden>
+          <a href="/" class="sp-logo-link">Read<span>Write</span></a>
+        </div>
+      </footer>
     </div>
   </div>
 
+  <div id="share-lightbox" class="lightbox" hidden>
+    <button class="lb-close" aria-label="Close">&#10005;</button>
+    <button class="lb-prev" aria-label="Previous">&#8592;</button>
+    <img id="share-lightbox-img" src="" alt="">
+    <button class="lb-next" aria-label="Next">&#8594;</button>
+  </div>
+
   <!-- No Clerk — this page is public -->
-  <script src="/app.js?v=19"></script>
+  <script src="/app.js?v=20"></script>
 </body>
 </html>

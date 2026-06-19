@@ -73,6 +73,7 @@ notes = Table(
     # [{position, kind: "image"|"pdf", filename, mime, original_name, exif?}]
     Column("files", JSON),
     Column("share_token", String(36), nullable=True),
+    Column("publish_options", JSON, nullable=True),
 )
 
 
@@ -91,6 +92,8 @@ def _migrate_schema() -> None:
         with engine.begin() as conn:
             if "share_token" not in existing:
                 conn.execute(text("ALTER TABLE notes ADD COLUMN share_token VARCHAR(36) NULL"))
+            if "publish_options" not in existing:
+                conn.execute(text("ALTER TABLE notes ADD COLUMN publish_options JSON NULL"))
     except Exception as e:
         print(f"[db] migration warning: {e}")
 
@@ -112,7 +115,9 @@ def _parse_dt(value):
 
 
 def _iso(dt):
-    return dt.isoformat() if isinstance(dt, datetime) else dt
+    if isinstance(dt, datetime):
+        return dt.isoformat() + ("" if dt.tzinfo is not None else "+00:00")
+    return dt
 
 
 def create_note(user_id: str, data: dict, files: list, note_id: str = None) -> str:
@@ -143,6 +148,8 @@ def list_notes(user_id: str, q: str = "") -> list:
         notes.c.summary,
         notes.c.scanned_at,
         notes.c.created_at,
+        notes.c.share_token,
+        notes.c.files,
     ).where(notes.c.user_id == user_id)
 
     if q:
@@ -163,6 +170,8 @@ def list_notes(user_id: str, q: str = "") -> list:
     for r in rows:
         summary = r["summary"] or ""
         snippet = summary[:140] + ("…" if len(summary) > 140 else "")
+        files = r["files"] or []
+        first_image = next((f for f in files if f.get("kind") == "image"), None)
         out.append(
             {
                 "id": r["id"],
@@ -170,6 +179,8 @@ def list_notes(user_id: str, q: str = "") -> list:
                 "summary_snippet": snippet,
                 "scanned_at": _iso(r["scanned_at"]),
                 "created_at": _iso(r["created_at"]),
+                "share_token": r["share_token"],
+                "first_image_position": first_image["position"] if first_image else None,
             }
         )
     return out
@@ -191,7 +202,7 @@ def get_note(user_id: str, note_id: str):
     return d
 
 
-_EDITABLE = ("title", "summary", "transcription", "additional_notes")
+_EDITABLE = ("title", "summary", "transcription", "additional_notes", "publish_options")
 
 
 def update_note(user_id: str, note_id: str, fields: dict) -> int:

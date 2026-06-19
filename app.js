@@ -160,7 +160,6 @@ async function initIndex() {
   const dropZone = document.getElementById('drop-zone');
   const fileInput = document.getElementById('file-input');
   const cameraInput = document.getElementById('camera-input');
-  const thumbGrid = document.getElementById('thumb-grid');
   const scanBtn = document.getElementById('scan-btn');
   const loading = document.getElementById('loading');
 
@@ -309,7 +308,6 @@ async function initResults() {
     }
     data = JSON.parse(raw);
     // Load Clerk so a session/token is available when Save is clicked
-    // (Save POSTs to /api/notes behind require_user).
     await waitForClerk();
     await window.Clerk.load();
   }
@@ -332,14 +330,58 @@ async function initResults() {
   else dateEl.hidden = true;
   if (data.title || dateStr) noteMeta.hidden = false;
 
-  // ── Image strip + lightbox ──
+  // ── Image strip + lightbox carousel ──
   const strip = document.getElementById('image-strip');
   const lightbox = document.getElementById('lightbox');
   const lightboxImg = document.getElementById('lightbox-img');
-  function openLightbox(src) { lightboxImg.src = src; lightbox.hidden = false; }
-  if (lightbox) {
-    lightbox.addEventListener('click', () => { lightbox.hidden = true; lightboxImg.src = ''; });
+  const lbPrevBtn = lightbox?.querySelector('.lb-prev');
+  const lbNextBtn = lightbox?.querySelector('.lb-next');
+  const lbCloseBtn = lightbox?.querySelector('.lb-close');
+
+  const lightboxSrcs = [];
+  let lightboxIndex = 0;
+
+  function updateLbNav() {
+    const multi = lightboxSrcs.length > 1;
+    if (lbPrevBtn) lbPrevBtn.style.visibility = multi ? 'visible' : 'hidden';
+    if (lbNextBtn) lbNextBtn.style.visibility = multi ? 'visible' : 'hidden';
   }
+
+  function openLightbox(index) {
+    lightboxIndex = index;
+    if (lightboxImg) lightboxImg.src = lightboxSrcs[index];
+    if (lightbox) lightbox.hidden = false;
+    updateLbNav();
+  }
+
+  function closeLightbox() {
+    if (lightbox) lightbox.hidden = true;
+    if (lightboxImg) lightboxImg.src = '';
+  }
+
+  if (lightbox) {
+    lightbox.addEventListener('click', e => {
+      if (e.target === lightbox || e.target === lightboxImg) closeLightbox();
+    });
+  }
+  if (lbCloseBtn) lbCloseBtn.addEventListener('click', closeLightbox);
+  if (lbPrevBtn) lbPrevBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    lightboxIndex = (lightboxIndex - 1 + lightboxSrcs.length) % lightboxSrcs.length;
+    if (lightboxImg) lightboxImg.src = lightboxSrcs[lightboxIndex];
+  });
+  if (lbNextBtn) lbNextBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    lightboxIndex = (lightboxIndex + 1) % lightboxSrcs.length;
+    if (lightboxImg) lightboxImg.src = lightboxSrcs[lightboxIndex];
+  });
+
+  document.addEventListener('keydown', e => {
+    if (!lightbox || lightbox.hidden) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); lbPrevBtn?.click(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); lbNextBtn?.click(); }
+    else if (e.key === 'Escape') closeLightbox();
+  });
 
   const shareFiles = [];  // File objects offered to the share sheet when "Image(s)" is checked
 
@@ -351,7 +393,9 @@ async function initResults() {
     img.src = thumbSrc;
     img.className = 'thumb';
     img.alt = `Image ${i + 1}`;
-    img.addEventListener('click', () => openLightbox(fullSrc || thumbSrc));
+    const lbIndex = lightboxSrcs.length;
+    lightboxSrcs.push(fullSrc || thumbSrc);
+    img.addEventListener('click', () => openLightbox(lbIndex));
     figure.appendChild(img);
 
     if (exif) {
@@ -554,11 +598,11 @@ async function initResults() {
       }
       if (document.getElementById('share-summary').checked) {
         const addNotes = getText('additional-notes');
-        const additionalText = addNotes ? `\n\nAdditional Notes:\n${addNotes}` : '';
-        parts.push(`Summary:\n${getText('summary')}${additionalText}`);
+        const additionalText = addNotes ? `\n\nAdditional Notes:\n${markdownToPlainText(addNotes)}` : '';
+        parts.push(`Summary:\n${markdownToPlainText(getText('summary'))}${additionalText}`);
       }
       if (document.getElementById('share-transcription').checked) {
-        parts.push(`Transcription:\n${getText('transcription')}`);
+        parts.push(`Transcription:\n${markdownToPlainText(getText('transcription'))}`);
       }
       share(parts.join('\n\n'));
     });
@@ -573,23 +617,70 @@ async function initResults() {
     };
   }
 
-  // ── Save (fresh scan) vs Update/Delete (saved note) ──
-  const saveBtn   = document.getElementById('save-btn');
-  const updateBtn = document.getElementById('update-btn');
-  const deleteBtn = document.getElementById('delete-btn');
-
-  // ── Publish / unpublish ──
+  // ── Publish panel ──
+  const publishCard   = document.getElementById('publish-card');
   const publishBtn    = document.getElementById('publish-btn');
   const unpublishBtn  = document.getElementById('unpublish-btn');
   const shareLinkRow  = document.getElementById('share-link-row');
-  const shareLinkInput = document.getElementById('share-link-input');
-  const copyLinkBtn   = document.getElementById('copy-link-btn');
+  const shareLinkA    = document.getElementById('share-link-a');
 
-  let currentNoteId = savedId;  // set after fresh save
+  let currentNoteId = savedId;
+
+  function getPublishOptions() {
+    return {
+      showImages:       document.getElementById('pub-images')?.checked ?? true,
+      showSectionTitles: document.getElementById('pub-section-titles')?.checked ?? true,
+      showSummary:      document.getElementById('pub-summary')?.checked ?? true,
+      showTranscription: document.getElementById('pub-transcription')?.checked ?? true,
+      showAdditional:   document.getElementById('pub-additional')?.checked ?? true,
+      logoPosition:     document.querySelector('input[name="pub-logo"]:checked')?.value ?? 'top',
+      imagePosition:    document.querySelector('input[name="pub-img-pos"]:checked')?.value ?? 'top',
+      template:         document.querySelector('input[name="pub-template"]:checked')?.value ?? 'minimal',
+    };
+  }
+
+  function restorePublishOptions(opts) {
+    if (!opts) return;
+    const setCheck = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val !== false; };
+    const setRadio = (name, val) => {
+      if (!val) return;
+      const el = document.querySelector(`input[name="${name}"][value="${val}"]`);
+      if (el) el.checked = true;
+    };
+    setCheck('pub-images', opts.showImages);
+    setCheck('pub-section-titles', opts.showSectionTitles);
+    setCheck('pub-summary', opts.showSummary);
+    setCheck('pub-transcription', opts.showTranscription);
+    setCheck('pub-additional', opts.showAdditional);
+    setRadio('pub-logo', opts.logoPosition);
+    setRadio('pub-img-pos', opts.imagePosition);
+    setRadio('pub-template', opts.template);
+  }
+
+  async function savePublishOptions() {
+    if (!currentNoteId) return;
+    try {
+      const token = await getToken();
+      await fetch(`${NOTES_URL}/${currentNoteId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ publish_options: getPublishOptions() }),
+      });
+    } catch (_) {}
+  }
+
+  // Debounced auto-save of options when any control changes
+  let optionsSaveTimer;
+  publishCard?.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', () => {
+      clearTimeout(optionsSaveTimer);
+      optionsSaveTimer = setTimeout(savePublishOptions, 800);
+    });
+  });
 
   function showShareLink(token) {
     const url = `${window.location.origin}/share/${token}`;
-    if (shareLinkInput) shareLinkInput.value = url;
+    if (shareLinkA) { shareLinkA.href = url; shareLinkA.textContent = url; }
     if (shareLinkRow) shareLinkRow.hidden = false;
     if (publishBtn) publishBtn.hidden = true;
     if (unpublishBtn) unpublishBtn.hidden = false;
@@ -603,10 +694,10 @@ async function initResults() {
 
   // Initial publish state in saved mode
   if (mode === 'saved') {
+    if (publishCard) publishCard.hidden = false;
+    restorePublishOptions(data.publish_options);
     if (data.share_token) {
       showShareLink(data.share_token);
-    } else if (publishBtn) {
-      publishBtn.hidden = false;
     }
   }
 
@@ -616,6 +707,7 @@ async function initResults() {
       publishBtn.disabled = true;
       copiedMsg.textContent = 'Publishing…';
       try {
+        await savePublishOptions();
         const token = await getToken();
         const resp = await fetch(`${NOTES_URL}/${currentNoteId}/publish`, {
           method: 'POST',
@@ -656,18 +748,10 @@ async function initResults() {
     });
   }
 
-  if (copyLinkBtn && shareLinkInput) {
-    copyLinkBtn.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(shareLinkInput.value);
-        copiedMsg.textContent = 'Link copied!';
-        setTimeout(() => { copiedMsg.textContent = ''; }, 2500);
-      } catch (_) {
-        shareLinkInput.select();
-        copiedMsg.textContent = 'Select and copy the link above.';
-      }
-    });
-  }
+  // ── Save (fresh scan) vs Update/Delete (saved note) ──
+  const saveBtn   = document.getElementById('save-btn');
+  const updateBtn = document.getElementById('update-btn');
+  const deleteBtn = document.getElementById('delete-btn');
 
   if (mode === 'fresh' && saveBtn) {
     saveBtn.addEventListener('click', async () => {
@@ -700,7 +784,7 @@ async function initResults() {
         saveBtn.disabled = true;
         copiedMsg.textContent = 'Note saved!';
         setTimeout(() => { copiedMsg.textContent = ''; }, 2500);
-        if (publishBtn) publishBtn.hidden = false;
+        if (publishCard) publishCard.hidden = false;
       } catch (e) {
         saveBtn.disabled = false;
         copiedMsg.textContent = e.message || 'Save failed';
@@ -715,7 +799,7 @@ async function initResults() {
       updateBtn.hidden = false;
       updateBtn.addEventListener('click', async () => {
         updateBtn.disabled = true;
-        copiedMsg.textContent = 'Updating…';
+        copiedMsg.textContent = 'Saving…';
         try {
           const token = await getToken();
           const resp = await fetch(`${NOTES_URL}/${savedId}`, {
@@ -723,11 +807,11 @@ async function initResults() {
             headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
             body: JSON.stringify(currentTextFields()),
           });
-          if (!resp.ok) throw new Error('Update failed');
-          copiedMsg.textContent = 'Updated!';
+          if (!resp.ok) throw new Error('Save failed');
+          copiedMsg.textContent = 'Saved!';
           setTimeout(() => { copiedMsg.textContent = ''; }, 2500);
         } catch (e) {
-          copiedMsg.textContent = e.message || 'Update failed';
+          copiedMsg.textContent = e.message || 'Save failed';
         } finally {
           updateBtn.disabled = false;
         }
@@ -756,6 +840,22 @@ async function initResults() {
 }
 
 /* ── My Notes page logic ── */
+
+async function loadNoteThumbnail(imgEl, noteId, position, token) {
+  try {
+    const resp = await fetch(`${NOTES_URL}/${noteId}/files/${position}`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    });
+    if (resp.ok) {
+      const blob = await resp.blob();
+      imgEl.src = URL.createObjectURL(blob);
+    } else {
+      imgEl.remove();
+    }
+  } catch (_) {
+    imgEl.remove();
+  }
+}
 
 async function initNotes() {
   await waitForClerk();
@@ -790,14 +890,41 @@ async function initNotes() {
     listEl.innerHTML = '';
     emptyEl.hidden = notes.length > 0;
     notes.forEach(n => {
+      const hasThumb = n.first_image_position !== null && n.first_image_position !== undefined;
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'note-row-wrapper';
+
       const row = document.createElement('a');
       row.className = 'note-row';
       row.href = `results.html?id=${encodeURIComponent(n.id)}`;
       row.innerHTML = `
-        <div class="note-row-title">${escapeHtml(n.title || 'Untitled')}</div>
-        <div class="note-row-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
-        <div class="note-row-snippet">${escapeHtml(n.summary_snippet || '')}</div>`;
-      listEl.appendChild(row);
+        <div class="note-row-inner">
+          ${hasThumb ? '<img class="note-row-thumb" alt="">' : ''}
+          <div class="note-row-body">
+            <div class="note-row-title">${escapeHtml(n.title || 'Untitled')}</div>
+            <div class="note-row-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
+            <div class="note-row-snippet">${escapeHtml(n.summary_snippet || '')}</div>
+          </div>
+        </div>`;
+      wrapper.appendChild(row);
+
+      if (n.share_token) {
+        const badge = document.createElement('a');
+        badge.className = 'note-pub-badge';
+        badge.href = `/share/${n.share_token}`;
+        badge.target = '_blank';
+        badge.rel = 'noopener';
+        badge.textContent = '↗ Published page';
+        wrapper.appendChild(badge);
+      }
+
+      listEl.appendChild(wrapper);
+
+      if (hasThumb) {
+        const imgEl = row.querySelector('.note-row-thumb');
+        loadNoteThumbnail(imgEl, n.id, n.first_image_position, token);
+      }
     });
   }
 
@@ -812,6 +939,17 @@ async function initNotes() {
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function markdownToPlainText(text) {
+  if (!text) return '';
+  return text
+    .replace(/^### (.+)$/gm, '$1')
+    .replace(/^## (.+)$/gm, '$1')
+    .replace(/^[-*] (.+)$/gm, '• $1')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function renderMarkdown(text) {
@@ -848,7 +986,6 @@ function setMd(el, text) {
 /* ── Share page logic ── */
 
 async function initShare() {
-  // Token is the last path segment: /share/{token}
   const pathParts = location.pathname.split('/').filter(Boolean);
   const token = pathParts[pathParts.length - 1] || null;
   const loadingEl = document.getElementById('share-loading');
@@ -861,6 +998,55 @@ async function initShare() {
     return;
   }
 
+  // Share page lightbox
+  const shareLb = document.getElementById('share-lightbox');
+  const shareLbImg = document.getElementById('share-lightbox-img');
+  let shareLbSrcs = [];
+  let shareLbIndex = 0;
+
+  function updateShareLbNav() {
+    const multi = shareLbSrcs.length > 1;
+    shareLb?.querySelector('.lb-prev') && (shareLb.querySelector('.lb-prev').style.visibility = multi ? 'visible' : 'hidden');
+    shareLb?.querySelector('.lb-next') && (shareLb.querySelector('.lb-next').style.visibility = multi ? 'visible' : 'hidden');
+  }
+
+  function openShareLightbox(srcs, index) {
+    shareLbSrcs = srcs;
+    shareLbIndex = index;
+    if (shareLbImg) shareLbImg.src = srcs[index];
+    if (shareLb) shareLb.hidden = false;
+    updateShareLbNav();
+  }
+
+  function closeShareLightbox() {
+    if (shareLb) shareLb.hidden = true;
+    if (shareLbImg) shareLbImg.src = '';
+  }
+
+  if (shareLb) {
+    shareLb.addEventListener('click', e => {
+      if (e.target === shareLb || e.target === shareLbImg) closeShareLightbox();
+    });
+    shareLb.querySelector('.lb-close')?.addEventListener('click', closeShareLightbox);
+    shareLb.querySelector('.lb-prev')?.addEventListener('click', e => {
+      e.stopPropagation();
+      shareLbIndex = (shareLbIndex - 1 + shareLbSrcs.length) % shareLbSrcs.length;
+      if (shareLbImg) shareLbImg.src = shareLbSrcs[shareLbIndex];
+    });
+    shareLb.querySelector('.lb-next')?.addEventListener('click', e => {
+      e.stopPropagation();
+      shareLbIndex = (shareLbIndex + 1) % shareLbSrcs.length;
+      if (shareLbImg) shareLbImg.src = shareLbSrcs[shareLbIndex];
+    });
+  }
+
+  document.addEventListener('keydown', e => {
+    if (!shareLb || shareLb.hidden) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); shareLb.querySelector('.lb-prev')?.click(); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); shareLb.querySelector('.lb-next')?.click(); }
+    else if (e.key === 'Escape') closeShareLightbox();
+  });
+
   try {
     const resp = await fetch(`/api/share/${encodeURIComponent(token)}`);
     if (!resp.ok) throw new Error('not found');
@@ -868,38 +1054,91 @@ async function initShare() {
 
     if (loadingEl) loadingEl.hidden = true;
 
+    // Apply publish options (with defaults)
+    const opts = data.publish_options || {};
+    const showImages       = opts.showImages !== false;
+    const showSectionTitles = opts.showSectionTitles !== false;
+    const showSummary      = opts.showSummary !== false;
+    const showTranscription = opts.showTranscription !== false;
+    const showAdditional   = opts.showAdditional !== false;
+    const logoPosition     = opts.logoPosition || 'top';
+    const imagePosition    = opts.imagePosition || 'top';
+    const template         = opts.template || 'minimal';
+
+    document.body.dataset.template = template;
+
+    // Logo
+    const logoTop    = document.getElementById('sp-logo-top');
+    const logoBottom = document.getElementById('sp-logo-bottom');
+    if (logoPosition === 'top' && logoTop) logoTop.hidden = false;
+    else if (logoPosition === 'bottom' && logoBottom) logoBottom.hidden = false;
+
+    // Title + date
     const titleEl = document.getElementById('share-title');
     const dateEl  = document.getElementById('share-date');
-    const metaEl  = document.getElementById('share-note-meta');
-
     if (data.title && titleEl) {
       titleEl.textContent = data.title;
       document.title = `${data.title} — ReadWrite`;
     }
     const dateStr = friendlyDate(data.scanned_at);
-    if (dateStr && dateEl) dateEl.textContent = dateStr;
-    if ((data.title || dateStr) && metaEl) metaEl.hidden = false;
-
-    const summaryCard = document.getElementById('share-summary-card');
-    const summaryText = document.getElementById('share-summary-text');
-    if (data.summary && summaryText) {
-      setMd(summaryText, data.summary);
-      if (summaryCard) summaryCard.hidden = false;
+    if (dateStr && dateEl) {
+      dateEl.textContent = dateStr;
+      dateEl.hidden = false;
     }
 
-    const transcriptionCard = document.getElementById('share-transcription-card');
-    const transcriptionText = document.getElementById('share-transcription-text');
-    if (data.transcription && transcriptionText) {
-      setMd(transcriptionText, data.transcription);
-      if (transcriptionCard) transcriptionCard.hidden = false;
+    // Summary
+    if (showSummary && data.summary) {
+      const section  = document.getElementById('share-summary-section');
+      const textEl   = document.getElementById('share-summary-text');
+      const heading  = document.getElementById('share-summary-heading');
+      if (textEl) setMd(textEl, data.summary);
+      if (heading) heading.hidden = !showSectionTitles;
+      if (section) section.hidden = false;
     }
 
-    if (data.additional_notes) {
-      const addlCard = document.getElementById('share-additional-card');
-      const addlText = document.getElementById('share-additional-text');
-      if (addlText) {
-        setMd(addlText, data.additional_notes);
-        if (addlCard) addlCard.hidden = false;
+    // Transcription
+    if (showTranscription && data.transcription) {
+      const section  = document.getElementById('share-transcription-section');
+      const textEl   = document.getElementById('share-transcription-text');
+      const heading  = document.getElementById('share-transcription-heading');
+      if (textEl) setMd(textEl, data.transcription);
+      if (heading) heading.hidden = !showSectionTitles;
+      if (section) section.hidden = false;
+    }
+
+    // Additional notes
+    if (showAdditional && data.additional_notes) {
+      const section  = document.getElementById('share-additional-section');
+      const textEl   = document.getElementById('share-additional-text');
+      const heading  = document.getElementById('share-additional-heading');
+      if (textEl) setMd(textEl, data.additional_notes);
+      if (heading) heading.hidden = !showSectionTitles;
+      if (section) section.hidden = false;
+    }
+
+    // Images
+    if (showImages) {
+      const containerMap = {
+        'top':                  document.getElementById('share-images-top'),
+        'after-summary':        document.getElementById('share-images-after-summary'),
+        'after-transcription':  document.getElementById('share-images-after-transcription'),
+        'bottom':               document.getElementById('share-images-bottom'),
+      };
+      const imgContainer = containerMap[imagePosition] || containerMap['top'];
+      const imageFiles = (data.files || []).filter(f => f.kind === 'image');
+
+      if (imageFiles.length && imgContainer) {
+        imgContainer.hidden = false;
+        const srcs = imageFiles.map(f => `/api/share/${encodeURIComponent(token)}/images/${f.position}`);
+        imageFiles.forEach((f, i) => {
+          const img = document.createElement('img');
+          img.src = srcs[i];
+          img.className = 'sp-image';
+          img.alt = '';
+          img.loading = 'lazy';
+          img.addEventListener('click', () => openShareLightbox(srcs, i));
+          imgContainer.appendChild(img);
+        });
       }
     }
 
