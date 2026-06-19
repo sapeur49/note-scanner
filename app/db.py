@@ -370,7 +370,7 @@ def list_published_notes(user_id: str) -> list:
         summary = r["summary"] or ""
         snippet = summary[:140] + ("…" if len(summary) > 140 else "")
         files = r["files"] or []
-        first_image = next((f for f in files if f.get("kind") == "image"), None)
+        image_positions = [f["position"] for f in files if f.get("kind") == "image"]
         out.append({
             "id": r["id"],
             "title": r["title"] or "",
@@ -378,6 +378,6 @@ def list_published_notes(user_id: str) -> list:
             "scanned_at": _iso(r["scanned_at"]),
             "created_at": _iso(r["created_at"]),
             "share_token": r["share_token"],
-            "first_image_position": first_image["position"] if first_image else None,
+            "image_positions": image_positions,
         })
     return out

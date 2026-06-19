@@ -1488,20 +1488,29 @@ async function initPublished() {
       listEl.innerHTML = '';
       if (emptyEl) emptyEl.hidden = items.length > 0;
       items.forEach(n => {
-        const hasThumb = n.first_image_position !== null && n.first_image_position !== undefined;
-        const row = document.createElement('a');
-        row.className = 'note-row';
-        row.href = `/share/${n.share_token}`;
-        row.innerHTML = `
-          <div class="note-row-inner">
-            ${hasThumb ? `<img class="note-row-thumb" src="/api/share/${encodeURIComponent(n.share_token)}/images/${n.first_image_position}" alt="" loading="lazy">` : ''}
-            <div class="note-row-body">
-              <div class="note-row-title">${escapeHtml(n.title || 'Untitled')}</div>
-              <div class="note-row-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
-              <div class="note-row-snippet">${escapeHtml(n.summary_snippet || '')}</div>
-            </div>
+        const positions = n.image_positions || [];
+        const heroPos = positions.length > 0 ? positions[0] : null;
+        const extraPositions = positions.slice(1);
+        const card = document.createElement('a');
+        card.className = 'pub-card';
+        card.href = `/share/${n.share_token}`;
+        const heroHtml = heroPos !== null
+          ? `<img class="pub-card-hero" src="/api/share/${encodeURIComponent(n.share_token)}/images/${heroPos}" alt="" loading="lazy">`
+          : '';
+        const thumbsHtml = extraPositions.length
+          ? `<div class="pub-card-thumbs">${extraPositions.map(p =>
+              `<img class="pub-card-thumb" src="/api/share/${encodeURIComponent(n.share_token)}/images/${p}" alt="" loading="lazy">`
+            ).join('')}</div>`
+          : '';
+        card.innerHTML = `
+          ${heroHtml}
+          <div class="pub-card-body">
+            <div class="pub-card-title">${escapeHtml(n.title || 'Untitled')}</div>
+            <div class="pub-card-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
+            <div class="pub-card-snippet">${escapeHtml(n.summary_snippet || '')}</div>
+            ${thumbsHtml}
           </div>`;
-        listEl.appendChild(row);
+        listEl.appendChild(card);
       });
     }
 
