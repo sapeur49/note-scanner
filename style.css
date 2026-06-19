@@ -802,6 +802,23 @@ details[open] .images-toggle::before {
   white-space: nowrap;
 }
 .pub-exclude-btn:hover { border-color: var(--text-muted); color: var(--text); }
+
+.thumb-delete-btn {
+  margin-top: 2px;
+  padding: 1px 6px;
+  font-size: 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1.4;
+}
+.thumb-delete-btn:hover { border-color: #f87171; color: #b91c1c; }
+@media (prefers-color-scheme: dark) {
+  .thumb-delete-btn:hover { border-color: #b91c1c; color: #fca5a5; }
+}
+
 .pub-exclude-btn.excluded {
   background: #fee2e2;
   border-color: #f87171;

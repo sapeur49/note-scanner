@@ -465,6 +465,30 @@ async function initResults() {
     });
     figure.appendChild(excludeBtn);
 
+    if (mode === 'saved') {
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'thumb-delete-btn';
+      delBtn.textContent = '×';
+      delBtn.title = 'Delete this image';
+      delBtn.addEventListener('click', async () => {
+        if (!confirm('Delete this image? This cannot be undone.')) return;
+        delBtn.disabled = true;
+        try {
+          const authToken = await getToken();
+          const resp = await fetch(`${NOTES_URL}/${savedId}/files/${i}`, {
+            method: 'DELETE',
+            headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
+          });
+          if (!resp.ok) throw new Error();
+          figure.remove();
+        } catch (_) {
+          delBtn.disabled = false;
+        }
+      });
+      figure.appendChild(delBtn);
+    }
+
     strip.appendChild(figure);
   }
   function addPdfTile(name, href) {
