@@ -370,7 +370,8 @@ def list_published_notes(user_id: str) -> list:
         summary = r["summary"] or ""
         snippet = summary[:140] + ("…" if len(summary) > 140 else "")
         files = r["files"] or []
-        image_positions = [f["position"] for f in files if f.get("kind") == "image"]
+        excluded = set(int(p) for p in (opts.get("excludedImages") or []))
+        image_positions = [f["position"] for f in files if f.get("kind") == "image" and f["position"] not in excluded]
         out.append({
             "id": r["id"],
             "title": r["title"] or "",

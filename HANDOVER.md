@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-buster is at **`v=27`** across `index.html`, `results.html`, `notes.html`, `share.html`, `settings.html`, `published.html`.
+Cache-buster is at **`v=29`** across `index.html`, `results.html`, `notes.html`, `share.html`, `settings.html`, `published.html`.
 
 ---
 
@@ -17,7 +17,9 @@ Cache-buster is at **`v=27`** across `index.html`, `results.html`, `notes.html`,
 
 | # | Feature | Version | Key files |
 |---|---|---|---|
-| 1 | **Fix: text edits persist on publish actions** — `savePublishOptions()` now spreads `currentTextFields()` into the PUT body so title/summary/transcription changes are never lost when clicking Republish or Save options | v27 | `app.js` (`savePublishOptions`) |
+| 1 | **EasyMDE WYSIWYG editor on edit sections** — clicking Edit on Summary/Transcription/Additional Notes now opens EasyMDE (toolbar, preview toggle) instead of a plain textarea; note-title keeps plain input; getText() queries active instances so publish/save actions always pick up live content | v29 | `results.html` (CDN scripts), `app.js` (editors Map, toggle handler, getText), `style.css` (EasyMDE theme overrides) |
+| 2 | **Fix: published list excluded-image filtering + markdown rendering** — `list_published_notes` now filters `excludedImages` from `image_positions`; card snippet uses `renderMarkdown` instead of `escapeHtml`; `.pub-card-snippet` CSS updated to `max-height` clipping to support block elements | v28 | `app/db.py` (`list_published_notes`), `app.js` (`renderNotes`), `style.css` (`.pub-card-snippet`) |
+| 2 | **Fix: text edits persist on publish actions** — `savePublishOptions()` now spreads `currentTextFields()` into the PUT body so title/summary/transcription changes are never lost when clicking Republish or Save options | v27 | `app.js` (`savePublishOptions`) |
 | 2 | **Published list hero layout** — first image shown as full-card-width 4:3 hero; extra images as small thumbnails below the text; cards displayed in responsive CSS grid | v26 | `app.js` (`initPublished` `renderNotes`), `app/db.py` (`list_published_notes` returns `image_positions`), `published.html`, `style.css` (`.pub-card-grid`, `.pub-card-hero`, etc.) |
 | 3 | **Delete individual image** — `×` button on each thumbnail in saved mode; calls `DELETE /api/notes/{id}/files/{position}`; removes tile immediately | v26 | `app/main.py` (`delete_note_file`), `app.js` (`addImageTile`), `style.css` (`.thumb-delete-btn`) |
 | 4 | **Add images to saved note** — "+ Add images" button on saved notes; uploads to `POST /api/notes/{id}/files`; EXIF extracted server-side; tiles rendered immediately; button also appears after first save in fresh mode | v26 | `app/main.py` (`add_note_files`), `app/db.py` (`update_note_files`), `results.html`, `app.js` (`enableAddImages`), `style.css` |

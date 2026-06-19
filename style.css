@@ -1178,12 +1178,17 @@ details[open] .images-toggle::before {
   font-size: 0.82rem;
   color: var(--text-muted);
   line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
+  max-height: 4.5em;
   overflow: hidden;
   flex: 1;
 }
+.pub-card-snippet p,
+.pub-card-snippet h2,
+.pub-card-snippet h3,
+.pub-card-snippet ul,
+.pub-card-snippet ol { margin: 0; padding: 0; }
+.pub-card-snippet ul,
+.pub-card-snippet ol { padding-left: 1.1em; }
 
 .pub-card-thumbs {
   display: flex;
@@ -1524,4 +1529,58 @@ body[data-template="magazine"] .sp-footer {
     background: #ffffff;
     color: #111111;
   }
+}
+
+/* ── EasyMDE editor overrides (results page) ── */
+.EasyMDEContainer {
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: none;
+}
+.EasyMDEContainer .editor-toolbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  padding: 4px 6px;
+  opacity: 1;
+}
+.EasyMDEContainer .editor-toolbar a,
+.EasyMDEContainer .editor-toolbar button {
+  color: var(--text-muted) !important;
+  border-radius: 4px;
+}
+.EasyMDEContainer .editor-toolbar a:hover,
+.EasyMDEContainer .editor-toolbar button:hover,
+.EasyMDEContainer .editor-toolbar a.active,
+.EasyMDEContainer .editor-toolbar button.active {
+  color: var(--accent) !important;
+  background: transparent !important;
+  border-color: var(--border);
+}
+.EasyMDEContainer .editor-toolbar i.separator {
+  border-color: var(--border);
+}
+.EasyMDEContainer .CodeMirror {
+  background: var(--bg);
+  color: var(--text);
+  border: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  padding: 8px;
+  min-height: 140px;
+  box-shadow: none;
+}
+.EasyMDEContainer .CodeMirror-cursor { border-left-color: var(--text); }
+.EasyMDEContainer .editor-preview,
+.EasyMDEContainer .editor-preview-side {
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  border-left: 1px solid var(--border);
 }

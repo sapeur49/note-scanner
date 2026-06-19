@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in `index.html`, `results.html`, and `notes.html`. Bump N in all files when deploying JS/CSS changes. Currently at **`v=27`**. (`share.html`, `published.html`, and `settings.html` use absolute paths `/style.css?v=N` and `/app.js?v=N` — update those too.)
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in `index.html`, `results.html`, and `notes.html`. Bump N in all files when deploying JS/CSS changes. Currently at **`v=29`**. (`share.html`, `published.html`, and `settings.html` use absolute paths `/style.css?v=N` and `/app.js?v=N` — update those too.)
 
 ---
 
@@ -197,7 +197,7 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 `app.js` functions (defined just before the router):
 
 - `escapeHtml(s)` — XSS-safe HTML entity escaping
-- `renderMarkdown(text)` — converts `## h2`, `### h3`, `- `/ `* ` lists, `1. ` ordered lists, `**bold**` to HTML; all other content becomes `<p>` wrapped. No external library.
+- `renderMarkdown(text)` — converts `## h2`, `### h3`, `- `/ `* ` lists, `1. ` ordered lists, `**bold**` to HTML; bare `http`/`https` URLs become `<a>` links (via `inlineFormat`); all other content becomes `<p>` wrapped. No external library.
 - `setMd(el, text)` — sets `el.innerHTML = renderMarkdown(text)` and stores `el.dataset.rawMd = text`
 
 Edit mode reads `el.dataset.rawMd` into the textarea; Done re-renders with `setMd()`. `getText(section)` returns `el.dataset.rawMd ?? el.textContent`.
