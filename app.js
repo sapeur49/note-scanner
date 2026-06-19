@@ -314,10 +314,10 @@ async function initResults() {
 
   setMd(document.getElementById('summary-text'), data.summary || '');
   setMd(document.getElementById('transcription-text'), data.transcription || '');
+  const addCard = document.getElementById('additional-notes-card');
+  if (addCard) addCard.hidden = false;
   if (data.additional_notes) {
     setMd(document.getElementById('additional-notes-text'), data.additional_notes);
-    const addCard = document.getElementById('additional-notes-card');
-    if (addCard) addCard.hidden = false;
   }
 
   // Title + friendly date header

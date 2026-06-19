@@ -1240,6 +1240,33 @@ details[open] .images-toggle::before {
 
 .sp-image:hover { opacity: 0.88; }
 
+.sp-image-hero {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 8px;
+  transition: opacity 0.15s;
+}
+.sp-image-hero:hover { opacity: 0.88; }
+
+.sp-image-thumbs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sp-image-thumb {
+  height: 80px;
+  width: auto;
+  object-fit: cover;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.sp-image-thumb:hover { opacity: 0.88; }
+
 /* shared text element styles (mirrors result-text) */
 .sp-text h2 { font-size: 1.1rem; font-weight: 700; margin: 16px 0 6px; }
 .sp-text h3 { font-size: 1rem; font-weight: 600; margin: 12px 0 4px; }
