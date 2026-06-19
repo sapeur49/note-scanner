@@ -197,7 +197,7 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 `app.js` functions (defined just before the router):
 
 - `escapeHtml(s)` — XSS-safe HTML entity escaping
-- `renderMarkdown(text)` — converts `## h2`, `### h3`, `- `/ `* ` lists, `1. ` ordered lists, `**bold**` to HTML; all other content becomes `<p>` wrapped. No external library.
+- `renderMarkdown(text)` — converts `## h2`, `### h3`, `- `/ `* ` lists, `1. ` ordered lists, `**bold**` to HTML; bare `http`/`https` URLs become `<a>` links (via `inlineFormat`); all other content becomes `<p>` wrapped. No external library.
 - `setMd(el, text)` — sets `el.innerHTML = renderMarkdown(text)` and stores `el.dataset.rawMd = text`
 
 Edit mode reads `el.dataset.rawMd` into the textarea; Done re-renders with `setMd()`. `getText(section)` returns `el.dataset.rawMd ?? el.textContent`.
