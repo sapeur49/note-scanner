@@ -781,7 +781,7 @@ async function initResults() {
       await fetch(`${NOTES_URL}/${currentNoteId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ publish_options: getPublishOptions() }),
+        body: JSON.stringify({ ...currentTextFields(), publish_options: getPublishOptions() }),
       });
     } catch (_) {}
   }
