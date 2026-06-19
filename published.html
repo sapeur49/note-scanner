@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Published Notes</title>
+  <link rel="stylesheet" href="/style.css?v=21">
+</head>
+<body>
+  <div id="published-view">
+    <div id="pub-loading" class="sp-loading">Loading…</div>
+
+    <div id="pub-error" hidden class="sp-error">
+      This list is not available. It may be private or the link is invalid.
+    </div>
+
+    <div id="pub-content" hidden>
+      <div id="pub-logo-top" class="sp-logo" hidden>
+        <a id="pub-logo-top-a" href="#" class="sp-logo-link">Read<span>Write</span></a>
+      </div>
+
+      <header class="sp-header">
+        <h1 id="pub-list-title" class="sp-title">Published Notes</h1>
+      </header>
+
+      <main class="sp-body pub-body">
+        <input type="search" id="pub-search" class="notes-search" placeholder="Search title, summary…" autocomplete="off">
+        <div id="pub-notes-list" class="notes-list"></div>
+        <div id="pub-notes-empty" class="notes-empty" hidden>No published notes yet.</div>
+      </main>
+
+      <footer class="sp-footer">
+        <div id="pub-logo-bottom" class="sp-logo" hidden>
+          <a id="pub-logo-bottom-a" href="#" class="sp-logo-link">Read<span>Write</span></a>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <!-- No Clerk — this page is public -->
+  <script src="/app.js?v=21"></script>
+</body>
+</html>

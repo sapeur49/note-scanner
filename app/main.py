@@ -328,6 +328,51 @@ def unpublish_note_route(note_id: str, _user: dict = Depends(require_user)):
     return {}
 
 
+@app.get("/api/settings")
+def get_settings_route(_user: dict = Depends(require_user)):
+    return db.get_settings(_user["sub"])
+
+
+@app.put("/api/settings")
+def update_settings_route(payload: dict = Body(...), _user: dict = Depends(require_user)):
+    return db.upsert_settings(_user["sub"], payload)
+
+
+@app.get("/api/published/{list_token}")
+def get_published_list(list_token: str):
+    settings = db.get_settings_by_list_token(list_token)
+    if not settings:
+        raise HTTPException(status_code=404, detail="Not found")
+    if settings.get("list_public") != "true":
+        raise HTTPException(status_code=403, detail="This list is private")
+    notes_list = db.list_published_notes(settings["user_id"])
+    return {
+        "settings": {
+            "storyListTitle": settings.get("story_list_title") or "",
+            "template": settings.get("template") or "minimal",
+            "logoOn": settings.get("logo_on") == "true",
+            "listToken": list_token,
+        },
+        "notes": notes_list,
+    }
+
+
+@app.get("/settings", include_in_schema=False)
+def settings_page():
+    path = Path("settings.html")
+    if not path.exists():
+        raise HTTPException(status_code=404)
+    return FileResponse(str(path))
+
+
+@app.get("/published/{list_token}", include_in_schema=False)
+def published_page_route(list_token: str):
+    path = Path("published.html")
+    if not path.exists():
+        raise HTTPException(status_code=404)
+    return FileResponse(str(path))
+
+
 @app.get("/share/{token}", include_in_schema=False)
 def share_page_route(token: str):
     path = Path("share.html")
@@ -341,8 +386,15 @@ def share_data_route(token: str):
     note = db.get_note_by_share_token(token)
     if not note:
         raise HTTPException(status_code=404, detail="Note not published or not found")
-    note.pop("user_id", None)
+    user_id = note.pop("user_id", None)
     note.pop("share_token", None)
+    if user_id:
+        owner_settings = db.get_settings(user_id)
+        note["template"] = owner_settings.get("template") or "minimal"
+        note["logo_on"] = owner_settings.get("logo_on") == "true"
+        note["story_list_title"] = owner_settings.get("story_list_title") or ""
+        if owner_settings.get("list_public") == "true" and owner_settings.get("list_token"):
+            note["list_token"] = owner_settings["list_token"]
     return note
 
 

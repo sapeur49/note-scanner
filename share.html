@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ReadWrite</title>
-  <link rel="stylesheet" href="/style.css?v=20">
+  <link rel="stylesheet" href="/style.css?v=21">
 </head>
 <body>
   <div id="share-view">
@@ -16,10 +16,8 @@
 
     <div id="share-content" hidden>
       <div id="sp-logo-top" class="sp-logo" hidden>
-        <a href="/" class="sp-logo-link">Read<span>Write</span></a>
+        <a id="sp-logo-top-a" href="/" class="sp-logo-link">Read<span>Write</span></a>
       </div>
-
-      <div id="share-images-top" class="sp-images" hidden></div>
 
       <header class="sp-header">
         <h1 id="share-title" class="sp-title"></h1>
@@ -27,6 +25,8 @@
       </header>
 
       <main class="sp-body">
+        <div id="share-images-top" class="sp-images" hidden></div>
+
         <section id="share-summary-section" hidden>
           <h2 id="share-summary-heading" class="sp-section-title">Summary</h2>
           <div id="share-summary-text" class="sp-text"></div>
@@ -50,8 +50,9 @@
       </main>
 
       <footer class="sp-footer">
+        <a id="share-home-link" href="/" class="sp-home-link" hidden>Home</a>
         <div id="sp-logo-bottom" class="sp-logo" hidden>
-          <a href="/" class="sp-logo-link">Read<span>Write</span></a>
+          <a id="sp-logo-bottom-a" href="/" class="sp-logo-link">Read<span>Write</span></a>
         </div>
       </footer>
     </div>
@@ -65,6 +66,6 @@
   </div>
 
   <!-- No Clerk — this page is public -->
-  <script src="/app.js?v=20"></script>
+  <script src="/app.js?v=21"></script>
 </body>
 </html>

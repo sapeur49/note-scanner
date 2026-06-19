@@ -316,7 +316,8 @@ async function initResults() {
   setMd(document.getElementById('transcription-text'), data.transcription || '');
   if (data.additional_notes) {
     setMd(document.getElementById('additional-notes-text'), data.additional_notes);
-    document.getElementById('additional-notes-section').hidden = false;
+    const addCard = document.getElementById('additional-notes-card');
+    if (addCard) addCard.hidden = false;
   }
 
   // Title + friendly date header
@@ -628,14 +629,13 @@ async function initResults() {
 
   function getPublishOptions() {
     return {
-      showImages:       document.getElementById('pub-images')?.checked ?? true,
+      showImages:        document.getElementById('pub-images')?.checked ?? true,
       showSectionTitles: document.getElementById('pub-section-titles')?.checked ?? true,
-      showSummary:      document.getElementById('pub-summary')?.checked ?? true,
+      showSummary:       document.getElementById('pub-summary')?.checked ?? true,
       showTranscription: document.getElementById('pub-transcription')?.checked ?? true,
-      showAdditional:   document.getElementById('pub-additional')?.checked ?? true,
-      logoPosition:     document.querySelector('input[name="pub-logo"]:checked')?.value ?? 'top',
-      imagePosition:    document.querySelector('input[name="pub-img-pos"]:checked')?.value ?? 'top',
-      template:         document.querySelector('input[name="pub-template"]:checked')?.value ?? 'minimal',
+      showAdditional:    document.getElementById('pub-additional')?.checked ?? true,
+      includeInList:     document.getElementById('pub-in-list')?.checked ?? true,
+      imagePosition:     document.querySelector('input[name="pub-img-pos"]:checked')?.value ?? 'top',
     };
   }
 
@@ -652,9 +652,66 @@ async function initResults() {
     setCheck('pub-summary', opts.showSummary);
     setCheck('pub-transcription', opts.showTranscription);
     setCheck('pub-additional', opts.showAdditional);
-    setRadio('pub-logo', opts.logoPosition);
+    setCheck('pub-in-list', opts.includeInList);
     setRadio('pub-img-pos', opts.imagePosition);
-    setRadio('pub-template', opts.template);
+  }
+
+  const pubOptionsEl     = document.getElementById('pub-options');
+  const pubEditBtn       = document.getElementById('pub-edit-options-btn');
+  const pubSaveOptsBtn   = document.getElementById('pub-save-options-btn');
+  const republishBtn     = document.getElementById('republish-btn');
+
+  function lockPublishOptions() {
+    if (pubOptionsEl) pubOptionsEl.classList.add('pub-options-locked');
+    pubOptionsEl?.querySelectorAll('input').forEach(el => { el.disabled = true; });
+    if (pubEditBtn) pubEditBtn.hidden = false;
+    if (pubSaveOptsBtn) pubSaveOptsBtn.hidden = true;
+    if (republishBtn) republishBtn.hidden = true;
+  }
+
+  function unlockPublishOptions() {
+    if (pubOptionsEl) pubOptionsEl.classList.remove('pub-options-locked');
+    pubOptionsEl?.querySelectorAll('input').forEach(el => { el.disabled = false; });
+    if (pubEditBtn) pubEditBtn.hidden = true;
+    if (pubSaveOptsBtn) pubSaveOptsBtn.hidden = false;
+    if (republishBtn) republishBtn.hidden = false;
+  }
+
+  if (pubEditBtn) pubEditBtn.addEventListener('click', unlockPublishOptions);
+
+  if (pubSaveOptsBtn) {
+    pubSaveOptsBtn.addEventListener('click', async () => {
+      pubSaveOptsBtn.disabled = true;
+      await savePublishOptions();
+      lockPublishOptions();
+      copiedMsg.textContent = 'Options saved.';
+      setTimeout(() => { copiedMsg.textContent = ''; }, 2000);
+      pubSaveOptsBtn.disabled = false;
+    });
+  }
+
+  if (republishBtn) {
+    republishBtn.addEventListener('click', async () => {
+      if (!currentNoteId) return;
+      republishBtn.disabled = true;
+      copiedMsg.textContent = 'Republishing…';
+      try {
+        await savePublishOptions();
+        const token = await getToken();
+        const resp = await fetch(`${NOTES_URL}/${currentNoteId}/publish`, {
+          method: 'POST',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        });
+        if (!resp.ok) throw new Error('Republish failed');
+        const { share_token } = await resp.json();
+        showShareLink(share_token);
+        copiedMsg.textContent = '';
+      } catch (e) {
+        copiedMsg.textContent = e.message || 'Republish failed';
+      } finally {
+        republishBtn.disabled = false;
+      }
+    });
   }
 
   async function savePublishOptions() {
@@ -684,12 +741,17 @@ async function initResults() {
     if (shareLinkRow) shareLinkRow.hidden = false;
     if (publishBtn) publishBtn.hidden = true;
     if (unpublishBtn) unpublishBtn.hidden = false;
+    lockPublishOptions();
   }
 
   function hideShareLink() {
     if (shareLinkRow) shareLinkRow.hidden = true;
     if (unpublishBtn) unpublishBtn.hidden = true;
     if (publishBtn) publishBtn.hidden = false;
+    unlockPublishOptions();
+    if (pubEditBtn) pubEditBtn.hidden = true;
+    if (pubSaveOptsBtn) pubSaveOptsBtn.hidden = true;
+    if (republishBtn) republishBtn.hidden = true;
   }
 
   // Initial publish state in saved mode
@@ -1056,22 +1118,40 @@ async function initShare() {
 
     // Apply publish options (with defaults)
     const opts = data.publish_options || {};
-    const showImages       = opts.showImages !== false;
+    const showImages        = opts.showImages !== false;
     const showSectionTitles = opts.showSectionTitles !== false;
-    const showSummary      = opts.showSummary !== false;
+    const showSummary       = opts.showSummary !== false;
     const showTranscription = opts.showTranscription !== false;
-    const showAdditional   = opts.showAdditional !== false;
-    const logoPosition     = opts.logoPosition || 'top';
-    const imagePosition    = opts.imagePosition || 'top';
-    const template         = opts.template || 'minimal';
+    const showAdditional    = opts.showAdditional !== false;
+    const imagePosition     = opts.imagePosition || 'top';
+
+    // Template and logo come from owner settings (data.template / data.logo_on / data.list_token)
+    const template  = data.template || 'minimal';
+    const logoOn    = data.logo_on === true;
+    const listToken = data.list_token || null;
+    const listUrl   = listToken ? `/published/${listToken}` : null;
 
     document.body.dataset.template = template;
 
     // Logo
     const logoTop    = document.getElementById('sp-logo-top');
     const logoBottom = document.getElementById('sp-logo-bottom');
-    if (logoPosition === 'top' && logoTop) logoTop.hidden = false;
-    else if (logoPosition === 'bottom' && logoBottom) logoBottom.hidden = false;
+    const logoTopA   = document.getElementById('sp-logo-top-a');
+    const logoBottomA = document.getElementById('sp-logo-bottom-a');
+    if (logoOn) {
+      if (listUrl) {
+        if (logoTopA) logoTopA.href = listUrl;
+        if (logoBottomA) logoBottomA.href = listUrl;
+      }
+      if (logoTop) logoTop.hidden = false;
+    }
+
+    // Home link
+    const homeLink = document.getElementById('share-home-link');
+    if (homeLink && listUrl) {
+      homeLink.href = listUrl;
+      homeLink.hidden = false;
+    }
 
     // Title + date
     const titleEl = document.getElementById('share-title');
@@ -1149,12 +1229,191 @@ async function initShare() {
   }
 }
 
+/* ── Settings page logic ── */
+
+async function initSettings() {
+  await waitForClerk();
+  await window.Clerk.load();
+
+  const signInWall  = document.getElementById('sign-in-wall');
+  const settingsApp = document.getElementById('settings-app');
+
+  if (!window.Clerk.user) {
+    if (settingsApp) settingsApp.hidden = true;
+    if (signInWall) signInWall.hidden = false;
+    window.Clerk.mountSignIn(document.getElementById('clerk-sign-in'));
+    return;
+  }
+  if (signInWall) signInWall.hidden = true;
+  if (settingsApp) settingsApp.hidden = false;
+
+  const token = await getToken();
+  const statusEl = document.getElementById('settings-status');
+  const listUrlRow = document.getElementById('setting-list-url-row');
+  const listUrlA   = document.getElementById('setting-list-url-a');
+
+  let current = {};
+  try {
+    const resp = await fetch('/api/settings', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+    if (resp.ok) current = await resp.json();
+  } catch (_) {}
+
+  function applySettings(s) {
+    const titleEl  = document.getElementById('setting-list-title');
+    const logoEl   = document.getElementById('setting-logo-on');
+    const pubEl    = document.getElementById('setting-list-public');
+    if (titleEl)  titleEl.value   = s.story_list_title || '';
+    if (logoEl)   logoEl.checked  = s.logo_on === 'true';
+    if (pubEl)    pubEl.checked   = s.list_public === 'true';
+    const tplEl = document.querySelector(`input[name="setting-template"][value="${s.template || 'minimal'}"]`);
+    if (tplEl) tplEl.checked = true;
+    if (s.list_token && s.list_public === 'true') {
+      const url = `${location.origin}/published/${s.list_token}`;
+      if (listUrlA) { listUrlA.href = url; listUrlA.textContent = url; }
+      if (listUrlRow) listUrlRow.hidden = false;
+    } else {
+      if (listUrlRow) listUrlRow.hidden = true;
+    }
+  }
+
+  applySettings(current);
+
+  let saveTimer;
+  async function saveSettings() {
+    const titleEl = document.getElementById('setting-list-title');
+    const logoEl  = document.getElementById('setting-logo-on');
+    const pubEl   = document.getElementById('setting-list-public');
+    const tplEl   = document.querySelector('input[name="setting-template"]:checked');
+    const payload = {
+      story_list_title: titleEl?.value || '',
+      template:         tplEl?.value || 'minimal',
+      logo_on:          logoEl?.checked ? 'true' : 'false',
+      list_public:      pubEl?.checked  ? 'true' : 'false',
+    };
+    try {
+      const resp = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        body: JSON.stringify(payload),
+      });
+      if (resp.ok) {
+        current = await resp.json();
+        applySettings(current);
+        if (statusEl) {
+          statusEl.textContent = 'Settings saved';
+          setTimeout(() => { statusEl.textContent = ''; }, 2000);
+        }
+      }
+    } catch (_) {}
+  }
+
+  function debouncedSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveSettings, 800);
+  }
+
+  document.querySelectorAll('#settings-app input').forEach(el => {
+    el.addEventListener('change', debouncedSave);
+  });
+  const titleInput = document.getElementById('setting-list-title');
+  if (titleInput) titleInput.addEventListener('input', debouncedSave);
+}
+
+/* ── Published list page logic ── */
+
+async function initPublished() {
+  const pathParts  = location.pathname.split('/').filter(Boolean);
+  const listToken  = pathParts[pathParts.length - 1] || null;
+  const loadingEl  = document.getElementById('pub-loading');
+  const contentEl  = document.getElementById('pub-content');
+  const errorEl    = document.getElementById('pub-error');
+
+  if (!listToken) {
+    if (loadingEl) loadingEl.hidden = true;
+    if (errorEl) errorEl.hidden = false;
+    return;
+  }
+
+  try {
+    const resp = await fetch(`/api/published/${encodeURIComponent(listToken)}`);
+    if (!resp.ok) throw new Error('not found or private');
+    const { settings, notes } = await resp.json();
+
+    if (loadingEl) loadingEl.hidden = true;
+
+    document.body.dataset.template = settings.template || 'minimal';
+    document.title = (settings.storyListTitle || 'Published Notes') + ' — ReadWrite';
+
+    const titleEl = document.getElementById('pub-list-title');
+    if (titleEl) titleEl.textContent = settings.storyListTitle || 'Published Notes';
+
+    const listUrl = `/published/${listToken}`;
+    const logoTopEl    = document.getElementById('pub-logo-top');
+    const logoBottomEl = document.getElementById('pub-logo-bottom');
+    const logoTopA     = document.getElementById('pub-logo-top-a');
+    const logoBottomA  = document.getElementById('pub-logo-bottom-a');
+    if (settings.logoOn) {
+      if (logoTopA)    logoTopA.href    = listUrl;
+      if (logoBottomA) logoBottomA.href = listUrl;
+      if (logoTopEl)   logoTopEl.hidden = false;
+    }
+
+    const listEl  = document.getElementById('pub-notes-list');
+    const emptyEl = document.getElementById('pub-notes-empty');
+    const searchEl = document.getElementById('pub-search');
+
+    function renderNotes(items) {
+      if (!listEl) return;
+      listEl.innerHTML = '';
+      if (emptyEl) emptyEl.hidden = items.length > 0;
+      items.forEach(n => {
+        const hasThumb = n.first_image_position !== null && n.first_image_position !== undefined;
+        const row = document.createElement('a');
+        row.className = 'note-row';
+        row.href = `/share/${n.share_token}`;
+        row.innerHTML = `
+          <div class="note-row-inner">
+            ${hasThumb ? `<img class="note-row-thumb" src="/api/share/${encodeURIComponent(n.share_token)}/images/${n.first_image_position}" alt="" loading="lazy">` : ''}
+            <div class="note-row-body">
+              <div class="note-row-title">${escapeHtml(n.title || 'Untitled')}</div>
+              <div class="note-row-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
+              <div class="note-row-snippet">${escapeHtml(n.summary_snippet || '')}</div>
+            </div>
+          </div>`;
+        listEl.appendChild(row);
+      });
+    }
+
+    renderNotes(notes);
+
+    if (searchEl) {
+      searchEl.addEventListener('input', () => {
+        const q = searchEl.value.trim().toLowerCase();
+        if (!q) { renderNotes(notes); return; }
+        renderNotes(notes.filter(n =>
+          (n.title || '').toLowerCase().includes(q) ||
+          (n.summary_snippet || '').toLowerCase().includes(q)
+        ));
+      });
+    }
+
+    if (contentEl) contentEl.hidden = false;
+  } catch (_) {
+    if (loadingEl) loadingEl.hidden = true;
+    if (errorEl) errorEl.hidden = false;
+  }
+}
+
 /* ── Router ── */
 
 if (document.getElementById('scan-btn')) {
   initIndex().catch(console.error);
 } else if (document.getElementById('notes-list')) {
   initNotes().catch(console.error);
+} else if (document.getElementById('settings-app')) {
+  initSettings().catch(console.error);
+} else if (document.getElementById('published-view')) {
+  initPublished().catch(console.error);
 } else if (document.getElementById('share-view')) {
   initShare().catch(console.error);
 } else if (document.getElementById('summary-text')) {

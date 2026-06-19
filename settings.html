@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReadWrite — Settings</title>
+  <link rel="stylesheet" href="style.css?v=21">
+</head>
+<body>
+  <div class="container">
+    <a href="index.html" class="back-btn" onclick="if(history.length>1){history.back();return false;}">
+      <svg class="icon"><use href="#icon-arrow-left"/></svg> Back
+    </a>
+
+    <header>
+      <a href="index.html" class="logo">Read<span>Write</span></a>
+    </header>
+
+    <!-- Sign-in wall -->
+    <div id="sign-in-wall" hidden>
+      <div id="clerk-sign-in"></div>
+    </div>
+
+    <div id="settings-app" hidden>
+      <h1 class="page-title">Settings</h1>
+
+      <div class="card settings-card">
+        <div class="card-label">Publishing</div>
+
+        <div class="setting-row">
+          <label class="setting-label" for="setting-list-title">Published pages title</label>
+          <p class="setting-hint">Displayed as the heading on your published pages list</p>
+          <input type="text" id="setting-list-title" class="setting-input" placeholder="My Published Notes">
+        </div>
+
+        <div class="setting-row">
+          <label class="setting-label">Template</label>
+          <p class="setting-hint">Applied to all your published pages and the list view</p>
+          <div class="template-picker">
+            <label class="tpl-opt">
+              <input type="radio" name="setting-template" value="minimal" checked>
+              <span class="tpl-swatch tpl-minimal">Aa</span>
+              <span class="tpl-name">Minimal</span>
+            </label>
+            <label class="tpl-opt">
+              <input type="radio" name="setting-template" value="bold">
+              <span class="tpl-swatch tpl-bold">Aa</span>
+              <span class="tpl-name">Bold</span>
+            </label>
+            <label class="tpl-opt">
+              <input type="radio" name="setting-template" value="magazine">
+              <span class="tpl-swatch tpl-magazine">Aa</span>
+              <span class="tpl-name">Magazine</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <label class="setting-label">Logo</label>
+          <p class="setting-hint">Show the ReadWrite logo on published pages. When visible, it links back to your published list.</p>
+          <label class="setting-checkbox-label">
+            <input type="checkbox" id="setting-logo-on"> Show logo on published pages
+          </label>
+        </div>
+
+        <div class="setting-row">
+          <label class="setting-label">Published list visibility</label>
+          <p class="setting-hint">Make your published notes list publicly accessible via a shareable link</p>
+          <label class="setting-checkbox-label">
+            <input type="checkbox" id="setting-list-public"> Make published list publicly accessible
+          </label>
+        </div>
+
+        <div id="setting-list-url-row" class="setting-row" hidden>
+          <label class="setting-label">Published list URL</label>
+          <a id="setting-list-url-a" href="#" target="_blank" rel="noopener" class="share-link-display"></a>
+        </div>
+
+        <div id="settings-status" class="settings-status"></div>
+      </div>
+    </div>
+  </div>
+
+  <svg hidden xmlns="http://www.w3.org/2000/svg">
+    <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 12H5"/>
+      <polyline points="12 19 5 12 12 5"/>
+    </symbol>
+  </svg>
+
+  <script
+    async
+    crossorigin="anonymous"
+    data-clerk-publishable-key="pk_test_Z2xhZC1jbGFtLTQyLmNsZXJrLmFjY291bnRzLmRldiQ"
+    src="https://glad-clam-42.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+    type="text/javascript"
+  ></script>
+  <script src="app.js?v=21"></script>
+</body>
+</html>

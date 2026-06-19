@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ReadWrite — Results</title>
-  <link rel="stylesheet" href="style.css?v=20">
+  <link rel="stylesheet" href="style.css?v=21">
 </head>
 <body>
   <div class="container">
@@ -40,11 +40,6 @@
         <button class="btn-edit" data-section="summary">Edit</button>
       </div>
       <div class="result-text" id="summary-text"></div>
-      <div id="additional-notes-section" hidden>
-        <hr class="notes-divider">
-        <div class="section-subtitle">Additional Notes</div>
-        <div class="result-text" id="additional-notes-text"></div>
-      </div>
     </div>
 
     <div class="card" id="transcription-card">
@@ -53,6 +48,14 @@
         <button class="btn-edit" data-section="transcription">Edit</button>
       </div>
       <div class="result-text" id="transcription-text"></div>
+    </div>
+
+    <div class="card" id="additional-notes-card" hidden>
+      <div class="section-title">
+        <svg class="icon"><use href="#icon-sparkle"/></svg> Additional Notes
+        <button class="btn-edit" data-section="additional-notes">Edit</button>
+      </div>
+      <div class="result-text" id="additional-notes-text"></div>
     </div>
 
     <div class="card" id="share-card">
@@ -75,7 +78,7 @@
       <div class="section-title">
         <svg class="icon"><use href="#icon-link"/></svg> Publish Page
       </div>
-      <div class="pub-options">
+      <div class="pub-options" id="pub-options">
         <div class="pub-opt-group">
           <div class="pub-opt-label">Include</div>
           <div class="pub-opt-checks">
@@ -84,14 +87,7 @@
             <label><input type="checkbox" id="pub-summary" checked> Summary</label>
             <label><input type="checkbox" id="pub-transcription" checked> Transcription</label>
             <label><input type="checkbox" id="pub-additional" checked> Additional Notes</label>
-          </div>
-        </div>
-        <div class="pub-opt-group">
-          <div class="pub-opt-label">Logo</div>
-          <div class="pub-opt-radios">
-            <label><input type="radio" name="pub-logo" value="top" checked> Top</label>
-            <label><input type="radio" name="pub-logo" value="bottom"> Bottom</label>
-            <label><input type="radio" name="pub-logo" value="off"> Off</label>
+            <label><input type="checkbox" id="pub-in-list" checked> Include in published list</label>
           </div>
         </div>
         <div class="pub-opt-group">
@@ -103,26 +99,6 @@
             <label><input type="radio" name="pub-img-pos" value="bottom"> Bottom</label>
           </div>
         </div>
-        <div class="pub-opt-group">
-          <div class="pub-opt-label">Template</div>
-          <div class="template-picker">
-            <label class="tpl-opt">
-              <input type="radio" name="pub-template" value="minimal" checked>
-              <span class="tpl-swatch tpl-minimal">Aa</span>
-              <span class="tpl-name">Minimal</span>
-            </label>
-            <label class="tpl-opt">
-              <input type="radio" name="pub-template" value="bold">
-              <span class="tpl-swatch tpl-bold">Aa</span>
-              <span class="tpl-name">Bold</span>
-            </label>
-            <label class="tpl-opt">
-              <input type="radio" name="pub-template" value="magazine">
-              <span class="tpl-swatch tpl-magazine">Aa</span>
-              <span class="tpl-name">Magazine</span>
-            </label>
-          </div>
-        </div>
       </div>
       <div id="share-link-row" hidden>
         <a id="share-link-a" href="#" target="_blank" rel="noopener" class="share-link-display"></a>
@@ -131,6 +107,9 @@
         <button class="btn-save" id="publish-btn">
           <svg class="icon"><use href="#icon-link"/></svg> Publish
         </button>
+        <button class="btn-outline" id="pub-edit-options-btn" hidden>Edit options</button>
+        <button class="btn-save" id="pub-save-options-btn" hidden>Save options</button>
+        <button class="btn-outline" id="republish-btn" hidden>Republish</button>
         <button class="btn-outline" id="unpublish-btn" hidden>
           <svg class="icon"><use href="#icon-link-off"/></svg> Unpublish
         </button>
@@ -221,6 +200,6 @@
     src="https://glad-clam-42.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
     type="text/javascript"
   ></script>
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>
