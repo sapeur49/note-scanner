@@ -1483,6 +1483,28 @@ async function initShare() {
     }
 
     if (contentEl) contentEl.hidden = false;
+
+    // Show edit button if the viewer owns this note
+    function showEditBtn(noteId) {
+      const editBtn = document.getElementById('sp-edit-btn');
+      if (editBtn) { editBtn.href = `/results.html?id=${encodeURIComponent(noteId)}`; editBtn.hidden = false; }
+    }
+    if (data.is_owner) {
+      showEditBtn(data.id);
+    } else {
+      (async () => {
+        try {
+          await waitForClerk();
+          await window.Clerk.load();
+          if (!window.Clerk.user) return;
+          const clerkTok = await window.Clerk.session.getToken();
+          const ownerResp = await fetchShareData(`Bearer ${clerkTok}`);
+          if (!ownerResp.ok) return;
+          const ownerData = await ownerResp.json();
+          if (ownerData.is_owner) showEditBtn(ownerData.id);
+        } catch (_) {}
+      })();
+    }
   } catch (_) {
     if (loadingEl) loadingEl.hidden = true;
     if (errorEl) errorEl.hidden = false;
