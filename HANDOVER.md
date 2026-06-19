@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-buster is at **`v=19`** across `index.html`, `results.html`, `notes.html`, and `share.html` (absolute paths in share.html).
+Cache-buster is at **`v=21`** across `index.html`, `results.html`, `notes.html`, `share.html`, `settings.html`, `published.html`.
 
 ---
 
@@ -17,12 +17,41 @@ Cache-buster is at **`v=19`** across `index.html`, `results.html`, `notes.html`,
 
 | # | Feature | Version | Key files |
 |---|---|---|---|
-| 1 | **EXIF extraction** — camera, date, GPS from images; shown as floating panel under each thumbnail | v19 | `app/main.py` (`_extract_exif`, `_parse_gps`, prompt append), `app.js` (`addImageTile`), `style.css` (`.exif-dl` absolute-positioned panel) |
-| 2 | **Server-hosted share pages** — publish/unpublish toggle; share URL at `/share/{token}` | v19 | `app/main.py` (publish routes, `/share/{token}`), `app/db.py` (`share_token` column, `publish_note`, `unpublish_note`, `get_note_by_share_token`), `share.html`, `results.html` (`#publish-btn`, `#unpublish-btn`, `#share-link-row`), `app.js` (`initShare`, publish handlers) |
-| 3 | **PDF export removed** — `window.print()` doesn't work on iOS; replaced by server-hosted share | v19 | `results.html` (removed `#export-btn`), `style.css` (removed `@media print`) |
-| 4 | **Markdown rendering** in summary + transcription | v18 | `app.js` (`renderMarkdown`, `setMd`), `app/main.py` (`SCAN_PROMPT`) |
-| 5 | **Back buttons** use `history.back()` with `index.html` fallback | v18 | `results.html`, `notes.html` |
-| 6 | **Saved notes** — DB persistence, Railway volume, My Notes page | v16 | `app/db.py`, `app/main.py` (CRUD routes), `notes.html`, `app.js` |
+| 1 | **Settings page** (`/settings`) — global template, logo, story list title, published list visibility | v21 | `settings.html`, `app.js` (`initSettings`), `app/db.py` (`user_settings` table), `app/main.py` (`GET/PUT /api/settings`) |
+| 2 | **Published list page** (`/published/{list_token}`) — public list of published notes, search, template-aware | v21 | `published.html`, `app.js` (`initPublished`), `app/main.py` (`GET /api/published/{list_token}`) |
+| 3 | **Additional Notes** — separated from Summary into its own editable card | v21 | `results.html`, `app.js` |
+| 4 | **Publish panel UX** — options locked when published; "Edit options" → "Save options"/"Republish" flow | v21 | `results.html`, `app.js` (`lockPublishOptions`, `unlockPublishOptions`) |
+| 5 | **Share page: settings-driven** — template/logo from global settings; logo links to published list; "Home" footer link | v21 | `share.html`, `app.js` (`initShare`), `app/main.py` (share endpoint now includes owner settings) |
+| 6 | **"Include in published list" toggle** — per-note checkbox in publish panel | v21 | `results.html`, `app/db.py` (`list_published_notes` filters `includeInList`) |
+| 7 | **Publish link plain text** — removed box/border styling from share link display | v21 | `style.css` |
+| 8 | **Images "top" position fix** — now appears below page title on share pages | v21 | `share.html` |
+| 9 | **My Notes thumbnails + published badge** | v20 | `app.js` (`loadNoteThumbnail`), `app/db.py` (`list_notes` returns `first_image_position`), `style.css` |
+| 10 | **Publish panel redesign** — card with section toggles, image position, template swatches | v20 | `results.html`, `app.js`, `app/db.py` (`publish_options` column) |
+| 11 | **Lightbox carousel** — prev/next/keyboard navigation | v20 | `results.html`, `app.js`, `style.css` |
+| 12 | **share.html redesign** — 3 CSS templates (minimal/bold/magazine), B&W contemporary layout | v20 | `share.html`, `style.css` |
+| 13 | **Public image endpoint** `GET /api/share/{token}/images/{position}` | v20 | `app/main.py` |
+| 14 | **Date/time UTC fix** — `_iso()` appends `+00:00` so JS parses correctly | v20 | `app/db.py` |
+| 15 | **markdownToPlainText()** — strips markdown for share/copy text | v20 | `app.js` |
+| 16 | **EXIF extraction** — camera, date, GPS; shown as floating panel under thumbnails | v19 | `app/main.py`, `app.js`, `style.css` |
+| 17 | **Server-hosted share pages** — publish/unpublish, `/share/{token}` | v19 | `app/main.py`, `app/db.py`, `share.html`, `results.html`, `app.js` |
+| 18 | **Markdown rendering** in summary + transcription | v18 | `app.js`, `app/main.py` |
+| 19 | **Saved notes** — DB persistence, Railway volume, My Notes page | v16 | `app/db.py`, `app/main.py`, `notes.html`, `app.js` |
+
+---
+
+## Publish options architecture
+
+**Global settings** (per user, in `user_settings` table):
+- `template` — minimal / bold / magazine — applied to all share pages and the published list
+- `logo_on` — show ReadWrite logo on published pages
+- `story_list_title` — heading on the published list page
+- `list_public` — whether `/published/{list_token}` is publicly accessible
+- `list_token` — stable UUID for the published list URL (auto-generated on first save)
+
+**Per-note options** (`publish_options` JSON column on `notes`):
+- `showImages`, `showSectionTitles`, `showSummary`, `showTranscription`, `showAdditional`
+- `imagePosition` — top / after-summary / after-transcription / bottom
+- `includeInList` — whether this note appears on the published list page
 
 ---
 
@@ -36,11 +65,12 @@ Cache-buster is at **`v=19`** across `index.html`, `results.html`, `notes.html`,
 ## End-to-end verification checklist
 
 1. Deploy logs show no `[db] … Falling back to SQLite` warning.
-2. Sign in → scan a phone photo → confirm EXIF "Image info" toggle appears under the thumbnail with camera name, date, ISO, aperture, shutter. GPS shows as a clickable link if present.
-3. Scan a screenshot or PDF → confirm no "Image info" toggle.
-4. Save the note → "Publish Page" button appears.
-5. Click Publish → share link appears → open in incognito → note renders (title, summary, transcription visible without login).
-6. Click Unpublish → link returns 404 in incognito.
-7. My Notes → saved note appears; search by a word from the transcription finds it.
-8. Open a note → edit summary → Update → reload → change persisted.
-9. Delete → note gone from list, volume folder removed.
+2. Sign in → scan a phone photo → EXIF "Image info" toggle appears under thumbnail.
+3. Save note → Additional Notes card appears (if instructions were given) with its own Edit button.
+4. Open a saved note → Publish card visible → options locked if already published → "Edit options" re-enables → "Save options" / "Republish" work.
+5. Open `/settings` → enter title, pick template, enable logo, check "Make list public" → Save → published list URL appears.
+6. Publish a note → open share URL in incognito → correct template applied, logo visible (if on), "Home" link in footer navigates to published list.
+7. Open published list URL in incognito → cards shown, search filters, thumbnails load, clicking card opens share page.
+8. Uncheck "Include in published list" in publish panel → Save options → note disappears from list.
+9. My Notes → cards show thumbnails and "↗ Published page" badge for published notes.
+10. Search in My Notes finds by title/summary/transcription.

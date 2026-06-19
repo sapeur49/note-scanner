@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in `index.html`, `results.html`, and `notes.html`. Bump N in all three files when deploying JS/CSS changes. Currently at **`v=20`**. (`share.html` uses absolute paths `/style.css?v=N` and `/app.js?v=N` — update it too.)
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in `index.html`, `results.html`, and `notes.html`. Bump N in all files when deploying JS/CSS changes. Currently at **`v=21`**. (`share.html`, `published.html`, and `settings.html` use absolute paths `/style.css?v=N` and `/app.js?v=N` — update those too.)
 
 ---
 
@@ -42,16 +42,19 @@ Push to `main` → Railway auto-deploys (~1-2 min). `Procfile` defines the start
 ## Architecture
 
 ```
-app/main.py        FastAPI: POST /api/scan + CRUD /api/notes + publish/share routes + static file mount
+app/main.py        FastAPI: POST /api/scan + CRUD /api/notes + publish/share/settings/published routes + static file mount
 app/db.py          SQLAlchemy Core persistence — MySQL prod / SQLite dev fallback
 app/auth/verify.py JWT verification via Clerk JWKS (PyJWT + PyJWKClient)
-index.html         Upload UI (sign-in wall + app div)
-results.html       Scan results: image strip, summary, transcription, share panel, save/update/delete/publish
-notes.html         My Notes list — search, browse, open saved notes
-share.html         Public share page — no Clerk, loaded from /share/{token}
+index.html         Upload UI (sign-in wall + app div + My Notes + Settings links)
+results.html       Scan results: image strip, summary, transcription, additional notes, share panel, save/update/delete/publish
+notes.html         My Notes list — search, browse, open saved notes (thumbnails + published badge)
+share.html         Public share page — no Clerk, loaded from /share/{token}; template/logo from owner settings
+settings.html      Settings page — story list title, template, logo, published list visibility (auth'd)
+published.html     Public published notes list — /published/{list_token}; template-aware, searchable
 app.js             All frontend logic — auth, thumbnails, scan POST, sessionStorage, EXIF display,
-                   lightbox, edit, share, notes CRUD, publish/unpublish, initShare()
-style.css          Shared styles, CSS variables, auto light/dark mode
+                   lightbox carousel, edit, share, notes CRUD, publish/unpublish, initShare(),
+                   initSettings(), initPublished()
+style.css          Shared styles, CSS variables, auto light/dark mode, 3 share page templates
 test.html          Browser-based QA harness
 ```
 
@@ -119,13 +122,19 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `POST /api/notes` — save a scanned note with file attachments
 - `GET /api/notes` — list notes for the signed-in user (supports `?q=` search)
 - `GET /api/notes/{id}` — fetch a single note (includes `share_token` field)
-- `PUT /api/notes/{id}` — update title/summary/transcription/additional_notes (only these 4 fields; others silently ignored)
+- `PUT /api/notes/{id}` — update editable fields: `title`, `summary`, `transcription`, `additional_notes`, `publish_options`
 - `DELETE /api/notes/{id}` — delete note + remove volume files
 - `GET /api/notes/{id}/files/{position}` — serve an attached file (auth'd)
 - `POST /api/notes/{id}/publish` — generate/return share token (idempotent, auth'd)
 - `DELETE /api/notes/{id}/publish` — revoke share token (auth'd)
+- `GET /api/settings` — fetch user settings (auth'd)
+- `PUT /api/settings` — upsert user settings; auto-generates `list_token` if absent (auth'd)
+- `GET /api/share/{token}` — return note JSON + owner settings fields (`template`, `logo_on`, `list_token` if public) (no auth)
+- `GET /api/share/{token}/images/{position}` — serve a published note image (no auth)
+- `GET /api/published/{list_token}` — return published notes list + settings; 403 if `list_public != true` (no auth)
 - `GET /share/{token}` — serve `share.html` (no auth)
-- `GET /api/share/{token}` — return note JSON without user_id/share_token (no auth)
+- `GET /settings` — serve `settings.html`
+- `GET /published/{list_token}` — serve `published.html` (no auth)
 
 ---
 
@@ -133,11 +142,15 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 
 A saved note can be published: `POST /api/notes/{id}/publish` generates a stable UUID share token stored in `notes.share_token`. The share URL is `{origin}/share/{token}`.
 
-`GET /share/{token}` serves `share.html`, which has **absolute** asset paths (`/style.css?v=19`, `/app.js?v=19`) — this is critical because the URL path `/share/{token}` would make relative paths resolve to `/share/style.css` (404).
+`GET /share/{token}` serves `share.html`, which has **absolute** asset paths (`/style.css?v=N`, `/app.js?v=N`) — critical because the URL path `/share/{token}` would make relative paths resolve to `/share/style.css` (404). Same applies to `published.html` and `settings.html`.
 
-`initShare()` in `app.js` extracts the token from the URL path (not query string), fetches `/api/share/{token}`, and renders the note with `setMd()`. The router at the bottom of `app.js` checks for `#share-view` before `#summary-text`.
+`initShare()` in `app.js` fetches `/api/share/{token}`, which now includes the owner's `template`, `logo_on`, and `list_token` (if their published list is public). Template and logo are **global** (from `user_settings`), not per-note. Per-note `publish_options` controls: `showImages`, `showSectionTitles`, `showSummary`, `showTranscription`, `showAdditional`, `imagePosition`, `includeInList`.
 
-Publish/unpublish state in `results.html` (saved-note mode only): `data.share_token` on load determines whether to show the Publish or Unpublish button. After a fresh save, the save handler captures `respJson.id` into `currentNoteId` and shows the Publish button.
+**Publish panel UX**: When a note is already published, all options are locked/greyed out. "Edit options" button re-enables them, showing "Save options" and "Republish" buttons.
+
+**Published list**: Each user has a stable `list_token` (auto-generated on first settings save). `GET /published/{list_token}` serves the public list page when `list_public = "true"` in `user_settings`. Notes are excluded from the list if `publish_options.includeInList = false`.
+
+**Settings**: Template (minimal/bold/magazine), logo on/off, story list title, and list visibility are global per-user settings stored in `user_settings` table, managed via `/settings` page.
 
 ---
 
@@ -151,11 +164,23 @@ EXIF date format from cameras is `YYYY:MM:DD HH:MM:SS` — `app.js` converts the
 
 ## Database: app/db.py
 
-SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()` runs after `create_all()` and adds new columns via `ALTER TABLE` only if absent — works for both engines. Currently manages: `share_token VARCHAR(36) NULL`.
+SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()` runs after `create_all()` and adds new columns via `ALTER TABLE` only if absent — works for both engines. Currently migrates: `share_token`, `publish_options` on `notes`.
 
 `files` JSON column stores per-file metadata including `exif` (if available) — no separate EXIF column needed.
 
-`publish_note()` is idempotent: reuses existing token if one already exists, so the share URL is stable across repeated publishes.
+`publish_note()` is idempotent: reuses existing token if one already exists.
+
+**`user_settings` table** (new — created via `create_all`, no migration needed):
+| Column | Type | Purpose |
+|---|---|---|
+| `user_id` | String(255) PK | Clerk user sub |
+| `story_list_title` | String(512) | Heading on published list page |
+| `template` | String(32) | `minimal`\|`bold`\|`magazine` — global for all published pages |
+| `logo_on` | String(8) | `"true"`\|`"false"` — show ReadWrite logo on published pages |
+| `list_public` | String(8) | `"true"`\|`"false"` — controls public access to published list |
+| `list_token` | String(36) | Stable UUID; auto-generated on first `upsert_settings()` call |
+
+Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get_settings_by_list_token(token)`, `list_published_notes(user_id)`.
 
 ---
 
@@ -178,7 +203,9 @@ Edit mode reads `el.dataset.rawMd` into the textarea; Done re-renders with `setM
 - **Styling**: CSS variables at top of `style.css`
 - **Markdown rendering**: edit `renderMarkdown()` in `app.js`
 - **Share checkboxes** (title/date/summary/transcription): `#share-card` in `results.html`; the `#share-btn` handler in `app.js` assembles checked sections and calls `share()`
-- **DB schema changes**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`
+- **Publish options** (per-note): `#publish-card` in `results.html`; `getPublishOptions()`/`restorePublishOptions()` in `app.js`; stored in `notes.publish_options` JSON column
+- **Global settings** (template/logo/list title): `settings.html` + `initSettings()` in `app.js`; stored in `user_settings` table via `PUT /api/settings`
+- **DB schema changes on `notes`**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`. New tables: just add to `metadata` — `create_all()` handles them automatically.
 - **Tests**: add blocks inside `runTests()` in `test.html`
 
 ---
