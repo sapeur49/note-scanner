@@ -1359,7 +1359,7 @@ async function initShare() {
         if (imageFiles.length === 1) {
           const img = document.createElement('img');
           img.src = srcs[0];
-          img.className = 'sp-image';
+          img.className = 'sp-image-hero';
           img.alt = '';
           img.loading = 'lazy';
           img.addEventListener('click', () => openShareLightbox(srcs, 0));

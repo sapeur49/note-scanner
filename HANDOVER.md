@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-buster is at **`v=31`** across `index.html`, `results.html`, `notes.html`, `share.html`, `settings.html`, `published.html`.
+Cache-buster is at **`v=32`** across `index.html`, `results.html`, `notes.html`, `share.html`, `settings.html`, `published.html`.
 
 ---
 
@@ -17,7 +17,8 @@ Cache-buster is at **`v=31`** across `index.html`, `results.html`, `notes.html`,
 
 | # | Feature | Version | Key files |
 |---|---|---|---|
-| 1 | **Fix: hero image natural aspect ratio + Additional Notes always visible** — hero on share page uses natural image dimensions (no forced 4:3 crop); Additional Notes card always shown in results so users can add notes without scan instructions | v31 | `style.css` (`.sp-image-hero`), `app.js` (`initResults` additional-notes unhide) |
+| 1 | **Fix: single-image share page full width** — single-image notes now use the same full-width natural-ratio hero layout as multi-image notes | v32 | `app.js` (`initShare` single-image branch) |
+| 2 | **Fix: hero image natural aspect ratio + Additional Notes always visible** — hero on share page uses natural image dimensions (no forced 4:3 crop); Additional Notes card always shown in results so users can add notes without scan instructions | v31 | `style.css` (`.sp-image-hero`), `app.js` (`initResults` additional-notes unhide) |
 | 2 | **Fix: share page hero + thumbnails for multi-image notes** — first image renders full-width 4:3 hero, remaining images as 80px thumbnail strip; single-image notes unchanged | v30 | `app.js` (`initShare` image rendering), `style.css` (`.sp-image-hero`, `.sp-image-thumbs`, `.sp-image-thumb`) |
 | 2 | **EasyMDE WYSIWYG editor on edit sections** — clicking Edit on Summary/Transcription/Additional Notes now opens EasyMDE (toolbar, preview toggle) instead of a plain textarea; note-title keeps plain input; getText() queries active instances so publish/save actions always pick up live content | v29 | `results.html` (CDN scripts), `app.js` (editors Map, toggle handler, getText), `style.css` (EasyMDE theme overrides) |
 | 2 | **Fix: published list excluded-image filtering + markdown rendering** — `list_published_notes` now filters `excludedImages` from `image_positions`; card snippet uses `renderMarkdown` instead of `escapeHtml`; `.pub-card-snippet` CSS updated to `max-height` clipping to support block elements | v28 | `app/db.py` (`list_published_notes`), `app.js` (`renderNotes`), `style.css` (`.pub-card-snippet`) |
