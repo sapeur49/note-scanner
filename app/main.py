@@ -387,6 +387,7 @@ def share_data_route(token: str, authorization: str = Header(default="")):
     if not note:
         raise HTTPException(status_code=404, detail="Note not published or not found")
     vis = (note.get("visibility") or "public").strip()
+    req_user = None
     if vis in ("logged_in", "me"):
         if not authorization.startswith("Bearer "):
             raise HTTPException(status_code=401, detail={"visibility": vis})
@@ -396,9 +397,16 @@ def share_data_route(token: str, authorization: str = Header(default="")):
             raise HTTPException(status_code=401, detail={"visibility": vis})
         if vis == "me" and req_user["sub"] != note.get("user_id"):
             raise HTTPException(status_code=403, detail="Access denied")
+    elif authorization.startswith("Bearer "):
+        try:
+            req_user = verify_clerk_token(authorization[7:])
+        except Exception:
+            pass
     user_id = note.pop("user_id", None)
     note.pop("share_token", None)
     note.pop("is_published", None)
+    if req_user and req_user.get("sub") == user_id:
+        note["is_owner"] = True
     if user_id:
         owner_settings = db.get_settings(user_id)
         note["template"] = owner_settings.get("template") or "minimal"
