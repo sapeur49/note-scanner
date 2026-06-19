@@ -1507,7 +1507,7 @@ async function initPublished() {
           <div class="pub-card-body">
             <div class="pub-card-title">${escapeHtml(n.title || 'Untitled')}</div>
             <div class="pub-card-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
-            <div class="pub-card-snippet">${escapeHtml(n.summary_snippet || '')}</div>
+            <div class="pub-card-snippet">${renderMarkdown(n.summary_snippet || '')}</div>
             ${thumbsHtml}
           </div>`;
         listEl.appendChild(card);

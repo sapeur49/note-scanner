@@ -1178,12 +1178,17 @@ details[open] .images-toggle::before {
   font-size: 0.82rem;
   color: var(--text-muted);
   line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
+  max-height: 4.5em;
   overflow: hidden;
   flex: 1;
 }
+.pub-card-snippet p,
+.pub-card-snippet h2,
+.pub-card-snippet h3,
+.pub-card-snippet ul,
+.pub-card-snippet ol { margin: 0; padding: 0; }
+.pub-card-snippet ul,
+.pub-card-snippet ol { padding-left: 1.1em; }
 
 .pub-card-thumbs {
   display: flex;
