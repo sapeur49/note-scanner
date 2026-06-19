@@ -304,23 +304,24 @@ def get_settings(user_id: str) -> dict:
 
 def upsert_settings(user_id: str, fields: dict) -> dict:
     values = {k: fields[k] for k in _SETTINGS_FIELDS if k in fields}
-    existing = get_settings(user_id)
-    if not existing.get("list_token"):
+    with engine.connect() as conn:
+        existing_row = conn.execute(
+            select(user_settings.c.user_id, user_settings.c.list_token)
+            .where(user_settings.c.user_id == user_id)
+        ).mappings().first()
+    if not (existing_row and existing_row.get("list_token")):
         values["list_token"] = str(uuid.uuid4())
-    if existing.get("user_id"):
-        if values:
-            stmt = (
-                sa_update(user_settings)
-                .where(user_settings.c.user_id == user_id)
-                .values(**values)
-            )
-            with engine.begin() as conn:
-                conn.execute(stmt)
+    if existing_row:
+        stmt = (
+            sa_update(user_settings)
+            .where(user_settings.c.user_id == user_id)
+            .values(**values)
+        )
     else:
         values["user_id"] = user_id
         stmt = insert(user_settings).values(**values)
-        with engine.begin() as conn:
-            conn.execute(stmt)
+    with engine.begin() as conn:
+        conn.execute(stmt)
     return get_settings(user_id)
 
 
