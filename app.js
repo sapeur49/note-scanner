@@ -386,9 +386,12 @@ async function initResults() {
 
   const shareFiles = [];  // File objects offered to the share sheet when "Image(s)" is checked
 
+  const excludedImages = new Set(); // positions excluded from publishing
+
   function addImageTile(thumbSrc, fullSrc, i, exif) {
     const figure = document.createElement('figure');
     figure.className = 'thumb-figure';
+    figure.dataset.position = i;
 
     const img = document.createElement('img');
     img.src = thumbSrc;
@@ -443,6 +446,24 @@ async function initResults() {
       details.appendChild(dl);
       figure.appendChild(details);
     }
+
+    const excludeBtn = document.createElement('button');
+    excludeBtn.type = 'button';
+    excludeBtn.className = 'pub-exclude-btn';
+    excludeBtn.textContent = 'Exclude';
+    excludeBtn.title = 'Exclude this image from published page';
+    excludeBtn.addEventListener('click', () => {
+      if (excludedImages.has(i)) {
+        excludedImages.delete(i);
+        excludeBtn.textContent = 'Exclude';
+        excludeBtn.classList.remove('excluded');
+      } else {
+        excludedImages.add(i);
+        excludeBtn.textContent = 'Excluded';
+        excludeBtn.classList.add('excluded');
+      }
+    });
+    figure.appendChild(excludeBtn);
 
     strip.appendChild(figure);
   }
@@ -636,6 +657,7 @@ async function initResults() {
       showAdditional:    document.getElementById('pub-additional')?.checked ?? true,
       includeInList:     document.getElementById('pub-in-list')?.checked ?? true,
       imagePosition:     document.querySelector('input[name="pub-img-pos"]:checked')?.value ?? 'top',
+      excludedImages:    [...excludedImages],
     };
   }
 
@@ -654,6 +676,17 @@ async function initResults() {
     setCheck('pub-additional', opts.showAdditional);
     setCheck('pub-in-list', opts.includeInList);
     setRadio('pub-img-pos', opts.imagePosition);
+    // Restore per-image exclusions
+    excludedImages.clear();
+    (opts.excludedImages || []).forEach(p => excludedImages.add(Number(p)));
+    document.querySelectorAll('#image-strip .thumb-figure').forEach(fig => {
+      const pos = Number(fig.dataset.position);
+      const btn = fig.querySelector('.pub-exclude-btn');
+      if (!btn) return;
+      const ex = excludedImages.has(pos);
+      btn.textContent = ex ? 'Excluded' : 'Exclude';
+      btn.classList.toggle('excluded', ex);
+    });
   }
 
   const pubOptionsEl     = document.getElementById('pub-options');
@@ -1021,7 +1054,17 @@ function renderMarkdown(text) {
   let listType = null;
   function closeList() { if (listType) { out.push(`</${listType}>`); listType = null; } }
   function inlineFormat(s) {
-    return escapeHtml(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Split on URLs so they can be linked without double-escaping
+    return s.split(/(https?:\/\/[^\s]+)/g).map((part, idx) => {
+      if (idx % 2 === 1) {
+        // URL — trim trailing punctuation that's likely not part of it
+        const url = part.replace(/[.,;:!?)'"\]]+$/, '');
+        const tail = part.slice(url.length);
+        const esc = escapeHtml(url);
+        return `<a href="${esc}" target="_blank" rel="noopener">${esc}</a>${escapeHtml(tail)}`;
+      }
+      return escapeHtml(part).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    }).join('');
   }
   for (const line of lines) {
     const t = line.trim();
@@ -1205,7 +1248,8 @@ async function initShare() {
         'bottom':               document.getElementById('share-images-bottom'),
       };
       const imgContainer = containerMap[imagePosition] || containerMap['top'];
-      const imageFiles = (data.files || []).filter(f => f.kind === 'image');
+      const excludedSet = new Set((opts.excludedImages || []).map(Number));
+      const imageFiles = (data.files || []).filter(f => f.kind === 'image' && !excludedSet.has(Number(f.position)));
 
       if (imageFiles.length && imgContainer) {
         imgContainer.hidden = false;
