@@ -446,6 +446,30 @@ details[open] .images-toggle::before {
 
 .image-strip .thumb:hover { opacity: 0.8; }
 
+#add-images-row {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-add-images {
+  display: inline-block;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-add-images:hover { border-color: var(--accent); color: var(--accent); }
+
+.add-images-status {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
 .image-strip .pdf-thumb {
   display: flex;
   flex-direction: column;

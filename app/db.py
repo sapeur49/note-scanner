@@ -231,6 +231,17 @@ def update_note(user_id: str, note_id: str, fields: dict) -> int:
     return result.rowcount
 
 
+def update_note_files(user_id: str, note_id: str, files: list) -> int:
+    stmt = (
+        sa_update(notes)
+        .where(notes.c.id == note_id, notes.c.user_id == user_id)
+        .values(files=files, updated_at=_utcnow())
+    )
+    with engine.begin() as conn:
+        result = conn.execute(stmt)
+    return result.rowcount
+
+
 def delete_note(user_id: str, note_id: str) -> int:
     stmt = sa_delete(notes).where(
         notes.c.id == note_id, notes.c.user_id == user_id

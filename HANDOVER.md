@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-buster is at **`v=22`** across `index.html`, `results.html`, `notes.html`, `share.html`, `settings.html`, `published.html`.
+Cache-buster is at **`v=23`** across `index.html`, `results.html`, `notes.html`, `share.html`, `settings.html`, `published.html`.
 
 ---
 
@@ -17,7 +17,8 @@ Cache-buster is at **`v=22`** across `index.html`, `results.html`, `notes.html`,
 
 | # | Feature | Version | Key files |
 |---|---|---|---|
-| 1 | **Per-image publish exclusion** — "Exclude" toggle on each image thumbnail; excluded images filtered from share page | v22 | `app.js` (`addImageTile`, `getPublishOptions`, `restorePublishOptions`, `initShare`), `style.css` (`.pub-exclude-btn`) |
+| 1 | **Add images to saved note** — "+ Add images" button on saved note; uploads to `POST /api/notes/{id}/files`; EXIF extracted server-side; tiles rendered immediately | v23 | `app/main.py` (`add_note_files`), `app/db.py` (`update_note_files`), `results.html`, `app.js`, `style.css` |
+| 2 | **Per-image publish exclusion** — "Exclude" toggle on each image thumbnail; excluded images filtered from share page | v22 | `app.js` (`addImageTile`, `getPublishOptions`, `restorePublishOptions`, `initShare`), `style.css` (`.pub-exclude-btn`) |
 | 2 | **Auto-link URLs in text** — bare http/https URLs in summary/transcription/notes rendered as clickable links | v22 | `app.js` (`inlineFormat` in `renderMarkdown`) |
 | 3 | **Settings page** (`/settings`) — global template, logo, story list title, published list visibility | v21 | `settings.html`, `app.js` (`initSettings`), `app/db.py` (`user_settings` table), `app/main.py` (`GET/PUT /api/settings`) |
 | 2 | **Published list page** (`/published/{list_token}`) — public list of published notes, search, template-aware | v21 | `published.html`, `app.js` (`initPublished`), `app/main.py` (`GET /api/published/{list_token}`) |

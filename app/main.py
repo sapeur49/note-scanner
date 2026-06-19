@@ -415,5 +415,46 @@ def share_note_image(token: str, position: int):
     return FileResponse(path, media_type=entry.get("mime", "image/jpeg"))
 
 
+@app.post("/api/notes/{note_id}/files")
+async def add_note_files(
+    note_id: str,
+    files: List[UploadFile] = File(...),
+    _user: dict = Depends(require_user),
+):
+    note = db.get_note(_user["sub"], note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    existing = note.get("files") or []
+    next_pos = max((int(f["position"]) for f in existing), default=-1) + 1
+
+    folder = NOTES_DIR / note_id
+    folder.mkdir(parents=True, exist_ok=True)
+
+    new_entries = []
+    for i, f in enumerate(files):
+        data = await f.read()
+        mime = f.content_type or "image/jpeg"
+        kind = "pdf" if mime == "application/pdf" else "image"
+        position = next_pos + i
+        ext = _EXT.get(kind, ".bin")
+        filename = f"{position}{ext}"
+        (folder / filename).write_bytes(data)
+        entry = {
+            "position": position,
+            "kind": kind,
+            "filename": filename,
+            "mime": mime,
+            "original_name": f.filename,
+        }
+        exif = _extract_exif(data, mime)
+        if exif:
+            entry["exif"] = exif
+        new_entries.append(entry)
+
+    db.update_note_files(_user["sub"], note_id, existing + new_entries)
+    return {"added": len(new_entries), "files": new_entries}
+
+
 # Serve static frontend — must come after API routes
 app.mount("/", StaticFiles(directory=".", html=True), name="static")
