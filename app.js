@@ -1307,16 +1307,14 @@ async function initSettings() {
     } catch (_) {}
   }
 
-  function debouncedSave() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveSettings, 800);
+  const saveBtn = document.getElementById('settings-save-btn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.disabled = true;
+      await saveSettings();
+      saveBtn.disabled = false;
+    });
   }
-
-  document.querySelectorAll('#settings-app input').forEach(el => {
-    el.addEventListener('change', debouncedSave);
-  });
-  const titleInput = document.getElementById('setting-list-title');
-  if (titleInput) titleInput.addEventListener('input', debouncedSave);
 }
 
 /* ── Published list page logic ── */
