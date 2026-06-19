@@ -669,12 +669,14 @@ async function initResults() {
         parts.push(getText('note-date'));
       }
       if (document.getElementById('share-summary').checked) {
-        const addNotes = getText('additional-notes');
-        const additionalText = addNotes ? `\n\nAdditional Notes:\n${markdownToPlainText(addNotes)}` : '';
-        parts.push(`Summary:\n${markdownToPlainText(getText('summary'))}${additionalText}`);
+        parts.push(`Summary:\n${markdownToPlainText(getText('summary'))}`);
       }
       if (document.getElementById('share-transcription').checked) {
         parts.push(`Transcription:\n${markdownToPlainText(getText('transcription'))}`);
+      }
+      if (document.getElementById('share-additional').checked) {
+        const addNotes = getText('additional-notes');
+        if (addNotes) parts.push(`Additional Notes:\n${markdownToPlainText(addNotes)}`);
       }
       share(parts.join('\n\n'));
     });

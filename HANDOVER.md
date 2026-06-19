@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-buster is at **`v=32`** across `index.html`, `results.html`, `notes.html`, `share.html`, `settings.html`, `published.html`.
+Cache-buster is at **`v=34`** across `index.html`, `results.html`, `notes.html`, `share.html`, `settings.html`, `published.html`.
 
 ---
 
