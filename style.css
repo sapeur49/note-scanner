@@ -1242,11 +1242,10 @@ details[open] .images-toggle::before {
 
 .sp-image-hero {
   width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
+  height: auto;
+  display: block;
   border-radius: 6px;
   cursor: pointer;
-  display: block;
   margin-bottom: 8px;
   transition: opacity 0.15s;
 }
