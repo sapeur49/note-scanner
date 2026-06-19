@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in `index.html`, `results.html`, and `notes.html`. Bump N in all files when deploying JS/CSS changes. Currently at **`v=26`**. (`share.html`, `published.html`, and `settings.html` use absolute paths `/style.css?v=N` and `/app.js?v=N` — update those too.)
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in `index.html`, `results.html`, and `notes.html`. Bump N in all files when deploying JS/CSS changes. Currently at **`v=27`**. (`share.html`, `published.html`, and `settings.html` use absolute paths `/style.css?v=N` and `/app.js?v=N` — update those too.)
 
 ---
 
@@ -125,6 +125,8 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `PUT /api/notes/{id}` — update editable fields: `title`, `summary`, `transcription`, `additional_notes`, `publish_options`
 - `DELETE /api/notes/{id}` — delete note + remove volume files
 - `GET /api/notes/{id}/files/{position}` — serve an attached file (auth'd)
+- `POST /api/notes/{id}/files` — upload additional images/PDFs to a saved note; assigns positions continuing from existing max; extracts EXIF (auth'd)
+- `DELETE /api/notes/{id}/files/{position}` — delete a single file from a saved note; removes from disk and updates `files` JSON (auth'd)
 - `POST /api/notes/{id}/publish` — generate/return share token (idempotent, auth'd)
 - `DELETE /api/notes/{id}/publish` — revoke share token (auth'd)
 - `GET /api/settings` — fetch user settings (auth'd)
@@ -144,7 +146,7 @@ A saved note can be published: `POST /api/notes/{id}/publish` generates a stable
 
 `GET /share/{token}` serves `share.html`, which has **absolute** asset paths (`/style.css?v=N`, `/app.js?v=N`) — critical because the URL path `/share/{token}` would make relative paths resolve to `/share/style.css` (404). Same applies to `published.html` and `settings.html`.
 
-`initShare()` in `app.js` fetches `/api/share/{token}`, which now includes the owner's `template`, `logo_on`, and `list_token` (if their published list is public). Template and logo are **global** (from `user_settings`), not per-note. Per-note `publish_options` controls: `showImages`, `showSectionTitles`, `showSummary`, `showTranscription`, `showAdditional`, `imagePosition`, `includeInList`.
+`initShare()` in `app.js` fetches `/api/share/{token}`, which now includes the owner's `template`, `logo_on`, and `list_token` (if their published list is public). Template and logo are **global** (from `user_settings`), not per-note. Per-note `publish_options` controls: `showImages`, `showSectionTitles`, `showSummary`, `showTranscription`, `showAdditional`, `imagePosition`, `includeInList`, `excludedImages` (array of positions excluded from the share page).
 
 **Publish panel UX**: When a note is already published, all options are locked/greyed out. "Edit options" button re-enables them, showing "Save options" and "Republish" buttons.
 
@@ -159,6 +161,12 @@ A saved note can be published: `POST /api/notes/{id}/publish` generates a stable
 `addImageTile(thumbSrc, fullSrc, i, exif)` in `app.js` wraps each image in a `<figure class="thumb-figure">` with a `<details class="exif-details">` toggle underneath. The `<dl class="exif-dl">` is **absolute-positioned** (220px wide) so it floats over adjacent thumbnails when opened — `.thumb-figure` has `position: relative` and `:has(details[open])` bumps its `z-index` to 50.
 
 EXIF date format from cameras is `YYYY:MM:DD HH:MM:SS` — `app.js` converts the colons in the date part to dashes before display.
+
+Each tile also renders:
+- **Exclude button** (`.pub-exclude-btn`) — toggles the position in the `excludedImages` Set; serialised into `publish_options.excludedImages` on save/publish. Excluded images are hidden on the share page.
+- **Delete button** (`.thumb-delete-btn`, saved mode only) — calls `DELETE /api/notes/{id}/files/{position}`, removes the `<figure>` from the DOM immediately.
+
+**Adding images to a saved note**: `enableAddImages(noteId)` in `app.js` shows `#add-images-row` and wires the file input to `POST /api/notes/{id}/files`. A `dataset.wired` guard prevents double-wiring if called more than once. The function is called in two places: in the saved-mode init branch and after a successful save in fresh mode (so the button appears immediately after first save).
 
 ---
 
@@ -180,7 +188,7 @@ SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()
 | `list_public` | String(8) | `"true"`\|`"false"` — controls public access to published list |
 | `list_token` | String(36) | Stable UUID; auto-generated on first `upsert_settings()` call |
 
-Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get_settings_by_list_token(token)`, `list_published_notes(user_id)`.
+Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get_settings_by_list_token(token)`, `list_published_notes(user_id)`, `update_note_files(user_id, note_id, files)`.
 
 ---
 
@@ -203,7 +211,9 @@ Edit mode reads `el.dataset.rawMd` into the textarea; Done re-renders with `setM
 - **Styling**: CSS variables at top of `style.css`
 - **Markdown rendering**: edit `renderMarkdown()` in `app.js`
 - **Share checkboxes** (title/date/summary/transcription): `#share-card` in `results.html`; the `#share-btn` handler in `app.js` assembles checked sections and calls `share()`
-- **Publish options** (per-note): `#publish-card` in `results.html`; `getPublishOptions()`/`restorePublishOptions()` in `app.js`; stored in `notes.publish_options` JSON column
+- **Publish options** (per-note): `#publish-card` in `results.html`; `getPublishOptions()`/`restorePublishOptions()` in `app.js`; stored in `notes.publish_options` JSON column. `savePublishOptions()` sends both text fields and publish_options together so title/summary edits are never lost when using publish actions.
+- **Image exclude/delete per tile**: `addImageTile()` in `app.js` — Exclude button toggles `excludedImages` Set; Delete button calls `DELETE /api/notes/{id}/files/{position}` (saved mode only)
+- **Add images to saved note**: `enableAddImages(noteId)` in `app.js` — call after save or on saved-mode load; uses `dataset.wired` guard to prevent double-wiring
 - **Global settings** (template/logo/list title): `settings.html` + `initSettings()` in `app.js`; stored in `user_settings` table via `PUT /api/settings`
 - **DB schema changes on `notes`**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`. New tables: just add to `metadata` — `create_all()` handles them automatically.
 - **Tests**: add blocks inside `runTests()` in `test.html`
