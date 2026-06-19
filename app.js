@@ -1356,15 +1356,35 @@ async function initShare() {
       if (imageFiles.length && imgContainer) {
         imgContainer.hidden = false;
         const srcs = imageFiles.map(f => `/api/share/${encodeURIComponent(token)}/images/${f.position}`);
-        imageFiles.forEach((f, i) => {
+        if (imageFiles.length === 1) {
           const img = document.createElement('img');
-          img.src = srcs[i];
+          img.src = srcs[0];
           img.className = 'sp-image';
           img.alt = '';
           img.loading = 'lazy';
-          img.addEventListener('click', () => openShareLightbox(srcs, i));
+          img.addEventListener('click', () => openShareLightbox(srcs, 0));
           imgContainer.appendChild(img);
-        });
+        } else {
+          const heroImg = document.createElement('img');
+          heroImg.src = srcs[0];
+          heroImg.className = 'sp-image-hero';
+          heroImg.alt = '';
+          heroImg.loading = 'lazy';
+          heroImg.addEventListener('click', () => openShareLightbox(srcs, 0));
+          imgContainer.appendChild(heroImg);
+          const thumbsDiv = document.createElement('div');
+          thumbsDiv.className = 'sp-image-thumbs';
+          imageFiles.slice(1).forEach((f, i) => {
+            const img = document.createElement('img');
+            img.src = srcs[i + 1];
+            img.className = 'sp-image-thumb';
+            img.alt = '';
+            img.loading = 'lazy';
+            img.addEventListener('click', () => openShareLightbox(srcs, i + 1));
+            thumbsDiv.appendChild(img);
+          });
+          imgContainer.appendChild(thumbsDiv);
+        }
       }
     }
 
