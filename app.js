@@ -516,52 +516,7 @@ async function initResults() {
     }
 
     // Show add-images UI in saved mode
-    const addImagesRow = document.getElementById('add-images-row');
-    const addImagesInput = document.getElementById('add-images-input');
-    const addImagesStatus = document.getElementById('add-images-status');
-    if (addImagesRow) {
-      addImagesRow.hidden = false;
-      document.getElementById('images-section').hidden = false;
-    }
-    if (addImagesInput) {
-      addImagesInput.addEventListener('change', async () => {
-        const chosen = [...addImagesInput.files];
-        if (!chosen.length) return;
-        if (addImagesStatus) addImagesStatus.textContent = 'Uploading…';
-        const authToken = await getToken();
-        const fd = new FormData();
-        chosen.forEach(f => fd.append('files', f));
-        try {
-          const resp = await fetch(`${NOTES_URL}/${savedId}/files`, {
-            method: 'POST',
-            headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
-            body: fd,
-          });
-          if (!resp.ok) throw new Error();
-          const result = await resp.json();
-          for (const entry of result.files) {
-            if (entry.kind === 'pdf') {
-              addPdfTile(entry.original_name, null);
-            } else {
-              const r = await fetch(`${NOTES_URL}/${savedId}/files/${entry.position}`, {
-                headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
-              });
-              if (r.ok) {
-                const blobUrl = URL.createObjectURL(await r.blob());
-                addImageTile(blobUrl, blobUrl, entry.position, entry.exif || null);
-              }
-            }
-          }
-          if (addImagesStatus) {
-            addImagesStatus.textContent = `${result.added} image${result.added !== 1 ? 's' : ''} added.`;
-            setTimeout(() => { if (addImagesStatus) addImagesStatus.textContent = ''; }, 3000);
-          }
-        } catch (_) {
-          if (addImagesStatus) addImagesStatus.textContent = 'Upload failed.';
-        }
-        addImagesInput.value = '';
-      });
-    }
+    enableAddImages(savedId);
   }
 
   const copiedMsg = document.getElementById('copied-msg');
@@ -891,6 +846,57 @@ async function initResults() {
     });
   }
 
+  // ── Add images to a saved note ──
+  function enableAddImages(noteId) {
+    const addImagesRow    = document.getElementById('add-images-row');
+    const addImagesInput  = document.getElementById('add-images-input');
+    const addImagesStatus = document.getElementById('add-images-status');
+    if (addImagesRow) {
+      addImagesRow.hidden = false;
+      document.getElementById('images-section').hidden = false;
+    }
+    if (addImagesInput && !addImagesInput.dataset.wired) {
+      addImagesInput.dataset.wired = '1';
+      addImagesInput.addEventListener('change', async () => {
+        const chosen = [...addImagesInput.files];
+        if (!chosen.length) return;
+        if (addImagesStatus) addImagesStatus.textContent = 'Uploading…';
+        const authToken = await getToken();
+        const fd = new FormData();
+        chosen.forEach(f => fd.append('files', f));
+        try {
+          const resp = await fetch(`${NOTES_URL}/${noteId}/files`, {
+            method: 'POST',
+            headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
+            body: fd,
+          });
+          if (!resp.ok) throw new Error();
+          const result = await resp.json();
+          for (const entry of result.files) {
+            if (entry.kind === 'pdf') {
+              addPdfTile(entry.original_name, null);
+            } else {
+              const r = await fetch(`${NOTES_URL}/${noteId}/files/${entry.position}`, {
+                headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
+              });
+              if (r.ok) {
+                const blobUrl = URL.createObjectURL(await r.blob());
+                addImageTile(blobUrl, blobUrl, entry.position, entry.exif || null);
+              }
+            }
+          }
+          if (addImagesStatus) {
+            addImagesStatus.textContent = `${result.added} image${result.added !== 1 ? 's' : ''} added.`;
+            setTimeout(() => { if (addImagesStatus) addImagesStatus.textContent = ''; }, 3000);
+          }
+        } catch (_) {
+          if (addImagesStatus) addImagesStatus.textContent = 'Upload failed.';
+        }
+        addImagesInput.value = '';
+      });
+    }
+  }
+
   // ── Save (fresh scan) vs Update/Delete (saved note) ──
   const saveBtn   = document.getElementById('save-btn');
   const updateBtn = document.getElementById('update-btn');
@@ -928,6 +934,7 @@ async function initResults() {
         copiedMsg.textContent = 'Note saved!';
         setTimeout(() => { copiedMsg.textContent = ''; }, 2500);
         if (publishCard) publishCard.hidden = false;
+        enableAddImages(currentNoteId);
       } catch (e) {
         saveBtn.disabled = false;
         copiedMsg.textContent = e.message || 'Save failed';
