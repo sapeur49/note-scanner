@@ -562,6 +562,7 @@ async function initResults() {
 
   // note-title and note-date are edited directly by id; others use the id+'-text' convention
   const INLINE_SECTIONS = ['note-title', 'note-date'];
+  const editors = new Map(); // section → EasyMDE instance (non-inline sections only)
 
   function getEditEl(section) {
     return INLINE_SECTIONS.includes(section)
@@ -572,6 +573,7 @@ async function initResults() {
   function getText(section) {
     const el = getEditEl(section);
     if (!el) return '';
+    if (editors.has(section)) return editors.get(section).value();
     return el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' ? el.value : (el.dataset.rawMd ?? el.textContent);
   }
 
@@ -584,6 +586,13 @@ async function initResults() {
       const isEditing = el.tagName === 'TEXTAREA' || el.tagName === 'INPUT';
 
       if (isEditing) {
+        const rawValue = (!isInline && editors.has(section))
+          ? editors.get(section).value()
+          : el.value;
+        if (editors.has(section)) {
+          editors.get(section).toTextArea();
+          editors.delete(section);
+        }
         const restored = document.createElement(isInline ? (section === 'note-title' ? 'h1' : 'div') : 'div');
         restored.className = isInline ? el.dataset.origClass || '' : 'result-text';
         restored.id = section === 'note-title' ? 'note-title' : section === 'note-date' ? 'note-date' : `${section}-text`;
@@ -592,7 +601,7 @@ async function initResults() {
         if (isInline) {
           restored.textContent = el.value;
         } else {
-          setMd(restored, el.value);
+          setMd(restored, rawValue);
         }
         el.replaceWith(restored);
         btn.textContent = 'Edit';
@@ -607,7 +616,21 @@ async function initResults() {
           input.value = el.dataset.rawMd ?? el.textContent;
         }
         el.replaceWith(input);
-        input.focus();
+        if (!isInline) {
+          const mde = new EasyMDE({
+            element: input,
+            toolbar: ['bold', 'italic', 'heading-2', 'heading-3', '|',
+                      'unordered-list', 'ordered-list', '|', 'preview'],
+            spellChecker: false,
+            autofocus: true,
+            minHeight: '140px',
+            status: false,
+            renderingConfig: { singleLineBreaks: false },
+          });
+          editors.set(section, mde);
+        } else {
+          input.focus();
+        }
         btn.textContent = 'Done';
       }
     });
