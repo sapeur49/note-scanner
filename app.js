@@ -462,6 +462,7 @@ async function initResults() {
         excludeBtn.textContent = 'Excluded';
         excludeBtn.classList.add('excluded');
       }
+      savePublishOptions();
     });
     figure.appendChild(excludeBtn);
 
