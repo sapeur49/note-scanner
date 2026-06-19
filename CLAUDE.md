@@ -202,7 +202,7 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 - `renderMarkdown(text)` — converts `## h2`, `### h3`, `- `/ `* ` lists, `1. ` ordered lists, `**bold**` to HTML; bare `http`/`https` URLs become `<a>` links (via `inlineFormat`); all other content becomes `<p>` wrapped. No external library.
 - `setMd(el, text)` — sets `el.innerHTML = renderMarkdown(text)` and stores `el.dataset.rawMd = text`
 
-Edit mode reads `el.dataset.rawMd` into the textarea; Done re-renders with `setMd()`. `getText(section)` returns `el.dataset.rawMd ?? el.textContent`.
+**Edit mode uses EasyMDE** (loaded from CDN in `results.html`): clicking Edit on Summary/Transcription/Additional Notes opens an EasyMDE instance (toolbar + preview toggle) instead of a plain textarea. Active instances are tracked in the `editors` Map keyed by section name. `getText(section)` queries the live EasyMDE instance if one exists, falling back to `el.dataset.rawMd ?? el.textContent`. Done destroys the EasyMDE instance and re-renders with `setMd()`. Note-title keeps a plain `<input>` (no EasyMDE).
 
 ---
 

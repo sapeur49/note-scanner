@@ -596,22 +596,35 @@ async function initResults() {
         const restored = document.createElement(isInline ? (section === 'note-title' ? 'h1' : 'div') : 'div');
         restored.className = isInline ? el.dataset.origClass || '' : 'result-text';
         restored.id = section === 'note-title' ? 'note-title' : section === 'note-date' ? 'note-date' : `${section}-text`;
-        if (section === 'note-title') restored.className = 'note-title';
-        if (section === 'note-date') restored.className = 'note-date';
-        if (isInline) {
+        if (section === 'note-title') {
+          restored.className = 'note-title';
+          data.title = el.value;
           restored.textContent = el.value;
+        } else if (section === 'note-date') {
+          restored.className = 'note-date';
+          if (el.value) data.scanned_at = new Date(el.value).toISOString();
+          restored.textContent = friendlyDate(data.scanned_at);
         } else {
           setMd(restored, rawValue);
         }
         el.replaceWith(restored);
         btn.textContent = 'Edit';
+        if (currentNoteId) autoSave();
       } else {
         const input = document.createElement(isInline ? 'input' : 'textarea');
         input.className = isInline ? 'note-inline-input' : 'result-textarea';
         input.id = el.id;
         if (isInline) {
-          input.type = 'text';
-          input.value = el.textContent;
+          if (section === 'note-date') {
+            input.type = 'datetime-local';
+            if (data.scanned_at) {
+              const d = new Date(data.scanned_at);
+              if (!isNaN(d)) input.value = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+            }
+          } else {
+            input.type = 'text';
+            input.value = el.textContent;
+          }
         } else {
           input.value = el.dataset.rawMd ?? el.textContent;
         }
@@ -688,7 +701,22 @@ async function initResults() {
       summary: getText('summary'),
       transcription: getText('transcription'),
       additional_notes: getText('additional-notes') || '',
+      scanned_at: data.scanned_at || '',
     };
+  }
+
+  async function autoSave() {
+    if (!currentNoteId) return;
+    try {
+      const token = await getToken();
+      await fetch(`${NOTES_URL}/${currentNoteId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        body: JSON.stringify(currentTextFields()),
+      });
+      copiedMsg.textContent = 'Saved ✓';
+      setTimeout(() => { copiedMsg.textContent = ''; }, 1500);
+    } catch (_) {}
   }
 
   // ── Publish panel ──
@@ -699,6 +727,7 @@ async function initResults() {
   const shareLinkA    = document.getElementById('share-link-a');
 
   let currentNoteId = savedId;
+  let currentShareToken = null;
 
   function getPublishOptions() {
     return {
@@ -713,32 +742,34 @@ async function initResults() {
     };
   }
 
-  function restorePublishOptions(opts) {
-    if (!opts) return;
-    const setCheck = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val !== false; };
-    const setRadio = (name, val) => {
-      if (!val) return;
-      const el = document.querySelector(`input[name="${name}"][value="${val}"]`);
-      if (el) el.checked = true;
-    };
-    setCheck('pub-images', opts.showImages);
-    setCheck('pub-section-titles', opts.showSectionTitles);
-    setCheck('pub-summary', opts.showSummary);
-    setCheck('pub-transcription', opts.showTranscription);
-    setCheck('pub-additional', opts.showAdditional);
-    setCheck('pub-in-list', opts.includeInList);
-    setRadio('pub-img-pos', opts.imagePosition);
-    // Restore per-image exclusions
-    excludedImages.clear();
-    (opts.excludedImages || []).forEach(p => excludedImages.add(Number(p)));
-    document.querySelectorAll('#image-strip .thumb-figure').forEach(fig => {
-      const pos = Number(fig.dataset.position);
-      const btn = fig.querySelector('.pub-exclude-btn');
-      if (!btn) return;
-      const ex = excludedImages.has(pos);
-      btn.textContent = ex ? 'Excluded' : 'Exclude';
-      btn.classList.toggle('excluded', ex);
-    });
+  function restorePublishOptions(opts, visibility) {
+    if (opts) {
+      const setCheck = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val !== false; };
+      const setRadio = (name, val) => {
+        if (!val) return;
+        const el = document.querySelector(`input[name="${name}"][value="${val}"]`);
+        if (el) el.checked = true;
+      };
+      setCheck('pub-images', opts.showImages);
+      setCheck('pub-section-titles', opts.showSectionTitles);
+      setCheck('pub-summary', opts.showSummary);
+      setCheck('pub-transcription', opts.showTranscription);
+      setCheck('pub-additional', opts.showAdditional);
+      setCheck('pub-in-list', opts.includeInList);
+      setRadio('pub-img-pos', opts.imagePosition);
+      excludedImages.clear();
+      (opts.excludedImages || []).forEach(p => excludedImages.add(Number(p)));
+      document.querySelectorAll('#image-strip .thumb-figure').forEach(fig => {
+        const pos = Number(fig.dataset.position);
+        const btn = fig.querySelector('.pub-exclude-btn');
+        if (!btn) return;
+        const ex = excludedImages.has(pos);
+        btn.textContent = ex ? 'Excluded' : 'Exclude';
+        btn.classList.toggle('excluded', ex);
+      });
+    }
+    const visEl = document.getElementById('pub-visibility');
+    if (visEl) visEl.value = visibility || 'public';
   }
 
   const pubOptionsEl     = document.getElementById('pub-options');
@@ -748,7 +779,7 @@ async function initResults() {
 
   function lockPublishOptions() {
     if (pubOptionsEl) pubOptionsEl.classList.add('pub-options-locked');
-    pubOptionsEl?.querySelectorAll('input').forEach(el => { el.disabled = true; });
+    pubOptionsEl?.querySelectorAll('input, select').forEach(el => { el.disabled = true; });
     if (pubEditBtn) pubEditBtn.hidden = false;
     if (pubSaveOptsBtn) pubSaveOptsBtn.hidden = true;
     if (republishBtn) republishBtn.hidden = true;
@@ -756,7 +787,7 @@ async function initResults() {
 
   function unlockPublishOptions() {
     if (pubOptionsEl) pubOptionsEl.classList.remove('pub-options-locked');
-    pubOptionsEl?.querySelectorAll('input').forEach(el => { el.disabled = false; });
+    pubOptionsEl?.querySelectorAll('input, select').forEach(el => { el.disabled = false; });
     if (pubEditBtn) pubEditBtn.hidden = true;
     if (pubSaveOptsBtn) pubSaveOptsBtn.hidden = false;
     if (republishBtn) republishBtn.hidden = false;
@@ -803,17 +834,18 @@ async function initResults() {
     if (!currentNoteId) return;
     try {
       const token = await getToken();
+      const visibility = document.getElementById('pub-visibility')?.value ?? 'public';
       await fetch(`${NOTES_URL}/${currentNoteId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ ...currentTextFields(), publish_options: getPublishOptions() }),
+        body: JSON.stringify({ ...currentTextFields(), publish_options: getPublishOptions(), visibility }),
       });
     } catch (_) {}
   }
 
   // Debounced auto-save of options when any control changes
   let optionsSaveTimer;
-  publishCard?.querySelectorAll('input').forEach(inp => {
+  publishCard?.querySelectorAll('input, select').forEach(inp => {
     inp.addEventListener('change', () => {
       clearTimeout(optionsSaveTimer);
       optionsSaveTimer = setTimeout(savePublishOptions, 800);
@@ -821,16 +853,39 @@ async function initResults() {
   });
 
   function showShareLink(token) {
+    currentShareToken = token;
     const url = `${window.location.origin}/share/${token}`;
-    if (shareLinkA) { shareLinkA.href = url; shareLinkA.textContent = url; }
+    if (shareLinkA) { shareLinkA.href = url; shareLinkA.textContent = url; shareLinkA.classList.remove('share-link-unpublished'); }
+    const unpubLabel = document.getElementById('share-unpublished-label');
+    if (unpubLabel) unpubLabel.hidden = true;
     if (shareLinkRow) shareLinkRow.hidden = false;
     if (publishBtn) publishBtn.hidden = true;
     if (unpublishBtn) unpublishBtn.hidden = false;
+    if (republishBtn) republishBtn.hidden = true;
     lockPublishOptions();
   }
 
+  function showUnpublishedLink(token) {
+    currentShareToken = token;
+    const url = `${window.location.origin}/share/${token}`;
+    if (shareLinkA) { shareLinkA.href = url; shareLinkA.textContent = url; shareLinkA.classList.add('share-link-unpublished'); }
+    if (shareLinkRow) shareLinkRow.hidden = false;
+    const unpubLabel = document.getElementById('share-unpublished-label');
+    if (unpubLabel) unpubLabel.hidden = false;
+    if (publishBtn) publishBtn.hidden = true;
+    if (unpublishBtn) unpublishBtn.hidden = true;
+    if (pubOptionsEl) pubOptionsEl.classList.remove('pub-options-locked');
+    pubOptionsEl?.querySelectorAll('input, select').forEach(el => { el.disabled = false; });
+    if (pubEditBtn) pubEditBtn.hidden = true;
+    if (pubSaveOptsBtn) pubSaveOptsBtn.hidden = true;
+    if (republishBtn) republishBtn.hidden = false;
+  }
+
   function hideShareLink() {
+    currentShareToken = null;
     if (shareLinkRow) shareLinkRow.hidden = true;
+    const unpubLabel = document.getElementById('share-unpublished-label');
+    if (unpubLabel) unpubLabel.hidden = true;
     if (unpublishBtn) unpublishBtn.hidden = true;
     if (publishBtn) publishBtn.hidden = false;
     unlockPublishOptions();
@@ -842,9 +897,13 @@ async function initResults() {
   // Initial publish state in saved mode
   if (mode === 'saved') {
     if (publishCard) publishCard.hidden = false;
-    restorePublishOptions(data.publish_options);
+    restorePublishOptions(data.publish_options, data.visibility);
     if (data.share_token) {
-      showShareLink(data.share_token);
+      if (data.is_published) {
+        showShareLink(data.share_token);
+      } else {
+        showUnpublishedLink(data.share_token);
+      }
     }
   }
 
@@ -884,7 +943,7 @@ async function initResults() {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         });
         if (!resp.ok) throw new Error('Unpublish failed');
-        hideShareLink();
+        showUnpublishedLink(currentShareToken);
         copiedMsg.textContent = 'Page unpublished.';
         setTimeout(() => { copiedMsg.textContent = ''; }, 2500);
       } catch (e) {
@@ -960,7 +1019,7 @@ async function initResults() {
         const persist = scanId ? (await idbGet(scanId)) || [] : [];
         const exifList = data.file_exif || [];
         const fd = new FormData();
-        fd.append('note', JSON.stringify({ ...currentTextFields(), scanned_at: data.scanned_at || '' }));
+        fd.append('note', JSON.stringify(currentTextFields()));
         fd.append('files_meta', JSON.stringify(persist.map(e => ({
           position: e.position, kind: e.kind, original_name: e.original_name || null,
           exif: exifList[e.position] || null,
@@ -994,28 +1053,6 @@ async function initResults() {
   }
 
   if (mode === 'saved') {
-    if (updateBtn) {
-      updateBtn.hidden = false;
-      updateBtn.addEventListener('click', async () => {
-        updateBtn.disabled = true;
-        copiedMsg.textContent = 'Saving…';
-        try {
-          const token = await getToken();
-          const resp = await fetch(`${NOTES_URL}/${savedId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-            body: JSON.stringify(currentTextFields()),
-          });
-          if (!resp.ok) throw new Error('Save failed');
-          copiedMsg.textContent = 'Saved!';
-          setTimeout(() => { copiedMsg.textContent = ''; }, 2500);
-        } catch (e) {
-          copiedMsg.textContent = e.message || 'Save failed';
-        } finally {
-          updateBtn.disabled = false;
-        }
-      });
-    }
     if (deleteBtn) {
       deleteBtn.hidden = false;
       deleteBtn.addEventListener('click', async () => {
@@ -1256,8 +1293,40 @@ async function initShare() {
     else if (e.key === 'Escape') closeShareLightbox();
   });
 
+  const authWallEl = document.getElementById('share-auth-wall');
+
+  async function fetchShareData(authHeader) {
+    const headers = authHeader ? { 'Authorization': authHeader } : {};
+    return fetch(`/api/share/${encodeURIComponent(token)}`, { headers });
+  }
+
   try {
-    const resp = await fetch(`/api/share/${encodeURIComponent(token)}`);
+    let resp = await fetchShareData(null);
+
+    if (resp.status === 401) {
+      const body = await resp.json().catch(() => ({}));
+      if (loadingEl) loadingEl.hidden = true;
+      if (authWallEl) authWallEl.hidden = false;
+      await waitForClerk();
+      await window.Clerk.load();
+      if (!window.Clerk.user) {
+        window.Clerk.mountSignIn(document.getElementById('clerk-share-sign-in'));
+        await new Promise(resolve => {
+          window.Clerk.addListener(({ user }) => { if (user) resolve(); });
+        });
+      }
+      if (authWallEl) authWallEl.hidden = true;
+      if (loadingEl) { loadingEl.hidden = false; }
+      const clerkToken = await window.Clerk.session.getToken();
+      resp = await fetchShareData(`Bearer ${clerkToken}`);
+    }
+
+    if (resp.status === 403) {
+      if (loadingEl) loadingEl.hidden = true;
+      if (errorEl) { errorEl.textContent = 'This note is private.'; errorEl.hidden = false; }
+      return;
+    }
+
     if (!resp.ok) throw new Error('not found');
     const data = await resp.json();
 
@@ -1386,6 +1455,29 @@ async function initShare() {
             thumbsDiv.appendChild(img);
           });
           imgContainer.appendChild(thumbsDiv);
+        }
+      }
+    }
+
+    // Prev/Next navigation (only when list is public, same condition as Home link)
+    if (listUrl && (data.prev_token || data.next_token)) {
+      const footer = document.querySelector('.sp-footer');
+      if (footer) {
+        if (data.prev_token) {
+          const prev = document.createElement('a');
+          prev.href = `/share/${encodeURIComponent(data.prev_token)}`;
+          prev.className = 'sp-nav-link sp-nav-prev';
+          prev.setAttribute('aria-label', 'Previous note');
+          prev.textContent = '←';
+          footer.insertBefore(prev, footer.firstChild);
+        }
+        if (data.next_token) {
+          const next = document.createElement('a');
+          next.href = `/share/${encodeURIComponent(data.next_token)}`;
+          next.className = 'sp-nav-link sp-nav-next';
+          next.setAttribute('aria-label', 'Next note');
+          next.textContent = '→';
+          footer.appendChild(next);
         }
       }
     }

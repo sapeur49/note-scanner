@@ -382,12 +382,23 @@ def share_page_route(token: str):
 
 
 @app.get("/api/share/{token}")
-def share_data_route(token: str):
+def share_data_route(token: str, authorization: str = Header(default="")):
     note = db.get_note_by_share_token(token)
     if not note:
         raise HTTPException(status_code=404, detail="Note not published or not found")
+    vis = (note.get("visibility") or "public").strip()
+    if vis in ("logged_in", "me"):
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail={"visibility": vis})
+        try:
+            req_user = verify_clerk_token(authorization[7:])
+        except Exception:
+            raise HTTPException(status_code=401, detail={"visibility": vis})
+        if vis == "me" and req_user["sub"] != note.get("user_id"):
+            raise HTTPException(status_code=403, detail="Access denied")
     user_id = note.pop("user_id", None)
     note.pop("share_token", None)
+    note.pop("is_published", None)
     if user_id:
         owner_settings = db.get_settings(user_id)
         note["template"] = owner_settings.get("template") or "minimal"
@@ -395,14 +406,27 @@ def share_data_route(token: str):
         note["story_list_title"] = owner_settings.get("story_list_title") or ""
         if owner_settings.get("list_public") == "true" and owner_settings.get("list_token"):
             note["list_token"] = owner_settings["list_token"]
+            adj = db.get_adjacent_published_notes(user_id, note["id"])
+            note["prev_token"] = adj["prev_token"]
+            note["next_token"] = adj["next_token"]
     return note
 
 
 @app.get("/api/share/{token}/images/{position}")
-def share_note_image(token: str, position: int):
+def share_note_image(token: str, position: int, authorization: str = Header(default="")):
     note = db.get_note_by_share_token(token)
     if not note:
         raise HTTPException(status_code=404, detail="Not found")
+    vis = (note.get("visibility") or "public").strip()
+    if vis in ("logged_in", "me"):
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail={"visibility": vis})
+        try:
+            req_user = verify_clerk_token(authorization[7:])
+        except Exception:
+            raise HTTPException(status_code=401, detail={"visibility": vis})
+        if vis == "me" and req_user["sub"] != note.get("user_id"):
+            raise HTTPException(status_code=403, detail="Access denied")
     entry = next(
         (f for f in note.get("files", []) if int(f.get("position", -1)) == position and f.get("kind") == "image"),
         None,

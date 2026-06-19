@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    Boolean,
     JSON,
     Column,
     DateTime,
@@ -74,6 +75,8 @@ notes = Table(
     Column("files", JSON),
     Column("share_token", String(36), nullable=True),
     Column("publish_options", JSON, nullable=True),
+    Column("is_published", Boolean, nullable=True, default=False),
+    Column("visibility", String(32), nullable=True, default="public"),
 )
 
 user_settings = Table(
@@ -105,6 +108,12 @@ def _migrate_schema() -> None:
                 conn.execute(text("ALTER TABLE notes ADD COLUMN share_token VARCHAR(36) NULL"))
             if "publish_options" not in existing:
                 conn.execute(text("ALTER TABLE notes ADD COLUMN publish_options JSON NULL"))
+            if "is_published" not in existing:
+                conn.execute(text("ALTER TABLE notes ADD COLUMN is_published INTEGER DEFAULT 0"))
+                # Backfill: notes with a token were published before this column existed
+                conn.execute(text("UPDATE notes SET is_published = 1 WHERE share_token IS NOT NULL"))
+            if "visibility" not in existing:
+                conn.execute(text("ALTER TABLE notes ADD COLUMN visibility VARCHAR(32) DEFAULT 'public'"))
     except Exception as e:
         print(f"[db] migration warning: {e}")
 
@@ -160,6 +169,7 @@ def list_notes(user_id: str, q: str = "") -> list:
         notes.c.scanned_at,
         notes.c.created_at,
         notes.c.share_token,
+        notes.c.is_published,
         notes.c.files,
     ).where(notes.c.user_id == user_id)
 
@@ -190,7 +200,7 @@ def list_notes(user_id: str, q: str = "") -> list:
                 "summary_snippet": snippet,
                 "scanned_at": _iso(r["scanned_at"]),
                 "created_at": _iso(r["created_at"]),
-                "share_token": r["share_token"],
+                "share_token": r["share_token"] if r.get("is_published") else None,
                 "first_image_position": first_image["position"] if first_image else None,
             }
         )
@@ -213,13 +223,19 @@ def get_note(user_id: str, note_id: str):
     return d
 
 
-_EDITABLE = ("title", "summary", "transcription", "additional_notes", "publish_options")
+_EDITABLE = ("title", "summary", "transcription", "additional_notes", "publish_options", "scanned_at", "visibility")
 
 
 def update_note(user_id: str, note_id: str, fields: dict) -> int:
     values = {k: fields[k] for k in _EDITABLE if k in fields}
     if not values:
         return 0
+    if "scanned_at" in values:
+        parsed = _parse_dt(values["scanned_at"])
+        if parsed:
+            values["scanned_at"] = parsed
+        else:
+            values.pop("scanned_at")
     values["updated_at"] = _utcnow()
     stmt = (
         sa_update(notes)
@@ -252,7 +268,7 @@ def delete_note(user_id: str, note_id: str) -> int:
 
 
 def publish_note(user_id: str, note_id: str):
-    """Generate a share token for this note (idempotent). Returns token or None if not found."""
+    """Generate/reuse share token and mark note as published. Returns token or None if not found."""
     stmt = select(notes.c.share_token).where(
         notes.c.id == note_id, notes.c.user_id == user_id
     )
@@ -261,22 +277,21 @@ def publish_note(user_id: str, note_id: str):
     if row is None:
         return None
     token = row["share_token"] or str(uuid.uuid4())
-    if not row["share_token"]:
-        with engine.begin() as conn:
-            conn.execute(
-                sa_update(notes)
-                .where(notes.c.id == note_id, notes.c.user_id == user_id)
-                .values(share_token=token)
-            )
+    with engine.begin() as conn:
+        conn.execute(
+            sa_update(notes)
+            .where(notes.c.id == note_id, notes.c.user_id == user_id)
+            .values(share_token=token, is_published=True)
+        )
     return token
 
 
 def unpublish_note(user_id: str, note_id: str) -> bool:
-    """Remove share token from a note. Returns True if note was found."""
+    """Mark note as unpublished (token is preserved). Returns True if note was found."""
     stmt = (
         sa_update(notes)
         .where(notes.c.id == note_id, notes.c.user_id == user_id)
-        .values(share_token=None)
+        .values(is_published=False)
     )
     with engine.begin() as conn:
         result = conn.execute(stmt)
@@ -284,8 +299,11 @@ def unpublish_note(user_id: str, note_id: str) -> bool:
 
 
 def get_note_by_share_token(token: str):
-    """Fetch a note by share_token (no user auth check)."""
-    stmt = select(notes).where(notes.c.share_token == token)
+    """Fetch a published note by share_token (no user auth check)."""
+    stmt = select(notes).where(
+        notes.c.share_token == token,
+        notes.c.is_published == True,
+    )
     with engine.connect() as conn:
         row = conn.execute(stmt).mappings().first()
     if not row:
@@ -356,7 +374,7 @@ def list_published_notes(user_id: str) -> list:
         notes.c.publish_options,
     ).where(
         notes.c.user_id == user_id,
-        notes.c.share_token.isnot(None),
+        notes.c.is_published == True,
     ).order_by(notes.c.created_at.desc())
 
     with engine.connect() as conn:
@@ -382,3 +400,14 @@ def list_published_notes(user_id: str) -> list:
             "image_positions": image_positions,
         })
     return out
+
+
+def get_adjacent_published_notes(user_id: str, note_id: str) -> dict:
+    """Return prev/next share tokens for a note within the user's published list (ordered by created_at desc)."""
+    items = list_published_notes(user_id)
+    idx = next((i for i, n in enumerate(items) if n["id"] == note_id), None)
+    if idx is None:
+        return {"prev_token": None, "next_token": None}
+    prev_token = items[idx - 1]["share_token"] if idx > 0 else None
+    next_token = items[idx + 1]["share_token"] if idx + 1 < len(items) else None
+    return {"prev_token": prev_token, "next_token": next_token}
