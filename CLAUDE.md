@@ -16,7 +16,9 @@ ANTHROPIC_API_KEY=sk-... CLERK_JWKS_URL=https://... uvicorn app.main:app --reloa
 # Open http://localhost:8000
 ```
 
-No build step. QA is done via `test.html` in the browser (self-contained, no API key needed).
+No build step. QA is done via `test.html` in the browser (self-contained, no API key needed). Local SQLite DB is auto-created at `readwrite_local.db` when no `DATABASE_URL`/`MYSQL_URL` is set.
+
+**Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
 **Cache busting**: `?v=N` query strings on `app.js` and `style.css` in `index.html`, `results.html`, and `notes.html`. Bump N in all three files when deploying JS/CSS changes. Currently at **`v=19`**. (`share.html` uses absolute paths `/style.css?v=N` and `/app.js?v=N` — update it too.)
 
@@ -104,7 +106,8 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 ```json
 {
   "title": "...", "summary": "...", "transcription": "...",
-  "scanned_at": "...", "additional_notes": "...",
+  "scanned_at": "...",
+  "additional_notes": "...",  // only present when `instructions` were provided
   "file_exif": [{"Make": "Apple", "Model": "iPhone 15", "DateTimeOriginal": "2024:03:15 14:22:00",
                   "ISOSpeedRatings": 400, "FNumber": 1.8, "ExposureTime": "1/120",
                   "GPS": {"lat": 48.858, "lon": 2.294}}, null]
@@ -116,7 +119,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `POST /api/notes` — save a scanned note with file attachments
 - `GET /api/notes` — list notes for the signed-in user (supports `?q=` search)
 - `GET /api/notes/{id}` — fetch a single note (includes `share_token` field)
-- `PUT /api/notes/{id}` — update title/summary/transcription/additional_notes
+- `PUT /api/notes/{id}` — update title/summary/transcription/additional_notes (only these 4 fields; others silently ignored)
 - `DELETE /api/notes/{id}` — delete note + remove volume files
 - `GET /api/notes/{id}/files/{position}` — serve an attached file (auth'd)
 - `POST /api/notes/{id}/publish` — generate/return share token (idempotent, auth'd)
