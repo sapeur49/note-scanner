@@ -16,15 +16,15 @@ ANTHROPIC_API_KEY=sk-... CLERK_JWKS_URL=https://... uvicorn app.main:app --reloa
 # Open http://localhost:8000
 ```
 
-No build step. No test runner — QA is done via `test.html` in the browser (self-contained, no API key needed).
+No build step. QA is done via `test.html` in the browser (self-contained, no API key needed).
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in `index.html`, `results.html`, and `notes.html`. Bump N in all three files when deploying JS/CSS changes. Currently at `v=18`.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in `index.html`, `results.html`, and `notes.html`. Bump N in all three files when deploying JS/CSS changes. Currently at **`v=19`**. (`share.html` uses absolute paths `/style.css?v=N` and `/app.js?v=N` — update it too.)
 
 ---
 
 ## Deployment
 
-Push to `main` → Railway auto-deploys (~1-2 min). `Procfile` defines the start command (`uvicorn app.main:app --host 0.0.0.0 --port $PORT`). The `.github/workflows/` files and the root `SCAN_ENDPOINT.py` (a paste-in snippet authored for a different repo) are unused leftovers — harmless, not wired into anything.
+Push to `main` → Railway auto-deploys (~1-2 min). `Procfile` defines the start command. The `.github/workflows/` files and root `SCAN_ENDPOINT.py` are unused leftovers.
 
 **Railway env vars required:**
 | Var | Purpose |
@@ -32,7 +32,7 @@ Push to `main` → Railway auto-deploys (~1-2 min). `Procfile` defines the start
 | `ANTHROPIC_API_KEY` | Claude API key |
 | `CLERK_JWKS_URL` | Clerk JWKS endpoint, e.g. `https://<clerk-domain>/.well-known/jwks.json` |
 | `CLERK_ISSUER` | Optional — Clerk issuer URL for stricter JWT validation |
-| `DATABASE_URL` or `MYSQL_URL` | Full `mysql://user:pass@host:port/db` connection string. If absent or malformed, falls back to SQLite (notes won't persist across redeploys). |
+| `DATABASE_URL` or `MYSQL_URL` | Full `mysql://user:pass@host:port/db` connection string. Falls back to SQLite if absent/malformed. |
 | `VOLUME_PATH` | Path to Railway Volume mount point, e.g. `/data`. Saved file attachments land at `<VOLUME_PATH>/notes/<note_id>/`. |
 
 ---
@@ -40,32 +40,33 @@ Push to `main` → Railway auto-deploys (~1-2 min). `Procfile` defines the start
 ## Architecture
 
 ```
-app/main.py        FastAPI: POST /api/scan + CRUD /api/notes + static file mount
+app/main.py        FastAPI: POST /api/scan + CRUD /api/notes + publish/share routes + static file mount
 app/db.py          SQLAlchemy Core persistence — MySQL prod / SQLite dev fallback
 app/auth/verify.py JWT verification via Clerk JWKS (PyJWT + PyJWKClient)
-index.html         Upload UI (sign-in wall + app div, shown/hidden by Clerk JS)
-results.html       Results: image strip, summary, transcription, share, save/update/delete, export PDF
+index.html         Upload UI (sign-in wall + app div)
+results.html       Scan results: image strip, summary, transcription, share panel, save/update/delete/publish
 notes.html         My Notes list — search, browse, open saved notes
-app.js             All frontend logic — auth, thumbnails, scan POST, sessionStorage, lightbox, edit, share, notes CRUD
-style.css          Shared styles, CSS variables, auto light/dark mode, @media print
+share.html         Public share page — no Clerk, loaded from /share/{token}
+app.js             All frontend logic — auth, thumbnails, scan POST, sessionStorage, EXIF display,
+                   lightbox, edit, share, notes CRUD, publish/unpublish, initShare()
+style.css          Shared styles, CSS variables, auto light/dark mode
 test.html          Browser-based QA harness
 ```
 
 **Key decisions:**
 - `ANTHROPIC_API_KEY` stays server-side only; never sent to browser
 - All files sent in one Claude API call (multipart/form-data); images as `image` blocks, PDFs as `document` blocks
-- Client-side image resizing before POST: 150px/JPEG-0.5 thumbnails → `rw_images`, 1500px/JPEG-0.85 lightbox images → `rw_lightbox`, both in `sessionStorage`; PDFs get a placeholder tile (no client-side render)
+- Client-side image resizing before POST: 150px/JPEG-0.5 thumbnails → `rw_images`, 1500px/JPEG-0.85 lightbox images → `rw_lightbox`, both in `sessionStorage`; PDFs get a placeholder tile
 - Results stored as `rw_results` in `sessionStorage`; `results.html` reads and renders them
-- `SCAN_URL = '/api/scan'` is relative — same origin, no hardcoded domain
-- Summary and transcription are rendered as HTML via `renderMarkdown()` (see below), not raw text
+- Summary and transcription are rendered as HTML via `renderMarkdown()`, not raw text
 
 **sessionStorage keys** (shared contract between `app.js` and `results.html`):
 | Key | Contents |
 |---|---|
 | `rw_images` | JSON array of 150px JPEG data-URLs (thumbnails, one per file) |
 | `rw_lightbox` | JSON array of 1500px JPEG data-URLs (full-res, one per file) |
-| `rw_results` | JSON object — the full `/api/scan` response |
-| `rw_scan_id` | Saved note ID — set when `results.html?id=…` loads a saved note (distinguishes fresh-scan vs saved-note mode) |
+| `rw_results` | JSON object — the full `/api/scan` response (includes `file_exif`) |
+| `rw_scan_id` | Saved note ID — set when `results.html?id=…` loads a saved note |
 
 ---
 
@@ -78,9 +79,9 @@ Sign-in is enforced client-side via the Clerk JS SDK loaded from the Clerk domai
 ```
 Using the official Clerk domain (not jsdelivr) is required for Google OAuth to appear.
 
-The scan `fetch` sends `Authorization: Bearer <token>` where token = `await window.Clerk.session.getToken()`. The backend's `require_user` dependency (`app/auth/verify.py`) validates the JWT via JWKS. Ensure `window.Clerk.session` is non-null before calling `getToken()` — null means the user isn't signed in.
+The scan `fetch` sends `Authorization: Bearer <token>` where token = `await window.Clerk.session.getToken()`. The backend's `require_user` dependency (`app/auth/verify.py`) validates the JWT via JWKS.
 
-**Auth state changes** are handled via `window.Clerk.addListener(({ user }) => ...)` in `initIndex()`. This covers the initial load, sign-in after sign-out (without a page reload), and session expiry. Do not rely solely on a one-time `window.Clerk.user` check — it won't respond to state changes after load.
+**Auth state changes** are handled via `window.Clerk.addListener(({ user }) => ...)` in `initIndex()`. Do not rely solely on a one-time `window.Clerk.user` check.
 
 To update the Clerk publishable key: change `data-clerk-publishable-key` in `index.html`, `results.html`, and `notes.html`.
 
@@ -88,55 +89,97 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 
 ## Backend: app/main.py
 
-- `POST /api/scan` — multipart/form-data: `files` (images/PDFs) + optional `instructions` string
-- `MODEL` constant (top of `app/main.py`) selects the Claude model — currently `claude-sonnet-4-6`; `max_tokens=4096`
-- `SCAN_PROMPT` constant controls the Claude prompt; edit it there to change transcription/summary behaviour. Currently instructs Claude to use `##`/`- `/`**bold**` markdown in both fields.
-- Claude's reply is parsed by extracting the first `{...}` block via regex, then `json.loads` — the prompt forcing JSON-only output is load-bearing. If you change `SCAN_PROMPT` in a way that allows Claude to emit prose before or after the JSON, parsing will break silently (returns 502)
-- When `instructions` is non-empty, Claude also returns `additional_notes` in the JSON response
-- `scanned_at` (ISO-8601 UTC) is added server-side after parsing Claude's reply — Claude never generates the timestamp (no clock); the frontend formats it friendly per locale
-- Response shape: `{"title": "...", "summary": "...", "transcription": "...", "scanned_at": "...", "additional_notes": "..."}` (`additional_notes` omitted when no instructions)
-- Static files mounted at `/` via `StaticFiles(directory=".", html=True)` — must come after API routes
+- `MODEL` constant selects the Claude model — currently `claude-sonnet-4-6`; `max_tokens=4096`
+- `SCAN_PROMPT` controls the Claude prompt. Claude's reply is parsed by extracting the first `{...}` block via regex — the JSON-only output constraint is load-bearing. Prose before/after the JSON breaks parsing silently (returns 502).
+- `scanned_at` (ISO-8601 UTC) is added server-side; Claude never generates timestamps.
 
-**Saved notes API** (`app/db.py` + routes in `app/main.py`):
-- `POST /api/notes` — save a scanned note with optional file attachments
-- `GET /api/notes` — list saved notes for the signed-in user (supports `?q=` search)
-- `GET /api/notes/{id}` — fetch a single note
-- `PUT /api/notes/{id}` — update title/summary/transcription
-- `DELETE /api/notes/{id}` — delete note + remove files from volume
-- `GET /api/notes/{id}/files/{position}` — serve an attached image/PDF (auth'd)
+**EXIF extraction** (`_extract_exif` in `app/main.py`):
+- Pillow reads two IFDs: the main IFD (Make, Model) and the ExifIFD sub-IFD via `raw.get_ifd(0x8769)` (DateTimeOriginal, FNumber, ExposureTime, ISOSpeedRatings, LensModel). Shooting data is in the sub-IFD, not the main IFD — this is why both must be read.
+- GPS is read via `raw.get_ifd(0x8825)` and included in the response as `{"lat": float, "lon": float}`.
+- EXIF (camera, date, GPS) is appended to the Claude prompt as `[Photo metadata: taken {dt}; Camera: {make} {model}; Location: {lat}, {lon}]`. GPS is included so Claude can assist with location-based analysis.
+- Scan response includes `file_exif`: array (one entry per file, `null` for PDFs/no-EXIF images).
+- EXIF per file is also stored inside the `files` JSON column (as an `exif` key on each file entry) when a note is saved.
+
+**Scan response shape:**
+```json
+{
+  "title": "...", "summary": "...", "transcription": "...",
+  "scanned_at": "...", "additional_notes": "...",
+  "file_exif": [{"Make": "Apple", "Model": "iPhone 15", "DateTimeOriginal": "2024:03:15 14:22:00",
+                  "ISOSpeedRatings": 400, "FNumber": 1.8, "ExposureTime": "1/120",
+                  "GPS": {"lat": 48.858, "lon": 2.294}}, null]
+}
+```
+
+**All API routes** (must be registered before the `StaticFiles` mount):
+- `POST /api/scan` — multipart/form-data: `files` + optional `instructions`
+- `POST /api/notes` — save a scanned note with file attachments
+- `GET /api/notes` — list notes for the signed-in user (supports `?q=` search)
+- `GET /api/notes/{id}` — fetch a single note (includes `share_token` field)
+- `PUT /api/notes/{id}` — update title/summary/transcription/additional_notes
+- `DELETE /api/notes/{id}` — delete note + remove volume files
+- `GET /api/notes/{id}/files/{position}` — serve an attached file (auth'd)
+- `POST /api/notes/{id}/publish` — generate/return share token (idempotent, auth'd)
+- `DELETE /api/notes/{id}/publish` — revoke share token (auth'd)
+- `GET /share/{token}` — serve `share.html` (no auth)
+- `GET /api/share/{token}` — return note JSON without user_id/share_token (no auth)
+
+---
+
+## Publish / Share
+
+A saved note can be published: `POST /api/notes/{id}/publish` generates a stable UUID share token stored in `notes.share_token`. The share URL is `{origin}/share/{token}`.
+
+`GET /share/{token}` serves `share.html`, which has **absolute** asset paths (`/style.css?v=19`, `/app.js?v=19`) — this is critical because the URL path `/share/{token}` would make relative paths resolve to `/share/style.css` (404).
+
+`initShare()` in `app.js` extracts the token from the URL path (not query string), fetches `/api/share/{token}`, and renders the note with `setMd()`. The router at the bottom of `app.js` checks for `#share-view` before `#summary-text`.
+
+Publish/unpublish state in `results.html` (saved-note mode only): `data.share_token` on load determines whether to show the Publish or Unpublish button. After a fresh save, the save handler captures `respJson.id` into `currentNoteId` and shows the Publish button.
+
+---
+
+## EXIF Display
+
+`addImageTile(thumbSrc, fullSrc, i, exif)` in `app.js` wraps each image in a `<figure class="thumb-figure">` with a `<details class="exif-details">` toggle underneath. The `<dl class="exif-dl">` is **absolute-positioned** (220px wide) so it floats over adjacent thumbnails when opened — `.thumb-figure` has `position: relative` and `:has(details[open])` bumps its `z-index` to 50.
+
+EXIF date format from cameras is `YYYY:MM:DD HH:MM:SS` — `app.js` converts the colons in the date part to dashes before display.
+
+---
+
+## Database: app/db.py
+
+SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()` runs after `create_all()` and adds new columns via `ALTER TABLE` only if absent — works for both engines. Currently manages: `share_token VARCHAR(36) NULL`.
+
+`files` JSON column stores per-file metadata including `exif` (if available) — no separate EXIF column needed.
+
+`publish_note()` is idempotent: reuses existing token if one already exists, so the share URL is stable across repeated publishes.
 
 ---
 
 ## Markdown Rendering
 
-`app.js` contains three functions (defined just before the router at the bottom):
+`app.js` functions (defined just before the router):
 
 - `escapeHtml(s)` — XSS-safe HTML entity escaping
 - `renderMarkdown(text)` — converts `## h2`, `### h3`, `- `/ `* ` lists, `1. ` ordered lists, `**bold**` to HTML; all other content becomes `<p>` wrapped. No external library.
 - `setMd(el, text)` — sets `el.innerHTML = renderMarkdown(text)` and stores `el.dataset.rawMd = text`
 
-Summary, transcription, and additional-notes divs are populated via `setMd()`. Edit mode reads `el.dataset.rawMd` (raw markdown) into the textarea; Done re-renders with `setMd()`. `getText(section)` returns `el.dataset.rawMd ?? el.textContent` so share/save always get the raw markdown.
-
----
-
-## PDF Export
-
-The Export PDF button in `results.html` calls `window.print()`. A `@media print` block at the bottom of `style.css` hides `.back-btn`, `.btn-edit`, `#images-section`, `#share-card`, `.note-actions`, `.copied-msg` and applies clean print typography.
+Edit mode reads `el.dataset.rawMd` into the textarea; Done re-renders with `setMd()`. `getText(section)` returns `el.dataset.rawMd ?? el.textContent`.
 
 ---
 
 ## Making Changes
 
-- **Claude prompt**: edit `SCAN_PROMPT` in `app/main.py`
-- **Claude model**: edit the `MODEL` constant in `app/main.py`
+- **Claude prompt / model**: edit `SCAN_PROMPT` / `MODEL` constant in `app/main.py`
+- **EXIF fields extracted**: edit `_extract_exif()` in `app/main.py`
 - **Styling**: CSS variables at top of `style.css`
 - **Markdown rendering**: edit `renderMarkdown()` in `app.js`
-- **Print styles**: edit `@media print` block at the bottom of `style.css`
-- **Share**: single Share panel (`#share-card` in `results.html`) with per-section checkboxes (title/date/image/summary/transcription); the `#share-btn` handler in `app.js` assembles checked sections and calls `share()`
+- **Share checkboxes** (title/date/summary/transcription): `#share-card` in `results.html`; the `#share-btn` handler in `app.js` assembles checked sections and calls `share()`
+- **DB schema changes**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`
 - **Tests**: add blocks inside `runTests()` in `test.html`
 
 ---
 
 ## Multi-Utility Platform
 
-Auth is live. For future utilities: each gets its own repo + Railway service, sharing the same Clerk app (same `CLERK_PUBLISHABLE_KEY` / `CLERK_JWKS_URL`). Copy `app/auth/verify.py` into each service — no central auth service needed. The `AUTH_HANDOFF.md` in this repo has the full pattern including a reusable `verify.py` template and common gotchas.
+Auth is live. For future utilities: each gets its own repo + Railway service, sharing the same Clerk app (same `CLERK_PUBLISHABLE_KEY` / `CLERK_JWKS_URL`). Copy `app/auth/verify.py` into each service. The `AUTH_HANDOFF.md` in this repo has the full pattern.
