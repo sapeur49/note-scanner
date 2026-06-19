@@ -28,6 +28,8 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 Push to `main` → Railway auto-deploys (~1-2 min). `Procfile` defines the start command. The `.github/workflows/` files and root `SCAN_ENDPOINT.py` are unused leftovers.
 
+**Git branch workflow**: Always `git fetch origin main` then `git checkout -b <branch> origin/main` before making changes. Apply changes directly on the new branch — never stash/pop across branch switches, as this causes repeated version-number conflicts with squash-merged main.
+
 **Railway env vars required:**
 | Var | Purpose |
 |---|---|
@@ -210,7 +212,7 @@ Edit mode reads `el.dataset.rawMd` into the textarea; Done re-renders with `setM
 - **EXIF fields extracted**: edit `_extract_exif()` in `app/main.py`
 - **Styling**: CSS variables at top of `style.css`
 - **Markdown rendering**: edit `renderMarkdown()` in `app.js`
-- **Share checkboxes** (title/date/summary/transcription): `#share-card` in `results.html`; the `#share-btn` handler in `app.js` assembles checked sections and calls `share()`
+- **Share checkboxes** (title/date/images/summary/transcription/additional notes): `#share-card` in `results.html`; the `#share-btn` handler in `app.js` assembles checked sections and calls `share()`; additional notes only added to output when non-empty
 - **Publish options** (per-note): `#publish-card` in `results.html`; `getPublishOptions()`/`restorePublishOptions()` in `app.js`; stored in `notes.publish_options` JSON column. `savePublishOptions()` sends both text fields and publish_options together so title/summary edits are never lost when using publish actions.
 - **Image exclude/delete per tile**: `addImageTile()` in `app.js` — Exclude button toggles `excludedImages` Set; Delete button calls `DELETE /api/notes/{id}/files/{position}` (saved mode only)
 - **Add images to saved note**: `enableAddImages(noteId)` in `app.js` — call after save or on saved-mode load; uses `dataset.wired` guard to prevent double-wiring
