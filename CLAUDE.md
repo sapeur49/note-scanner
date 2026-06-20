@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=39`, `app.js?v=40`). Update all six HTML files: `index.html`, `results.html`, `notes.html`, `settings.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=39`, `app.js?v=41`). Update all six HTML files: `index.html`, `results.html`, `notes.html`, `settings.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
 
 ---
 
@@ -50,9 +50,9 @@ app/auth/verify.py JWT verification via Clerk JWKS (PyJWT + PyJWKClient)
 index.html         Upload UI (sign-in wall + app div + My Notes + Settings links)
 results.html       Scan results: image strip, summary, transcription, additional notes, share panel, save/update/delete/publish
 notes.html         My Notes list — search, browse, open saved notes (thumbnails + published badge)
-share.html         Public share page — no Clerk, loaded from /share/{token}; template/logo from owner settings
+share.html         Public share page — Clerk loaded async for owner detection; template/logo from owner settings; owner sees visibility icon + edit button (top-right corner)
 settings.html      Settings page — story list title, template, logo, published list visibility (auth'd)
-published.html     Public published notes list — /published/{list_token}; template-aware, searchable
+published.html     Public published notes list — /published/{list_token}; Clerk loaded async (non-blocking) for owner detection; owner sees visibility icon per card + filter bar above search
 app.js             All frontend logic — auth, thumbnails, scan POST, sessionStorage, EXIF display,
                    lightbox carousel, edit, share, notes CRUD, publish/unpublish, initShare(),
                    initSettings(), initPublished()
@@ -135,7 +135,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `PUT /api/settings` — upsert user settings; auto-generates `list_token` if absent (auth'd)
 - `GET /api/share/{token}` — return note JSON + owner settings; checks `visibility` (public/logged_in/me) via optional `Authorization` header; adds `is_owner: true` if requester is the owner; adds `prev_token`/`next_token` for adjacent published notes when the list is public
 - `GET /api/share/{token}/images/{position}` — serve a published note image; enforces `visibility` (no auth required for `public`)
-- `GET /api/published/{list_token}` — return published notes list + settings; 403 if `list_public != true` (no auth)
+- `GET /api/published/{list_token}` — return published notes list + settings; 403 if `list_public != true`; accepts optional `Authorization` header — if the bearer token matches the list owner, adds `isOwner: true` to settings and includes `visibility` on each note
 - `GET /share/{token}` — serve `share.html` (no auth)
 - `GET /settings` — serve `settings.html`
 - `GET /published/{list_token}` — serve `published.html` (no auth)
@@ -150,11 +150,19 @@ A saved note can be published: `POST /api/notes/{id}/publish` generates a stable
 
 `initShare()` in `app.js` fetches `/api/share/{token}`, which now includes the owner's `template`, `logo_on`, and `list_token` (if their published list is public). Template and logo are **global** (from `user_settings`), not per-note. Per-note `publish_options` controls: `showImages`, `showSectionTitles`, `showSummary`, `showTranscription`, `showAdditional`, `imagePosition`, `includeInList`, `excludedImages` (array of positions excluded from the share page).
 
+**Image auth on share/published pages**: `<img>` tags cannot send `Authorization` headers. For notes with `visibility = logged_in` or `me`, `initShare()` and `initPublished()` pre-fetch each image via `fetch()` with `Authorization: Bearer <token>`, convert the response blob to an object URL via `URL.createObjectURL()`, and set that as `img.src`. Public notes use plain `/api/share/{token}/images/{position}` URLs directly.
+
+**Owner-only UI on share page**: When `is_owner: true` is returned by the API, `showEditBtn()` in `app.js` shows both the pencil edit button (links to `results.html?id=…`) and a visibility icon (globe = public, person = logged-in, eye = me-only) in `.sp-corner-btns` top-right.
+
 **Publish panel UX**: When a note is already published, all options are locked/greyed out. "Edit options" button re-enables them, showing "Save options" and "Republish" buttons.
 
-**Published list**: Each user has a stable `list_token` (auto-generated on first settings save). `GET /published/{list_token}` serves the public list page when `list_public = "true"` in `user_settings`. Notes are excluded from the list if `publish_options.includeInList = false`.
+**Published list**: Each user has a stable `list_token` (auto-generated on first settings save). `GET /published/{list_token}` serves the public list page when `list_public = "true"` in `user_settings`. Notes are excluded from the list if `publish_options.includeInList = false`. When the logged-in user is the owner, `initPublished()` re-fetches with auth to get `isOwner: true` — the owner then sees a visibility icon badge on each card and a filter bar (All / globe / person / eye) above the search input.
 
 **Settings**: Template (minimal/bold/magazine), logo on/off, story list title, and list visibility are global per-user settings stored in `user_settings` table, managed via `/settings` page.
+
+**Magazine template**: Two-tone logo — "Read" in foreground color, "Write" (`<span>`) in `#999`. Same as the bold template. Controlled by `body[data-template="magazine"] .sp-logo-link span { color: #999; }` in `style.css`.
+
+**Link targets**: Internal navigation links open in the same tab (no `target="_blank"`). Only three link types use `target="_blank"`: GPS map link (external URL), PDF blob tile (`URL.createObjectURL` blob — navigating away would lose page state), and auto-linked bare URLs in user-supplied markdown content.
 
 ---
 
@@ -225,6 +233,8 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 - **Image exclude/delete per tile**: `addImageTile()` in `app.js` — Exclude button toggles `excludedImages` Set; Delete button calls `DELETE /api/notes/{id}/files/{position}` (saved mode only)
 - **Add images to saved note**: `enableAddImages(noteId)` in `app.js` — call after save or on saved-mode load; uses `dataset.wired` guard to prevent double-wiring
 - **Global settings** (template/logo/list title): `settings.html` + `initSettings()` in `app.js`; stored in `user_settings` table via `PUT /api/settings`
+- **Owner-only share page UI** (visibility icon + edit button): `showEditBtn()` in `app.js`; called when `data.is_owner` is true; icons defined inline in the function; container is `.sp-corner-btns` in `share.html`
+- **Published list owner features** (visibility icons on cards, filter bar): `initPublished()` in `app.js`; filter bar is `#pub-vis-filter` in `published.html` (hidden until owner confirmed); `renderNotes()` adds `.pub-card-vis` badge when `settings.isOwner`
 - **DB schema changes on `notes`**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`. New tables: just add to `metadata` — `create_all()` handles them automatically.
 - **Tests**: add blocks inside `runTests()` in `test.html`
 
