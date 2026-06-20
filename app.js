@@ -2056,6 +2056,18 @@ async function initNotebooks() {
   const token = await getToken();
   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
 
+  // Show published-list globe if user has a list token
+  try {
+    const sResp = await fetch('/api/settings', { headers });
+    if (sResp.ok) {
+      const s = await sResp.json();
+      if (s.list_token) {
+        const btn = document.getElementById('pub-list-btn');
+        if (btn) { btn.href = `/published/${s.list_token}`; btn.hidden = false; }
+      }
+    }
+  } catch (_) {}
+
   const listEl   = document.getElementById('notebooks-list');
   const emptyEl  = document.getElementById('notebooks-empty');
 
@@ -2210,6 +2222,14 @@ async function initNotebooks() {
   newInput.addEventListener('keydown', e => { if (e.key === 'Enter') createNotebook(); else if (e.key === 'Escape') cancelBtn.click(); });
 }
 
+async function initHelp() {
+  await waitForClerk();
+  await window.Clerk.load();
+  const siteNav = document.getElementById('site-nav');
+  if (siteNav) siteNav.hidden = false;
+  initHamburger();
+}
+
 /* ── Router ── */
 
 if (document.getElementById('scan-btn')) {
@@ -2220,6 +2240,8 @@ if (document.getElementById('scan-btn')) {
   initNotebooks().catch(console.error);
 } else if (document.getElementById('settings-app')) {
   initSettings().catch(console.error);
+} else if (document.getElementById('help-view')) {
+  initHelp().catch(console.error);
 } else if (document.getElementById('published-view')) {
   initPublished().catch(console.error);
 } else if (document.getElementById('share-view')) {

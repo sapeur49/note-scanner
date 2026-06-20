@@ -424,6 +424,14 @@ def set_note_notebooks_route(note_id: str, payload: dict = Body(...), _user: dic
     return {"ok": True}
 
 
+@app.get("/help", include_in_schema=False)
+def help_page():
+    path = Path("help.html")
+    if not path.exists():
+        raise HTTPException(status_code=404)
+    return FileResponse(str(path))
+
+
 @app.get("/notebooks", include_in_schema=False)
 def notebooks_page():
     path = Path("notebooks.html")

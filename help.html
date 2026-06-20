@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReadWrite — Help</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="stylesheet" href="style.css?v=48">
+</head>
+<body>
+  <div class="container">
+    <header class="app-header">
+      <div id="site-nav" hidden>
+        <button class="hamburger-btn" id="hamburger-btn" aria-label="Menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <div class="nav-menu" id="nav-menu" hidden>
+          <a href="help.html" class="nav-menu-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Help
+          </a>
+          <a href="settings.html" class="nav-menu-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            Settings
+          </a>
+          <button class="nav-menu-item nav-signout" id="btn-signout">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign out
+          </button>
+        </div>
+      </div>
+      <a href="index.html" class="logo">Read<span>Write</span></a>
+      <div class="header-right">
+        <a href="notebooks.html" class="hdr-icon-btn" aria-label="Notebooks">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+          </svg>
+        </a>
+        <a href="notes.html" class="hdr-icon-btn" aria-label="My Notes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+        </a>
+        <a href="index.html" class="hdr-icon-btn" aria-label="Home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+        </a>
+      </div>
+    </header>
+
+    <div id="help-view">
+      <h1 class="page-title">Help</h1>
+      <p class="help-intro">ReadWrite uses AI to read and transcribe your handwritten or printed notes from photos and PDFs. Everything lives in your account — searchable, organizable, and optionally shareable.</p>
+
+      <!-- Scanning -->
+      <div class="card">
+        <div class="card-label">Scanning notes</div>
+        <p class="help-p">From the home screen, add one or more images or PDFs using drag-and-drop, the <strong>Choose Files</strong> button, or <strong>Camera</strong> for a live photo.</p>
+        <p class="help-p">Optionally type instructions in the text box — for example: <em>translate to English</em>, <em>total all dollar amounts</em>, or <em>list action items</em>.</p>
+        <p class="help-p">Tap <strong>Scan Files</strong>. The AI reads your files and returns a title, summary, and full transcription. Review the results, then tap <strong>Save Note</strong> to keep them.</p>
+      </div>
+
+      <!-- My Notes -->
+      <div class="card">
+        <div class="card-label">My Notes</div>
+        <p class="help-p">The folder icon opens your saved notes as a browsable card list.</p>
+        <ul class="help-list">
+          <li><strong>Search</strong> — filters by title, summary, or content as you type.</li>
+          <li><strong>Visibility filter</strong> (All / unlock / person / eye) — narrows to notes of a specific visibility level.</li>
+          <li><strong>Notebook filter</strong> — dropdown below the search bar; choose a notebook to see only notes in that group.</li>
+        </ul>
+        <p class="help-p" style="margin-top:8px">Tap a card to open the note. Tap <strong>Edit</strong> on the card to go directly to the edit view.</p>
+      </div>
+
+      <!-- Notebooks -->
+      <div class="card">
+        <div class="card-label">Notebooks</div>
+        <p class="help-p">Notebooks let you group notes into named collections. A note can belong to multiple notebooks.</p>
+        <ul class="help-list">
+          <li>Tap the <strong>book icon</strong> in the header to open the Notebooks page.</li>
+          <li>Tap <strong>+ New Notebook</strong> to create one. Tap a notebook's title to see its notes in My Notes.</li>
+          <li>On a saved note's page, the <strong>Notebooks</strong> card shows checkboxes for all your notebooks — check or uncheck to add or remove the note. Changes save immediately.</li>
+        </ul>
+      </div>
+
+      <!-- Publishing -->
+      <div class="card">
+        <div class="card-label">Publishing &amp; sharing</div>
+        <p class="help-p">Any saved note can be published to a shareable web page.</p>
+        <ul class="help-list">
+          <li>On the note's results page, open the <strong>Publish</strong> card and choose what to show (images, summary, transcription, etc.) and the <strong>visibility</strong>:
+            <ul style="margin-top:4px">
+              <li><strong>Public</strong> — anyone with the link can view</li>
+              <li><strong>Members only</strong> — viewers must sign in to ReadWrite</li>
+              <li><strong>Private</strong> — only you can see it (default)</li>
+            </ul>
+          </li>
+          <li>Tap <strong>Publish</strong> to generate a shareable link (e.g. <code>/share/my-note-title</code>).</li>
+          <li>On the share page, the <strong>share button</strong> (upload arrow icon) opens a native share sheet on mobile, or copies the link on desktop.</li>
+          <li>Your <strong>published list</strong> (globe icon) collects all published notes on one page — enable it in Settings.</li>
+        </ul>
+      </div>
+
+      <!-- Settings -->
+      <div class="card">
+        <div class="card-label">Settings</div>
+        <ul class="help-list">
+          <li><strong>Template</strong> — controls the look of your share pages: Minimal, Bold, or Magazine.</li>
+          <li><strong>Logo</strong> — show or hide the ReadWrite logo on share pages.</li>
+          <li><strong>Story list title</strong> — the heading shown at the top of your published list page.</li>
+          <li><strong>Published list</strong> — enable to make your published list page publicly accessible via the globe link.</li>
+        </ul>
+      </div>
+
+      <!-- Icon reference -->
+      <div class="card">
+        <div class="card-label">Icon reference</div>
+        <div class="icon-legend">
+
+          <div class="icon-legend-row">
+            <span class="icon-legend-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </span>
+            <span class="icon-legend-name">Menu</span>
+            <span class="icon-legend-desc">Opens the menu — Help, Settings, Sign out</span>
+          </div>
+
+          <div class="icon-legend-row">
+            <span class="icon-legend-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            </span>
+            <span class="icon-legend-name">Notebooks</span>
+            <span class="icon-legend-desc">Create and manage notebooks; click to go to Notebooks page</span>
+          </div>
+
+          <div class="icon-legend-row">
+            <span class="icon-legend-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            </span>
+            <span class="icon-legend-name">My Notes</span>
+            <span class="icon-legend-desc">Browse and search all your saved notes</span>
+          </div>
+
+          <div class="icon-legend-row">
+            <span class="icon-legend-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </span>
+            <span class="icon-legend-name">Home</span>
+            <span class="icon-legend-desc">Go to the home screen to scan new notes</span>
+          </div>
+
+          <div class="icon-legend-row">
+            <span class="icon-legend-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+            </span>
+            <span class="icon-legend-name">Published list</span>
+            <span class="icon-legend-desc">Your public published notes feed</span>
+          </div>
+
+          <div class="icon-legend-row">
+            <span class="icon-legend-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+            </span>
+            <span class="icon-legend-name">Public</span>
+            <span class="icon-legend-desc">Note is visible to anyone with the link</span>
+          </div>
+
+          <div class="icon-legend-row">
+            <span class="icon-legend-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </span>
+            <span class="icon-legend-name">Members only</span>
+            <span class="icon-legend-desc">Note requires sign-in to view</span>
+          </div>
+
+          <div class="icon-legend-row">
+            <span class="icon-legend-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </span>
+            <span class="icon-legend-name">Private</span>
+            <span class="icon-legend-desc">Note is only visible to you</span>
+          </div>
+
+          <div class="icon-legend-row">
+            <span class="icon-legend-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </span>
+            <span class="icon-legend-name">Edit</span>
+            <span class="icon-legend-desc">Edit this note (shown to the note owner on the share page)</span>
+          </div>
+
+          <div class="icon-legend-row">
+            <span class="icon-legend-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+            </span>
+            <span class="icon-legend-name">Share</span>
+            <span class="icon-legend-desc">Share this page — opens native share sheet on mobile, copies link on desktop</span>
+          </div>
+
+          <div class="icon-legend-row">
+            <span class="icon-legend-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </span>
+            <span class="icon-legend-name">Help</span>
+            <span class="icon-legend-desc">This page</span>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script
+    async
+    crossorigin="anonymous"
+    data-clerk-publishable-key="pk_test_Z2xhZC1jbGFtLTQyLmNsZXJrLmFjY291bnRzLmRldiQ"
+    src="https://glad-clam-42.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
+    type="text/javascript"
+  ></script>
+  <script src="app.js?v=54"></script>
+</body>
+</html>
