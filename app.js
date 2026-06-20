@@ -1250,6 +1250,7 @@ async function initShare() {
   const shareLbImg = document.getElementById('share-lightbox-img');
   let shareLbSrcs = [];
   let shareLbIndex = 0;
+  let shareClerkToken = null; // set when auth is required to load the share page
 
   function updateShareLbNav() {
     const multi = shareLbSrcs.length > 1;
@@ -1319,6 +1320,7 @@ async function initShare() {
       if (authWallEl) authWallEl.hidden = true;
       if (loadingEl) { loadingEl.hidden = false; }
       const clerkToken = await window.Clerk.session.getToken();
+      shareClerkToken = clerkToken;
       resp = await fetchShareData(`Bearer ${clerkToken}`);
     }
 
@@ -1427,7 +1429,16 @@ async function initShare() {
 
       if (imageFiles.length && imgContainer) {
         imgContainer.hidden = false;
-        const srcs = imageFiles.map(f => `/api/share/${encodeURIComponent(token)}/images/${f.position}`);
+        const needsAuth = shareClerkToken && (data.visibility === 'logged_in' || data.visibility === 'me');
+        const srcs = needsAuth
+          ? await Promise.all(imageFiles.map(async f => {
+              const r = await fetch(`/api/share/${encodeURIComponent(token)}/images/${f.position}`, {
+                headers: { 'Authorization': `Bearer ${shareClerkToken}` },
+              });
+              if (!r.ok) return '';
+              return URL.createObjectURL(await r.blob());
+            }))
+          : imageFiles.map(f => `/api/share/${encodeURIComponent(token)}/images/${f.position}`);
         if (imageFiles.length === 1) {
           const img = document.createElement('img');
           img.src = srcs[0];
