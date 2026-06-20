@@ -1154,7 +1154,6 @@ details[open] .images-toggle::before {
   z-index: 200;
 }
 .sp-edit-btn,
-.sp-visibility-icon,
 .sp-share-btn {
   display: flex;
   align-items: center;
@@ -1173,9 +1172,6 @@ details[open] .images-toggle::before {
 .sp-edit-btn:hover {
   opacity: 1;
   background: rgba(0, 0, 0, 0.14);
-}
-.sp-visibility-icon {
-  cursor: default;
 }
 .sp-share-btn {
   cursor: pointer;
@@ -1948,19 +1944,24 @@ body[data-template="magazine"] .sp-footer {
   .sp-corner-btn:hover { background: rgba(255,255,255,0.2); }
 }
 
-/* ── Linked visibility icon on share page ── */
+/* ── Visibility status badge (top-left on share page, owner only) ── */
 
-.sp-vis-link {
+.sp-vis-status {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 200;
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  color: inherit;
-  text-decoration: none;
+  gap: 5px;
+  padding: 5px 10px 5px 8px;
+  border-radius: 20px;
+  background: rgba(0,0,0,0.07);
+  color: #555;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  line-height: 1;
 }
-.sp-visibility-icon.is-link { cursor: pointer; }
-.sp-visibility-icon.is-link:hover { opacity: 1; background: rgba(0,0,0,0.14); }
 @media (prefers-color-scheme: dark) {
-  .sp-visibility-icon.is-link:hover { background: rgba(255,255,255,0.18); }
+  .sp-vis-status { background: rgba(255,255,255,0.12); color: #ccc; }
 }
