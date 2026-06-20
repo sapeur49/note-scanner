@@ -154,6 +154,7 @@ async function initIndex() {
   const appEl      = document.getElementById('app');
 
   let hamburgerInited = false;
+  let listBtnInited = false;
   function showApp() {
     signInWall.hidden = true;
     appEl.hidden = false;
@@ -162,6 +163,17 @@ async function initIndex() {
     const headerRight = document.getElementById('header-right');
     if (headerRight) headerRight.hidden = false;
     if (!hamburgerInited) { initHamburger(); hamburgerInited = true; }
+    if (!listBtnInited) {
+      listBtnInited = true;
+      getToken().then(tok => fetch('/api/settings', { headers: tok ? { 'Authorization': `Bearer ${tok}` } : {} }))
+        .then(r => r.ok ? r.json() : null)
+        .then(s => {
+          if (s && s.list_token) {
+            const btn = document.getElementById('pub-list-btn');
+            if (btn) { btn.href = `/published/${s.list_token}`; btn.hidden = false; }
+          }
+        }).catch(() => {});
+    }
   }
 
   function showSignIn() {
