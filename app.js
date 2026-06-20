@@ -581,8 +581,8 @@ async function initResults() {
 
     // Show add-images UI in saved mode
     enableAddImages(savedId);
-    // Show notebooks card in saved mode
-    loadNotebooksCard(savedId);
+    // Show notebooks card in saved mode (data.notebook_ids already loaded)
+    loadNotebooksCard(savedId, data.notebook_ids || []);
   }
 
   const copiedMsg = document.getElementById('copied-msg');
@@ -1027,7 +1027,7 @@ async function initResults() {
   }
 
   // ── Notebooks card ──
-  async function loadNotebooksCard(noteId) {
+  async function loadNotebooksCard(noteId, initialNotebookIds) {
     const card = document.getElementById('notebooks-card');
     const listEl = document.getElementById('notebooks-picker-list');
     const emptyMsg = document.getElementById('notebooks-empty-msg');
@@ -1039,14 +1039,10 @@ async function initResults() {
     try {
       const authToken = await getToken();
       const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
-      const [nbResp, noteResp] = await Promise.all([
-        fetch('/api/notebooks', { headers }),
-        fetch(`${NOTES_URL}/${noteId}`, { headers }),
-      ]);
+      const nbResp = await fetch('/api/notebooks', { headers });
       if (!nbResp.ok) return;
       const notebooks = await nbResp.json();
-      const noteData  = noteResp.ok ? await noteResp.json() : {};
-      const memberIds = new Set(noteData.notebook_ids || []);
+      const memberIds = new Set(initialNotebookIds || []);
 
       if (!notebooks.length) {
         if (emptyMsg) emptyMsg.hidden = false;
@@ -1174,7 +1170,7 @@ async function initResults() {
         setTimeout(() => { copiedMsg.textContent = ''; }, 2500);
         if (publishCard) publishCard.hidden = false;
         enableAddImages(currentNoteId);
-        loadNotebooksCard(currentNoteId);
+        loadNotebooksCard(currentNoteId, []); // fresh note, no memberships yet
       } catch (e) {
         saveBtn.disabled = false;
         copiedMsg.textContent = e.message || 'Save failed';
