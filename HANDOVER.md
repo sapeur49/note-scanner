@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-busters: **`style.css?v=42`**, **`app.js?v=45`** across all six HTML files.
+Cache-busters: **`style.css?v=43`**, **`app.js?v=46`** across all six HTML files.
 
 ---
 
@@ -17,7 +17,7 @@ Cache-busters: **`style.css?v=42`**, **`app.js?v=45`** across all six HTML files
 
 | # | Feature | Version | Key files |
 |---|---|---|---|
-| 1 | **Nav refinements** — My Notes removed from hamburger (now Settings + Sign out only); My Notes icon in header-right on index/results; published-list icon on notes header (fetched from settings); note cards on My Notes page get Edit + Published action strip; share-page corner buttons stack vertically (home on top); published list page shows My Notes + Home cluster for logged-in users | v45 / v42 | `index.html`, `results.html`, `notes.html`, `settings.html`, `share.html`, `published.html`, `app.js` (`showApp`, `initNotes`, `initPublished`), `style.css` (`.header-right`, `.hdr-icon-btn`, `.note-card-actions`, `.sp-corner-btns`, `.pub-nav-btns`, `.sp-corner-btn`) |
+| 1 | **Nav refinements** — My Notes removed from hamburger (Settings + Sign out only); My Notes icon header-right on index/results; published-list globe on notes header; note cards get Edit/Published action strip; share corner buttons horizontal row; globe links to published list; published page shows My Notes + Home cluster for logged-in users | v46 / v43 | `index.html`, `results.html`, `notes.html`, `settings.html`, `share.html`, `published.html`, `app.js` (`showApp`, `initNotes`, `initPublished`, `showEditBtn`), `style.css` (`.header-right`, `.hdr-icon-btn`, `.note-card-actions`, `.sp-corner-btns`, `.pub-nav-btns`, `.sp-corner-btn`, `.sp-vis-link`) |
 | 2 | **UI polish** — hamburger nav (Settings / Sign out) top-left on all app pages; My Notes page switched to card-grid layout matching published list; home icon top-right on app pages, fixed corner on share/published for logged-in users; tagline removed; "Import images and files" / "Scan Files" copy; instructions hint text removed | v44 / v41 | `index.html`, `notes.html`, `results.html`, `settings.html`, `share.html`, `published.html`, `app.js` (`initHamburger`, `initNotes` card rendering), `style.css` (`.app-header`, `#site-nav`, `.hamburger-btn`, `.nav-menu`, `.home-btn`, `.sp-home-btn`) |
 | 2 | **PWA support** — installable on Android (install banner) and iOS (Add to Home Screen, standalone display, no browser chrome). Minimal pass-through service worker; no offline caching yet | v43 | `manifest.json`, `sw.js`, `icons/icon-192.png`, `icons/icon-512.png`, `app.js` (service worker registration), all six HTML files (manifest link + theme-color) |
 | 2 | **OG link previews** — share page now server-side renders OG + Twitter Card meta tags. Public notes: real title, summary excerpt, hero image (`summary_large_image`). Restricted/not-found notes: generic "ReadWrite" / "Sign in" branding, no image | — | `app/main.py` (`share_page_route`) |

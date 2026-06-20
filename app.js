@@ -1605,8 +1605,15 @@ async function initShare() {
         const eye = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
         const svgs   = { public: globe, logged_in: person, me: eye };
         const labels = { public: 'Public', logged_in: 'Members only', me: 'Private' };
-        visEl.innerHTML = svgs[vis] || globe;
-        visEl.setAttribute('title', labels[vis] || 'Public');
+        const svgContent = svgs[vis] || globe;
+        const label = labels[vis] || 'Public';
+        if (data.list_token) {
+          visEl.innerHTML = `<a class="sp-vis-link" href="/published/${encodeURIComponent(data.list_token)}" title="${label}">${svgContent}</a>`;
+          visEl.classList.add('is-link');
+        } else {
+          visEl.innerHTML = svgContent;
+          visEl.setAttribute('title', label);
+        }
         visEl.hidden = false;
       }
     }
