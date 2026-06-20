@@ -339,12 +339,19 @@ def update_settings_route(payload: dict = Body(...), _user: dict = Depends(requi
 
 
 @app.get("/api/published/{list_token}")
-def get_published_list(list_token: str):
+def get_published_list(list_token: str, authorization: str = Header(default="")):
     settings = db.get_settings_by_list_token(list_token)
     if not settings:
         raise HTTPException(status_code=404, detail="Not found")
     if settings.get("list_public") != "true":
         raise HTTPException(status_code=403, detail="This list is private")
+    is_owner = False
+    if authorization.startswith("Bearer "):
+        try:
+            req_user = verify_clerk_token(authorization[7:])
+            is_owner = req_user["sub"] == settings["user_id"]
+        except Exception:
+            pass
     notes_list = db.list_published_notes(settings["user_id"])
     return {
         "settings": {
@@ -352,6 +359,7 @@ def get_published_list(list_token: str):
             "template": settings.get("template") or "minimal",
             "logoOn": settings.get("logo_on") == "true",
             "listToken": list_token,
+            "isOwner": is_owner,
         },
         "notes": notes_list,
     }
