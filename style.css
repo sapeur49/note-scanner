@@ -1122,10 +1122,17 @@ details[open] .images-toggle::before {
 }
 .sp-nav-link:hover { opacity: 1; }
 
-.sp-edit-btn {
+.sp-corner-btns {
   position: fixed;
   top: 14px;
   right: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 200;
+}
+.sp-edit-btn,
+.sp-visibility-icon {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1134,14 +1141,18 @@ details[open] .images-toggle::before {
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.07);
   color: #555;
-  text-decoration: none;
   opacity: 0.55;
   transition: opacity 0.15s, background 0.15s;
-  z-index: 200;
+}
+.sp-edit-btn {
+  text-decoration: none;
 }
 .sp-edit-btn:hover {
   opacity: 1;
   background: rgba(0, 0, 0, 0.14);
+}
+.sp-visibility-icon {
+  cursor: default;
 }
 
 /* ── My Notes — thumbnails and published badge ── */
