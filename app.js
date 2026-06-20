@@ -1188,19 +1188,22 @@ async function initNotes() {
   const listEl   = document.getElementById('notes-list');
   const emptyEl  = document.getElementById('notes-empty');
   const searchEl = document.getElementById('notes-search');
+  const filterEl = document.getElementById('notes-vis-filter');
 
-  async function load(q) {
-    let notes = [];
-    try {
-      const resp = await fetch(`${NOTES_URL}?q=${encodeURIComponent(q || '')}`, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      });
-      if (resp.ok) notes = await resp.json();
-    } catch (_) {}
+  const unlockSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`;
+  const personSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+  const eyeSvg    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+  const visSvgs   = { public: unlockSvg, logged_in: personSvg, me: eyeSvg };
+  const visLabels = { public: 'Public', logged_in: 'Members only', me: 'Private' };
+  const editSvg   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
 
+  let notes = [];
+  let activeVis = '';
+
+  function renderNotes(items) {
     listEl.innerHTML = '';
-    emptyEl.hidden = notes.length > 0;
-    notes.forEach(n => {
+    emptyEl.hidden = items.length > 0;
+    items.forEach(n => {
       const hasThumb = n.first_image_position !== null && n.first_image_position !== undefined;
 
       const card = document.createElement('div');
@@ -1220,12 +1223,7 @@ async function initNotes() {
       const body = document.createElement('div');
       body.className = 'pub-card-body';
       const vis = n.share_token ? (n.visibility || 'public') : null;
-      const unlockSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`;
-      const personSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
-      const eyeSvg    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
-      const visSvgs   = { public: unlockSvg, logged_in: personSvg, me: eyeSvg };
-      const visLabels = { public: 'Public', logged_in: 'Members only', me: 'Private' };
-      const visHtml   = vis ? `<span class="pub-card-vis" title="${visLabels[vis] || 'Public'}">${visSvgs[vis] || unlockSvg}</span>` : '';
+      const visHtml = vis ? `<span class="pub-card-vis" title="${visLabels[vis] || 'Public'}">${visSvgs[vis] || unlockSvg}</span>` : '';
       body.innerHTML = `
         <div class="pub-card-title-row">
           <div class="pub-card-title">${escapeHtml(n.title || 'Untitled')}</div>
@@ -1237,7 +1235,6 @@ async function initNotes() {
 
       const actions = document.createElement('div');
       actions.className = 'note-card-actions';
-      const editSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
       actions.innerHTML = `
         <a href="results.html?id=${encodeURIComponent(n.id)}" class="note-card-action" onclick="event.stopPropagation()">${editSvg} Edit</a>
         ${n.share_token ? `<a href="/share/${encodeURIComponent(n.share_token)}" class="note-card-action note-card-action-pub" onclick="event.stopPropagation()">Published ↗</a>` : ''}
@@ -1252,13 +1249,42 @@ async function initNotes() {
     });
   }
 
-  let t;
-  searchEl.addEventListener('input', () => {
-    clearTimeout(t);
-    t = setTimeout(() => load(searchEl.value.trim()), 250);
-  });
+  function filteredNotes() {
+    const q = searchEl ? searchEl.value.trim().toLowerCase() : '';
+    return notes.filter(n => {
+      if (activeVis !== '') {
+        if (!n.share_token) return false;
+        if ((n.visibility || 'public') !== activeVis) return false;
+      }
+      return !q || (n.title || '').toLowerCase().includes(q) || (n.summary_snippet || '').toLowerCase().includes(q);
+    });
+  }
 
-  load('');
+  async function loadAll() {
+    try {
+      const resp = await fetch(NOTES_URL, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (resp.ok) notes = await resp.json();
+    } catch (_) {}
+    renderNotes(filteredNotes());
+  }
+
+  if (searchEl) {
+    searchEl.addEventListener('input', () => renderNotes(filteredNotes()));
+  }
+  if (filterEl) {
+    filterEl.addEventListener('click', e => {
+      const btn = e.target.closest('.pub-vis-btn');
+      if (!btn) return;
+      filterEl.querySelectorAll('.pub-vis-btn').forEach(b => b.classList.remove('pub-vis-active'));
+      btn.classList.add('pub-vis-active');
+      activeVis = btn.dataset.vis;
+      renderNotes(filteredNotes());
+    });
+  }
+
+  loadAll();
 }
 
 function escapeHtml(s) {
