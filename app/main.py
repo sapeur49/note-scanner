@@ -31,22 +31,29 @@ NOTES_DIR = VOLUME_PATH / "notes"
 MODEL = "claude-sonnet-4-6"
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY")) if os.environ.get("ANTHROPIC_API_KEY") else None
 
-SCAN_PROMPT = """You are processing scanned note images. For each image provided:
-1. Transcribe ALL visible text accurately. Mirror the structure of the original:
-   - Use `## Heading` for any section headings or titled sections in the notes
-   - Use `- item` for bullet or list items that appear as such in the original
+SCAN_PROMPT = """You are processing images submitted for scanning and analysis. For each image, first determine whether it is primarily text-based (handwritten or printed notes, documents) or primarily visual (photograph, object, scene, diagram).
+
+**If primarily TEXT (notes, documents):**
+1. Transcribe ALL visible text accurately, mirroring the original structure:
+   - Use `## Heading` for section headings or titled sections
+   - Use `- item` for bullet or list items
    - Use `1. item` for numbered lists
-   - Use `**term**` to bold key terms, headings within paragraphs, or important phrases
-   - Separate distinct sections or paragraphs with a blank line
+   - Use `**term**` to bold key terms or important phrases
+   - Separate distinct sections with a blank line
    - Write prose as flowing prose — do NOT wrap at arbitrary line lengths
-2. Produce a concise summary (under 200 words) highlighting key points and action items. Use markdown formatting where it aids clarity: `## ` for major themes, `- ` for action items or key points, `**bold**` for critical terms.
-3. Create a short descriptive title (max ~8 words) capturing the note's subject — plain text, no markdown.
+2. Produce a concise summary (under 200 words) of key points and action items, using markdown where helpful.
+3. Create a short descriptive title (max ~8 words) — plain text, no markdown.
+
+**If primarily VISUAL (photo, object, scene, diagram):**
+1. In "transcription": include any visible text, labels, numbers, or markings present in the image (empty string if none).
+2. In "summary": provide a detailed analytical description — identify the subject, describe what is depicted, note relevant details, context, and any meaningful observations.
+3. Create a short descriptive title (max ~8 words) capturing the subject — plain text, no markdown.
 
 Respond with ONLY valid JSON in this exact shape:
 {
-  "title": "a short descriptive title (max ~8 words) capturing the note's subject",
-  "summary": "concise markdown-formatted summary with key points and action items, under 200 words",
-  "transcription": "full verbatim transcription using markdown to reflect the original structure"
+  "title": "a short descriptive title (max ~8 words)",
+  "summary": "concise markdown-formatted summary or visual description",
+  "transcription": "full text transcription, or empty string if no significant text"
 }"""
 
 app = FastAPI()
