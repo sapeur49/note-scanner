@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in `index.html`, `results.html`, and `notes.html`. Bump N in all files when deploying JS/CSS changes. Currently at **`v=34`**. (`share.html`, `published.html`, and `settings.html` use absolute paths `/style.css?v=N` and `/app.js?v=N` — update those too.)
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=36`, `app.js?v=38`). Update all six HTML files: `index.html`, `results.html`, `notes.html`, `settings.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
 
 ---
 
@@ -124,7 +124,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `POST /api/notes` — save a scanned note with file attachments
 - `GET /api/notes` — list notes for the signed-in user (supports `?q=` search)
 - `GET /api/notes/{id}` — fetch a single note (includes `share_token` field)
-- `PUT /api/notes/{id}` — update editable fields: `title`, `summary`, `transcription`, `additional_notes`, `publish_options`
+- `PUT /api/notes/{id}` — update editable fields: `title`, `summary`, `transcription`, `additional_notes`, `publish_options`, `scanned_at`, `visibility`
 - `DELETE /api/notes/{id}` — delete note + remove volume files
 - `GET /api/notes/{id}/files/{position}` — serve an attached file (auth'd)
 - `POST /api/notes/{id}/files` — upload additional images/PDFs to a saved note; assigns positions continuing from existing max; extracts EXIF (auth'd)
@@ -133,8 +133,8 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `DELETE /api/notes/{id}/publish` — revoke share token (auth'd)
 - `GET /api/settings` — fetch user settings (auth'd)
 - `PUT /api/settings` — upsert user settings; auto-generates `list_token` if absent (auth'd)
-- `GET /api/share/{token}` — return note JSON + owner settings fields (`template`, `logo_on`, `list_token` if public) (no auth)
-- `GET /api/share/{token}/images/{position}` — serve a published note image (no auth)
+- `GET /api/share/{token}` — return note JSON + owner settings; checks `visibility` (public/logged_in/me) via optional `Authorization` header; adds `is_owner: true` if requester is the owner; adds `prev_token`/`next_token` for adjacent published notes when the list is public
+- `GET /api/share/{token}/images/{position}` — serve a published note image; enforces `visibility` (no auth required for `public`)
 - `GET /api/published/{list_token}` — return published notes list + settings; 403 if `list_public != true` (no auth)
 - `GET /share/{token}` — serve `share.html` (no auth)
 - `GET /settings` — serve `settings.html`
@@ -174,7 +174,7 @@ Each tile also renders:
 
 ## Database: app/db.py
 
-SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()` runs after `create_all()` and adds new columns via `ALTER TABLE` only if absent — works for both engines. Currently migrates: `share_token`, `publish_options` on `notes`.
+SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()` runs after `create_all()` and adds new columns via `ALTER TABLE` only if absent — works for both engines. Currently migrates: `share_token`, `publish_options`, `is_published`, `visibility` on `notes`.
 
 `files` JSON column stores per-file metadata including `exif` (if available) — no separate EXIF column needed.
 
@@ -190,7 +190,15 @@ SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()
 | `list_public` | String(8) | `"true"`\|`"false"` — controls public access to published list |
 | `list_token` | String(36) | Stable UUID; auto-generated on first `upsert_settings()` call |
 
-Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get_settings_by_list_token(token)`, `list_published_notes(user_id)`, `update_note_files(user_id, note_id, files)`.
+Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get_settings_by_list_token(token)`, `list_published_notes(user_id)`, `update_note_files(user_id, note_id, files)`, `get_adjacent_published_notes(user_id, note_id)` — returns `{prev_token, next_token}` for prev/next navigation on share pages.
+
+**`notes` table notable columns** (besides the obvious text/JSON fields):
+| Column | Type | Notes |
+|---|---|---|
+| `share_token` | String(36) | UUID; set by `publish_note()`; cleared by `unpublish_note()` |
+| `is_published` | Boolean | True when share_token is active |
+| `visibility` | String(32) | `public` \| `logged_in` \| `me` — access control on the share page |
+| `publish_options` | JSON | Per-note publish settings (see Publish/Share section) |
 
 ---
 
