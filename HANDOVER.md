@@ -1,7 +1,7 @@
 # HANDOVER — ReadWrite continuity snapshot
 
 Live state for picking up work in a fresh thread. Durable project docs live in `CLAUDE.md`; this file is the "where we are right now" snapshot.
-**Date of this snapshot:** 2026-06-19.
+**Date of this snapshot:** 2026-06-20.
 
 ---
 
@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-buster is at **`v=34`** across `index.html`, `results.html`, `notes.html`, `share.html`, `settings.html`, `published.html`.
+Cache-busters: **`style.css?v=40`**, **`app.js?v=42`** across all six HTML files.
 
 ---
 
@@ -17,81 +17,95 @@ Cache-buster is at **`v=34`** across `index.html`, `results.html`, `notes.html`,
 
 | # | Feature | Version | Key files |
 |---|---|---|---|
-| 1 | **Additional Notes checkbox in Share panel** — separate "Additional Notes" checkbox alongside Summary/Transcription; checked by default; omitted from output when empty | v34 | `results.html` (`#share-card`), `app.js` (`share-btn` handler) |
-| 2 | **Fix: Additional Notes card always visible on results page** — card and Edit button shown from first scan regardless of whether AI generated any notes; users can add notes manually without providing scan instructions | v33 | `app.js` (`initResults`, moved `addCard.hidden = false` outside conditional) |
-| 3 | **Fix: single-image share page full width** — single-image notes now use `sp-image-hero` class (same full-width natural-ratio layout as multi-image hero) instead of fixed 220px height | v32 | `app.js` (`initShare` single-image branch) |
-| 4 | **Fix: hero image natural aspect ratio** — hero on share/published pages uses natural image dimensions; removed forced 4:3 crop (`aspect-ratio` + `object-fit: cover`) | v31 | `style.css` (`.sp-image-hero`) |
-| 5 | **Fix: share page hero + thumbnails for multi-image notes** — first image renders full-width hero, remaining images as 80px thumbnail strip; single-image notes use hero layout too (fixed in v32) | v30 | `app.js` (`initShare` image rendering), `style.css` (`.sp-image-hero`, `.sp-image-thumbs`, `.sp-image-thumb`) |
-| 6 | **EasyMDE WYSIWYG editor on edit sections** — clicking Edit on Summary/Transcription/Additional Notes opens EasyMDE (toolbar, preview toggle) instead of a plain textarea; note-title keeps plain input; `getText()` queries active instances so publish/save actions always pick up live content | v29 | `results.html` (CDN scripts), `app.js` (editors Map, toggle handler, getText), `style.css` (EasyMDE theme overrides) |
-| 7 | **Fix: published list excluded-image filtering + markdown rendering** — `list_published_notes` filters `excludedImages` from `image_positions`; card snippet uses `renderMarkdown`; `.pub-card-snippet` uses `max-height` clipping | v28 | `app/db.py` (`list_published_notes`), `app.js` (`renderNotes`), `style.css` (`.pub-card-snippet`) |
-| 8 | **Fix: text edits persist on publish actions** — `savePublishOptions()` spreads `currentTextFields()` into the PUT body so title/summary edits are never lost when clicking Republish or Save options | v27 | `app.js` (`savePublishOptions`) |
-| 9 | **Published list hero layout** — first image shown as full-card-width hero; extra images as thumbnails below the text; responsive CSS grid | v26 | `app.js` (`initPublished` `renderNotes`), `app/db.py` (`list_published_notes` returns `image_positions`), `published.html`, `style.css` |
-| 10 | **Delete individual image** — `×` button on each thumbnail in saved mode; `DELETE /api/notes/{id}/files/{position}`; removes tile immediately | v26 | `app/main.py` (`delete_note_file`), `app.js` (`addImageTile`), `style.css` (`.thumb-delete-btn`) |
-| 11 | **Add images to saved note** — "+ Add images" button; uploads to `POST /api/notes/{id}/files`; EXIF extracted server-side; button also appears after first save in fresh mode | v26 | `app/main.py` (`add_note_files`), `app/db.py` (`update_note_files`), `app.js` (`enableAddImages`) |
-| 12 | **Per-image publish exclusion** — "Exclude" toggle on each thumbnail; excluded images filtered from share page; stored in `publish_options.excludedImages` | v25 | `app.js` (`addImageTile`, `getPublishOptions`, `restorePublishOptions`, `initShare`), `style.css` |
-| 13 | **Auto-link URLs in text** — bare http/https URLs in summary/transcription/notes rendered as clickable links | v25 | `app.js` (`inlineFormat` in `renderMarkdown`) |
-| 14 | **Settings page** (`/settings`) — global template, logo, story list title, published list visibility | v21 | `settings.html`, `app.js` (`initSettings`), `app/db.py` (`user_settings` table), `app/main.py` |
-| 15 | **Published list page** (`/published/{list_token}`) — public list of published notes, search, template-aware | v21 | `published.html`, `app.js` (`initPublished`), `app/main.py` |
-| 16 | **Additional Notes card** — separated from Summary into its own editable card (always visible since v33) | v21 | `results.html`, `app.js` |
-| 17 | **Publish panel UX** — options locked when published; "Edit options" → "Save options"/"Republish" flow | v21 | `results.html`, `app.js` (`lockPublishOptions`, `unlockPublishOptions`) |
-| 18 | **Share page: settings-driven** — template/logo from global settings; logo links to published list; "Home" footer link | v21 | `share.html`, `app.js` (`initShare`), `app/main.py` |
-| 19 | **"Include in published list" toggle** — per-note checkbox in publish panel | v21 | `results.html`, `app/db.py` (`list_published_notes` filters `includeInList`) |
-| 20 | **My Notes thumbnails + published badge** | v20 | `app.js` (`loadNoteThumbnail`), `app/db.py` (`list_notes` returns `first_image_position`), `style.css` |
-| 21 | **Publish panel redesign** — card with section toggles, image position, template swatches | v20 | `results.html`, `app.js`, `app/db.py` (`publish_options` column) |
-| 22 | **Lightbox carousel** — prev/next/keyboard navigation | v20 | `results.html`, `app.js`, `style.css` |
-| 23 | **share.html redesign** — 3 CSS templates (minimal/bold/magazine) | v20 | `share.html`, `style.css` |
+| 1 | **Share button on share page** — upload/share icon in top-right `.sp-corner-btns`, visible to all visitors. Triggers native device share sheet (`navigator.share`) on mobile; clipboard copy with "Copied!" feedback on desktop | v42 | `share.html` (`#sp-share-btn`), `app.js` (`initShare`), `style.css` (`.sp-share-btn`) |
+| 2 | **Friendly URL slugs** — published notes get a human-readable slug auto-generated from title (e.g. `/share/my-note-title`). Editable in publish panel with live URL preview. Old UUID links still work. Deduplication appends `-2`/`-3` | v42 | `app/db.py` (`slug` col, `_slugify`, `_make_slug`, `get_note_by_slug`, `publish_note`), `app/main.py` (slug fallback in share routes), `results.html` (`#pub-slug`), `app.js` (`slugify`, `savePublishOptions`, `showShareLink`, `restorePublishOptions`) |
+| 3 | **Internal links open in same tab** — removed `target="_blank"` from share URL display, published list URL display, and "↗ Published page" badge. GPS map, PDF blob tile, and auto-linked markdown URLs keep `target="_blank"` | v41 | `results.html`, `settings.html`, `app.js` |
+| 4 | **Published list: image auth fix + owner features** — restricted images on published list pre-fetched with Bearer token → blob URL. Owner sees visibility icon badge on each card and All/globe/person/eye filter bar above search | v40 | `app.js` (`initPublished`), `app/db.py` (`list_published_notes` returns `visibility`), `app/main.py` (optional auth on `/api/published/{list_token}`), `published.html` |
+| 5 | **Magazine template two-tone logo** — "Write" span in `#999`, matching the bold template | v39 | `style.css` |
+| 6 | **Share page: image auth fix + owner UI** — restricted images pre-fetched with Bearer token → blob URL. Owner sees pencil edit button + visibility icon (globe/person/eye) in top-right corner. Clerk loaded async for owner detection | v38 | `app.js` (`initShare`, `showEditBtn`), `share.html` (`.sp-corner-btns`) |
+| 7 | **Visibility access control on published notes** — `visibility` field (`public`/`logged_in`/`me`) on notes; enforced on `GET /api/share/{token}` and `GET /api/share/{token}/images/{position}` | v35 | `app/main.py`, `app/db.py` (`visibility` col), `results.html` (`#pub-visibility`), `app.js` |
+| 8 | **Prev/next navigation on share page** — "← Older" / "Newer →" links between published notes; `get_adjacent_published_notes()` in db.py | v35 | `app/db.py`, `app/main.py`, `app.js` (`initShare`), `share.html` |
+| 9 | **Date edit on results page** — `scanned_at` field editable; stored to DB; shown as formatted date on results/share | v35 | `results.html`, `app.js`, `app/main.py` |
+| 10 | **Additional Notes checkbox in Share panel** — separate checkbox; omitted from output when empty | v34 | `results.html`, `app.js` |
+| 11 | **Fix: Additional Notes card always visible** — card shown from first scan; users can add notes without instructions | v33 | `app.js` |
+| 12 | **Fix: single-image share page full width** | v32 | `app.js` |
+| 13 | **Fix: hero image natural aspect ratio** | v31 | `style.css` |
+| 14 | **Fix: share page hero + thumbnails for multi-image notes** | v30 | `app.js`, `style.css` |
+| 15 | **EasyMDE WYSIWYG editor** — Summary/Transcription/Additional Notes use EasyMDE on edit | v29 | `results.html`, `app.js`, `style.css` |
+| 16 | **Fix: published list excluded-image filtering + markdown rendering** | v28 | `app/db.py`, `app.js`, `style.css` |
+| 17 | **Fix: text edits persist on publish actions** — `savePublishOptions()` spreads `currentTextFields()` | v27 | `app.js` |
+| 18 | **Published list hero layout** | v26 | `app.js`, `app/db.py`, `published.html`, `style.css` |
+| 19 | **Delete individual image** — `×` button; `DELETE /api/notes/{id}/files/{position}` | v26 | `app/main.py`, `app.js`, `style.css` |
+| 20 | **Add images to saved note** — "+ Add images" button; `POST /api/notes/{id}/files` | v26 | `app/main.py`, `app/db.py`, `app.js` |
+| 21 | **Per-image publish exclusion** — "Exclude" toggle; `publish_options.excludedImages` | v25 | `app.js`, `style.css` |
+| 22 | **Auto-link URLs in text** | v25 | `app.js` |
+| 23 | **Settings page** (`/settings`) — template, logo, story list title, list visibility | v21 | `settings.html`, `app.js`, `app/db.py`, `app/main.py` |
+| 24 | **Published list page** (`/published/{list_token}`) | v21 | `published.html`, `app.js`, `app/main.py` |
 
 ---
 
-## Publish options architecture
+## Publish / share architecture
 
-**Global settings** (per user, in `user_settings` table):
-- `template` — minimal / bold / magazine — applied to all share pages and the published list
+### Global settings (per user, `user_settings` table)
+- `template` — minimal / bold / magazine
 - `logo_on` — show ReadWrite logo on published pages
 - `story_list_title` — heading on the published list page
 - `list_public` — whether `/published/{list_token}` is publicly accessible
-- `list_token` — stable UUID for the published list URL (auto-generated on first save)
+- `list_token` — stable UUID for the published list URL
 
-**Per-note options** (`publish_options` JSON column on `notes`):
+### Per-note options (`publish_options` JSON column + `notes` columns)
 - `showImages`, `showSectionTitles`, `showSummary`, `showTranscription`, `showAdditional`
 - `imagePosition` — top / after-summary / after-transcription / bottom
-- `includeInList` — whether this note appears on the published list page
+- `includeInList` — whether this note appears on the published list
 - `excludedImages` — array of image positions hidden from the share page
+- `notes.visibility` — `public` / `logged_in` / `me`
+- `notes.slug` — human-readable URL slug (auto from title, user-editable in publish panel)
 
-**Important**: `savePublishOptions()` sends text fields (`title`, `summary`, etc.) alongside `publish_options` in the same PUT, so any text edits are committed at the same time as option saves — no separate "Save edits" required before using publish actions.
+### Share URL resolution
+`GET /api/share/{token}` tries UUID share_token first, then slug fallback. This means old UUID links always work, and new slug-based URLs work transparently. The displayed URL uses the slug when available.
+
+### `savePublishOptions()` contract
+Sends text fields (`title`, `summary`, etc.) + `publish_options` + `visibility` + `slug` in one PUT so no text edits are lost when using publish actions.
 
 ---
 
 ## Image management
 
 - Images stored at `VOLUME_PATH/notes/{note_id}/{position}.jpg` (or `.pdf`)
-- `POST /api/notes/{id}/files` — add images to an existing saved note; positions continue from the highest existing position
-- `DELETE /api/notes/{id}/files/{position}` — remove a single image; updates `files` JSON column and deletes from disk
-- `GET /api/share/{token}/images/{position}` — public (no auth) endpoint for serving images on share/published pages
-- `GET /api/notes/{id}/files/{position}` — auth'd endpoint for serving images in My Notes thumbnails / results view
-- Hero image on published list: `list_published_notes()` returns `image_positions` (all image positions, non-excluded filtering not yet applied at list level); first position used as hero in `renderNotes()`
+- `POST /api/notes/{id}/files` — add images to an existing saved note
+- `DELETE /api/notes/{id}/files/{position}` — remove a single image
+- `GET /api/share/{token}/images/{position}` — serves images on share/published pages; enforces visibility; also resolves slug as token
+- `GET /api/notes/{id}/files/{position}` — auth'd endpoint for My Notes / results view
+- **Restricted image auth**: `<img>` tags can't send `Authorization` headers. For `logged_in`/`me` notes, `initShare()` and `initPublished()` pre-fetch each image via `fetch()` with Bearer token, convert to `URL.createObjectURL()` blob, set as `img.src`.
 
 ---
 
 ## Known open items (Railway config — not code)
 
-1. **`DATABASE_URL` / `MYSQL_URL`** must be a full connection string — `mysql://user:pass@host:port/db`. Reference the MySQL service's `${{MySQL.MYSQL_URL}}` variable.
-2. **Railway Volume** must be mounted at `/data` with `VOLUME_PATH=/data` set. If not configured, images are written to an ephemeral path and lost on redeploy — hero images on the published list will 404.
+1. **`DATABASE_URL` / `MYSQL_URL`** must be a full connection string — `mysql://user:pass@host:port/db`.
+2. **Railway Volume** must be mounted at `/data` with `VOLUME_PATH=/data`. If absent, images are lost on redeploy.
 
 ---
 
 ## End-to-end verification checklist
 
 1. Deploy logs show no `[db] … Falling back to SQLite` warning.
-2. Sign in → scan a phone photo → EXIF "Image info" toggle appears under thumbnail.
-3. Save note → "+" Add images" button appears immediately below image strip (even on a fresh-scan result page after saving).
-4. Open a saved note → click `×` on a thumbnail → image removed from strip and from disk.
-5. Click "Exclude" on a thumbnail → toggle turns red/active → publish → share page hides that image.
-6. Edit title → click "Republish" (without clicking "Save edits") → share page shows updated title.
-7. Scan any note (no instructions needed) → Additional Notes card is visible with an Edit button; click Edit, type, Done, Save → content persists on reload.
-8. Open a saved note → Publish card visible → options locked if already published → "Edit options" re-enables → "Save options" / "Republish" work.
-9. Open `/settings` → enter title, pick template, enable logo, check "Make list public" → Save → published list URL appears.
-10. Publish a note → open share URL in incognito → correct template applied, logo visible (if on), "Home" link in footer navigates to published list.
-11. Open published list URL in incognito → cards shown with hero image (for notes with images), search filters, clicking card opens share page.
-12. Uncheck "Include in published list" in publish panel → Save options → note disappears from list.
-13. My Notes → cards show thumbnails and "↗ Published page" badge for published notes.
+2. Sign in → scan a photo → EXIF toggle appears under thumbnail.
+3. Save note → "+ Add images" button appears immediately.
+4. Open saved note → `×` on thumbnail → image removed.
+5. "Exclude" on thumbnail → publish → share page hides that image.
+6. Publish a note → share URL shows friendly slug (e.g. `/share/my-note-title`), not UUID.
+7. Navigate to the old UUID URL (`/share/{uuid}`) → still opens the note correctly.
+8. Edit slug in publish panel → save → displayed URL updates to custom slug.
+9. Share button on share page: on mobile triggers native share sheet; on desktop copies URL and briefly shows "Copied!".
+10. Share button visible in incognito (not owner).
+11. Publish two notes with the same title → second slug gets `-2` suffix.
+12. Set visibility to "Logged in" → open share URL in incognito → auth wall shown → sign in → images load.
+13. Owner share page: pencil edit button + visibility icon appear (not shown to other visitors).
+14. Published list owner: visibility badge on each card, filter bar visible; anonymous visitor sees neither.
+15. Edit title → Republish (without "Save edits") → share page shows updated title.
+16. `/settings` → set template, logo, list title → save → published list and share pages reflect changes.
+17. Published list URL in incognito → cards shown with hero image, search works, clicking opens share page.
+18. "Include in published list" unchecked → Save options → note disappears from list.
+19. Prev/next links on share page navigate between published notes.
+20. My Notes → thumbnails and "↗ Published page" badge for published notes; clicking badge opens in same tab.

@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=39`, `app.js?v=41`). Update all six HTML files: `index.html`, `results.html`, `notes.html`, `settings.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=40`, `app.js?v=42`). Update all six HTML files: `index.html`, `results.html`, `notes.html`, `settings.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
 
 ---
 
@@ -50,7 +50,7 @@ app/auth/verify.py JWT verification via Clerk JWKS (PyJWT + PyJWKClient)
 index.html         Upload UI (sign-in wall + app div + My Notes + Settings links)
 results.html       Scan results: image strip, summary, transcription, additional notes, share panel, save/update/delete/publish
 notes.html         My Notes list — search, browse, open saved notes (thumbnails + published badge)
-share.html         Public share page — Clerk loaded async for owner detection; template/logo from owner settings; owner sees visibility icon + edit button (top-right corner)
+share.html         Public share page — Clerk loaded async for owner detection; template/logo from owner settings; share button (all visitors) + owner visibility icon + edit button (top-right corner)
 settings.html      Settings page — story list title, template, logo, published list visibility (auth'd)
 published.html     Public published notes list — /published/{list_token}; Clerk loaded async (non-blocking) for owner detection; owner sees visibility icon per card + filter bar above search
 app.js             All frontend logic — auth, thumbnails, scan POST, sessionStorage, EXIF display,
@@ -124,16 +124,16 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `POST /api/notes` — save a scanned note with file attachments
 - `GET /api/notes` — list notes for the signed-in user (supports `?q=` search)
 - `GET /api/notes/{id}` — fetch a single note (includes `share_token` field)
-- `PUT /api/notes/{id}` — update editable fields: `title`, `summary`, `transcription`, `additional_notes`, `publish_options`, `scanned_at`, `visibility`
+- `PUT /api/notes/{id}` — update editable fields: `title`, `summary`, `transcription`, `additional_notes`, `publish_options`, `scanned_at`, `visibility`, `slug` (slugified + deduplicated server-side)
 - `DELETE /api/notes/{id}` — delete note + remove volume files
 - `GET /api/notes/{id}/files/{position}` — serve an attached file (auth'd)
 - `POST /api/notes/{id}/files` — upload additional images/PDFs to a saved note; assigns positions continuing from existing max; extracts EXIF (auth'd)
 - `DELETE /api/notes/{id}/files/{position}` — delete a single file from a saved note; removes from disk and updates `files` JSON (auth'd)
-- `POST /api/notes/{id}/publish` — generate/return share token (idempotent, auth'd)
+- `POST /api/notes/{id}/publish` — generate/return share token + slug (idempotent, auth'd); returns `{"share_token": "...", "slug": "..."}`
 - `DELETE /api/notes/{id}/publish` — revoke share token (auth'd)
 - `GET /api/settings` — fetch user settings (auth'd)
 - `PUT /api/settings` — upsert user settings; auto-generates `list_token` if absent (auth'd)
-- `GET /api/share/{token}` — return note JSON + owner settings; checks `visibility` (public/logged_in/me) via optional `Authorization` header; adds `is_owner: true` if requester is the owner; adds `prev_token`/`next_token` for adjacent published notes when the list is public
+- `GET /api/share/{token}` — `token` may be a UUID share token or a slug; tries UUID lookup first, then slug fallback. Returns note JSON + owner settings; checks `visibility`; adds `is_owner: true`; adds `prev_token`/`next_token` for adjacent published notes when the list is public
 - `GET /api/share/{token}/images/{position}` — serve a published note image; enforces `visibility` (no auth required for `public`)
 - `GET /api/published/{list_token}` — return published notes list + settings; 403 if `list_public != true`; accepts optional `Authorization` header — if the bearer token matches the list owner, adds `isOwner: true` to settings and includes `visibility` on each note
 - `GET /share/{token}` — serve `share.html` (no auth)
@@ -144,13 +144,15 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 
 ## Publish / Share
 
-A saved note can be published: `POST /api/notes/{id}/publish` generates a stable UUID share token stored in `notes.share_token`. The share URL is `{origin}/share/{token}`.
+A saved note can be published: `POST /api/notes/{id}/publish` generates a stable UUID share token (`notes.share_token`) and a human-readable slug (`notes.slug`). The public share URL is `{origin}/share/{slug}` (falling back to `{origin}/share/{uuid}` if no slug). Old UUID URLs always keep working — the backend tries UUID lookup first, then slug.
 
 `GET /share/{token}` serves `share.html`, which has **absolute** asset paths (`/style.css?v=N`, `/app.js?v=N`) — critical because the URL path `/share/{token}` would make relative paths resolve to `/share/style.css` (404). Same applies to `published.html` and `settings.html`.
 
 `initShare()` in `app.js` fetches `/api/share/{token}`, which now includes the owner's `template`, `logo_on`, and `list_token` (if their published list is public). Template and logo are **global** (from `user_settings`), not per-note. Per-note `publish_options` controls: `showImages`, `showSectionTitles`, `showSummary`, `showTranscription`, `showAdditional`, `imagePosition`, `includeInList`, `excludedImages` (array of positions excluded from the share page).
 
 **Image auth on share/published pages**: `<img>` tags cannot send `Authorization` headers. For notes with `visibility = logged_in` or `me`, `initShare()` and `initPublished()` pre-fetch each image via `fetch()` with `Authorization: Bearer <token>`, convert the response blob to an object URL via `URL.createObjectURL()`, and set that as `img.src`. Public notes use plain `/api/share/{token}/images/{position}` URLs directly.
+
+**Share button on share page**: `#sp-share-btn` in `.sp-corner-btns` is visible to all visitors. Uses `navigator.share` (native share sheet on mobile) with clipboard fallback on desktop. Wired in `initShare()` after data loads.
 
 **Owner-only UI on share page**: When `is_owner: true` is returned by the API, `showEditBtn()` in `app.js` shows both the pencil edit button (links to `results.html?id=…`) and a visibility icon (globe = public, person = logged-in, eye = me-only) in `.sp-corner-btns` top-right.
 
@@ -182,11 +184,13 @@ Each tile also renders:
 
 ## Database: app/db.py
 
-SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()` runs after `create_all()` and adds new columns via `ALTER TABLE` only if absent — works for both engines. Currently migrates: `share_token`, `publish_options`, `is_published`, `visibility` on `notes`.
+SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()` runs after `create_all()` and adds new columns via `ALTER TABLE` only if absent — works for both engines. Currently migrates: `share_token`, `publish_options`, `is_published`, `visibility`, `slug` on `notes`.
 
 `files` JSON column stores per-file metadata including `exif` (if available) — no separate EXIF column needed.
 
-`publish_note()` is idempotent: reuses existing token if one already exists.
+`publish_note()` is idempotent (reuses existing token) and auto-generates a slug from the title if none is set. Returns `{"share_token": ..., "slug": ...}`.
+
+Slug helpers: `_slugify(title)` — lowercase, strip non-alnum to hyphens, truncate to 60 chars. `_make_slug(base, user_id, exclude_note_id)` — queries existing slugs for the user and appends `-2`/`-3` suffix on collision. `get_note_by_slug(slug)` — published-note lookup by slug (no auth).
 
 **`user_settings` table** (new — created via `create_all`, no migration needed):
 | Column | Type | Purpose |
@@ -207,6 +211,7 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 | `is_published` | Boolean | True when share_token is active |
 | `visibility` | String(32) | `public` \| `logged_in` \| `me` — access control on the share page |
 | `publish_options` | JSON | Per-note publish settings (see Publish/Share section) |
+| `slug` | String(255) | Human-readable URL slug; auto-generated from title on first publish; editable in publish panel |
 
 ---
 
@@ -233,6 +238,8 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 - **Image exclude/delete per tile**: `addImageTile()` in `app.js` — Exclude button toggles `excludedImages` Set; Delete button calls `DELETE /api/notes/{id}/files/{position}` (saved mode only)
 - **Add images to saved note**: `enableAddImages(noteId)` in `app.js` — call after save or on saved-mode load; uses `dataset.wired` guard to prevent double-wiring
 - **Global settings** (template/logo/list title): `settings.html` + `initSettings()` in `app.js`; stored in `user_settings` table via `PUT /api/settings`
+- **Share button on share page**: `#sp-share-btn` in `share.html`; always shown (not owner-gated); wired in `initShare()` after data loads; uses `navigator.share` with clipboard fallback
+- **URL slug for published notes**: editable `#pub-slug` input in `results.html` publish panel; `savePublishOptions()` sends `slug` in PUT body; auto-filled from title client-side via `slugify()`; server deduplicates with `_make_slug()`; `restorePublishOptions()` populates from `data.slug`
 - **Owner-only share page UI** (visibility icon + edit button): `showEditBtn()` in `app.js`; called when `data.is_owner` is true; icons defined inline in the function; container is `.sp-corner-btns` in `share.html`
 - **Published list owner features** (visibility icons on cards, filter bar): `initPublished()` in `app.js`; filter bar is `#pub-vis-filter` in `published.html` (hidden until owner confirmed); `renderNotes()` adds `.pub-card-vis` badge when `settings.isOwner`
 - **DB schema changes on `notes`**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`. New tables: just add to `metadata` — `create_all()` handles them automatically.
