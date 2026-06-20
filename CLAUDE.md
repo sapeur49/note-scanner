@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=46`, `app.js?v=52`). Update all six HTML files: `index.html`, `results.html`, `notes.html`, `settings.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=47`, `app.js?v=53`). Update all seven HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
 
 ---
 
@@ -44,22 +44,23 @@ Push to `main` → Railway auto-deploys (~1-2 min). `Procfile` defines the start
 ## Architecture
 
 ```
-app/main.py        FastAPI: POST /api/scan + CRUD /api/notes + publish/share/settings/published routes + static file mount
+app/main.py        FastAPI: POST /api/scan + CRUD /api/notes + notebooks CRUD + publish/share/settings/published routes + static file mount
 app/db.py          SQLAlchemy Core persistence — MySQL prod / SQLite dev fallback
 app/auth/verify.py JWT verification via Clerk JWKS (PyJWT + PyJWKClient)
 manifest.json      PWA web app manifest (name, icons, theme_color, display: standalone)
 sw.js              Service worker — pass-through fetch only; no offline caching yet
 icons/             PWA icons: icon-192.png, icon-512.png (placeholder "RW" tiles; swap for real art)
 landing.html       Public marketing landing page — hero, how-it-works, before/after example, features, testimonials, CTA; self-contained CSS; served at /landing by the static file mount
-index.html         Upload UI (sign-in wall + app div + My Notes + Settings links)
-results.html       Scan results: image strip, summary, transcription, additional notes, share panel, save/update/delete/publish
-notes.html         My Notes list — search, browse, open saved notes (thumbnails + published badge)
+index.html         Upload UI (sign-in wall + app div + Notebooks + My Notes + Settings links)
+results.html       Scan results: image strip, summary, transcription, additional notes, notebooks card, share panel, save/update/delete/publish
+notes.html         My Notes list — visibility filter, search, notebook filter dropdown, browse, open saved notes (thumbnails + published badge)
+notebooks.html     Notebooks management page — list notebooks, create/rename/delete, click through to filtered notes list
 share.html         Public share page — route is server-side rendered (OG/Twitter Card meta tags injected for social previews); Clerk loaded async for owner detection; template/logo from owner settings; share button (all visitors) + owner visibility icon + edit button (top-right corner)
 settings.html      Settings page — story list title, template, logo, published list visibility (auth'd)
 published.html     Public published notes list — /published/{list_token}; Clerk loaded async (non-blocking) for owner detection; owner sees visibility icon per card + filter bar above search
 app.js             All frontend logic — auth, thumbnails, scan POST, sessionStorage, EXIF display,
                    lightbox carousel, edit, share, notes CRUD, publish/unpublish, initShare(),
-                   initSettings(), initPublished()
+                   initSettings(), initPublished(), initNotebooks()
 style.css          Shared styles, CSS variables, auto light/dark mode, 3 share page templates
 test.html          Browser-based QA harness
 ```
@@ -126,15 +127,20 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 **All API routes** (must be registered before the `StaticFiles` mount):
 - `POST /api/scan` — multipart/form-data: `files` + optional `instructions`
 - `POST /api/notes` — save a scanned note with file attachments
-- `GET /api/notes` — list notes for the signed-in user (supports `?q=` search)
-- `GET /api/notes/{id}` — fetch a single note (includes `share_token` field)
+- `GET /api/notes` — list notes for the signed-in user (supports `?q=` search, `?notebook_id=` filter)
+- `GET /api/notes/{id}` — fetch a single note (includes `share_token` and `notebook_ids` fields)
 - `PUT /api/notes/{id}` — update editable fields: `title`, `summary`, `transcription`, `additional_notes`, `publish_options`, `scanned_at`, `visibility`, `slug` (slugified + deduplicated server-side)
-- `DELETE /api/notes/{id}` — delete note + remove volume files
+- `DELETE /api/notes/{id}` — delete note + remove volume files + clean up `note_notebooks` rows
 - `GET /api/notes/{id}/files/{position}` — serve an attached file (auth'd)
 - `POST /api/notes/{id}/files` — upload additional images/PDFs to a saved note; assigns positions continuing from existing max; extracts EXIF (auth'd)
 - `DELETE /api/notes/{id}/files/{position}` — delete a single file from a saved note; removes from disk and updates `files` JSON (auth'd)
+- `PUT /api/notes/{note_id}/notebooks` — set notebook memberships for a note; body: `{"notebook_ids": [...]}`. Replaces all existing memberships. Verifies note ownership and that all notebook IDs belong to the user (auth'd)
 - `POST /api/notes/{id}/publish` — generate/return share token + slug (idempotent, auth'd); returns `{"share_token": "...", "slug": "..."}`
 - `DELETE /api/notes/{id}/publish` — revoke share token (auth'd)
+- `GET /api/notebooks` — list all notebooks for the signed-in user; returns `[{id, title, note_count}]` (auth'd)
+- `POST /api/notebooks` — create a notebook; body: `{"title": "..."}` (auth'd)
+- `PUT /api/notebooks/{notebook_id}` — rename a notebook; body: `{"title": "..."}` (auth'd)
+- `DELETE /api/notebooks/{notebook_id}` — delete a notebook (notes are unaffected, join rows removed) (auth'd)
 - `GET /api/settings` — fetch user settings (auth'd)
 - `PUT /api/settings` — upsert user settings; auto-generates `list_token` if absent (auth'd)
 - `GET /api/share/{token}` — `token` may be a UUID share token or a slug; tries UUID lookup first, then slug fallback. Returns note JSON + owner settings; checks `visibility`; adds `is_owner: true`; adds `prev_token`/`next_token` for adjacent published notes when the list is public
@@ -143,6 +149,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `GET /share/{token}` — server-side render `share.html` with OG/Twitter Card meta tags injected; public notes get real title, summary excerpt, and hero image URL; restricted/not-found notes get generic ReadWrite branding (no content leaked)
 - `GET /settings` — serve `settings.html`
 - `GET /published/{list_token}` — serve `published.html` (no auth)
+- `GET /notebooks` — serve `notebooks.html` (auth'd by client-side Clerk check)
 
 ---
 
@@ -198,7 +205,7 @@ SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()
 
 Slug helpers: `_slugify(title)` — lowercase, strip non-alnum to hyphens, truncate to 60 chars. `_make_slug(base, user_id, exclude_note_id)` — queries existing slugs for the user and appends `-2`/`-3` suffix on collision. `get_note_by_slug(slug)` — published-note lookup by slug (no auth).
 
-**`user_settings` table** (new — created via `create_all`, no migration needed):
+**`user_settings` table** (created via `create_all`, no migration needed):
 | Column | Type | Purpose |
 |---|---|---|
 | `user_id` | String(255) PK | Clerk user sub |
@@ -208,7 +215,25 @@ Slug helpers: `_slugify(title)` — lowercase, strip non-alnum to hyphens, trunc
 | `list_public` | String(8) | `"true"`\|`"false"` — controls public access to published list |
 | `list_token` | String(36) | Stable UUID; auto-generated on first `upsert_settings()` call |
 
+**`notebooks` table** (created via `create_all`, no migration needed):
+| Column | Type | Purpose |
+|---|---|---|
+| `id` | String(36) PK | UUID |
+| `user_id` | String(255) | Clerk user sub (indexed) |
+| `title` | String(512) | Notebook name |
+| `created_at` | DateTime | UTC creation time |
+
+**`note_notebooks` table** — many-to-many join (created via `create_all`, no migration needed):
+| Column | Type | Purpose |
+|---|---|---|
+| `note_id` | String(36) PK | References `notes.id` |
+| `notebook_id` | String(36) PK | References `notebooks.id` |
+
+Composite primary key prevents duplicates. Notes not in any notebook simply have no rows here — `get_note_notebook_ids()` returns `[]` for them. Existing notes created before the feature are automatically treated as belonging to no notebooks, with no migration needed.
+
 Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get_settings_by_list_token(token)`, `list_published_notes(user_id)`, `update_note_files(user_id, note_id, files)`, `get_adjacent_published_notes(user_id, note_id)` — returns `{prev_token, next_token}` for prev/next navigation on share pages.
+
+Notebook functions: `list_notebooks(user_id)` — LEFT JOIN with `note_notebooks`, GROUP BY, returns `[{id, title, note_count}]`; `create_notebook(user_id, title)`; `update_notebook(user_id, notebook_id, title)`; `delete_notebook(user_id, notebook_id)` — removes join rows then notebook; `get_note_notebook_ids(note_id)` — returns list of notebook IDs; `set_note_notebooks(user_id, note_id, notebook_ids)` — verifies ownership, replaces all join rows.
 
 **`notes` table notable columns** (besides the obvious text/JSON fields):
 | Column | Type | Notes |
@@ -244,7 +269,7 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 | Folder | My Notes navigation link | All pages with header-right |
 | House | Home navigation | share.html, published.html corner cluster |
 | Pencil on page | Edit note | Owner-only on share page |
-| **Book / notebook** | **RESERVED** — do not use anywhere yet | future notebook feature |
+| Book / notebook | Notebooks navigation link | All app pages with header-right (`index.html`, `results.html`, `notes.html`, `settings.html`); also in owner nav on `published.html` |
 
 ---
 
@@ -266,6 +291,9 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 - **Owner-only share page UI** (visibility icon + edit button): `showEditBtn()` in `app.js`; called when `data.is_owner` is true; icons defined inline in the function; container is `.sp-corner-btns` in `share.html`
 - **Published list owner features** (visibility icons on cards, filter bar): `initPublished()` in `app.js`; filter bar is `#pub-vis-filter` in `published.html` (hidden until owner confirmed); `renderNotes()` adds `.pub-card-vis` badge when `settings.isOwner`
 - **My Notes visibility filter**: `#notes-vis-filter` in `notes.html`; `initNotes()` in `app.js` uses client-side filtering (`filteredNotes()`) — notes loaded once, filtered in memory by `activeVis` + search query. Filter works on `n.visibility` field; non-published notes hidden when a visibility filter is active.
+- **My Notes notebook filter**: `#notes-notebook-filter` select in `notes.html` (below the search bar); `initNotes()` populates it from `GET /api/notebooks` on load; change triggers `loadAll()` which passes `?notebook_id=` to the server — notes are server-filtered by notebook, then client-filtered by search + visibility. Pre-selects from `?notebook` URL param so notebook links from `notebooks.html` work.
+- **Notebooks management page**: `notebooks.html` + `initNotebooks()` in `app.js`; lists notebooks with note count; inline rename; delete with confirm; "New Notebook" form; clicking a notebook info link navigates to `notes.html?notebook=<id>`.
+- **Notebooks card on results page**: `#notebooks-card` in `results.html` (hidden until note is saved); `loadNotebooksCard(noteId, initialNotebookIds)` in `app.js` — fetches notebook list, renders checkboxes, each toggle immediately calls `PUT /api/notes/{noteId}/notebooks`. Called in saved mode with `data.notebook_ids` from `GET /api/notes/{id}`; called with `[]` immediately after a fresh save. Existing notes have `notebook_ids: []` by default (no migration needed).
 - **Publish visibility default**: `<option value="me" selected>` in `#pub-visibility` select in `results.html`. Change the `selected` attribute to change the default.
 - **Scan prompt for visual images**: `SCAN_PROMPT` in `app/main.py` — edit the "If primarily VISUAL" branch to change how non-text images are described.
 - **DB schema changes on `notes`**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`. New tables: just add to `metadata` — `create_all()` handles them automatically.

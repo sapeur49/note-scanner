@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-busters: **`style.css?v=46`**, **`app.js?v=52`** across all six HTML files.
+Cache-busters: **`style.css?v=47`**, **`app.js?v=53`** across all seven HTML files (`notebooks.html` added).
 
 `landing.html` is live at `/landing` — static marketing page, no auth required, self-contained CSS.
 
@@ -19,7 +19,8 @@ Cache-busters: **`style.css?v=46`**, **`app.js?v=52`** across all six HTML files
 
 | # | Feature | Version | Key files |
 |---|---|---|---|
-| 0 | **Landing page** — public marketing page at `/landing`; hero with app mockup, how-it-works steps, before/after example, 6-feature grid, testimonials, CTA. Self-contained inline CSS matching design tokens. No explicit route needed — served by the `StaticFiles` mount (`html=True`). | — | `landing.html` |
+| 0 | **Notebook categorization** — notes can belong to multiple notebooks (many-to-many). Notebooks page (`/notebooks`) lists all notebooks with note counts; create/rename/delete inline. Notebook book icon added to all app page headers. My Notes page gains a notebook filter dropdown below the search bar (server-filtered via `?notebook_id=`). Results page shows a Notebooks card after saving — checkboxes for all notebooks, toggled immediately via `PUT /api/notes/{id}/notebooks`. Existing notes default to no notebooks with no migration required (join-table design). | v47 / v53 | `notebooks.html` (new), `app/db.py` (`notebooks` + `note_notebooks` tables, 6 new functions), `app/main.py` (6 new routes), `app.js` (`initNotebooks`, `loadNotebooksCard`, `initNotes` notebook filter), `notes.html`, `results.html`, `index.html`, `settings.html`, `published.html`, `style.css` (notebook styles) |
+| 1 | **Landing page** — public marketing page at `/landing`; hero with app mockup, how-it-works steps, before/after example, 6-feature grid, testimonials, CTA. Self-contained inline CSS matching design tokens. No explicit route needed — served by the `StaticFiles` mount (`html=True`). | — | `landing.html` |
 | 1 | **Adaptive scan prompt** — non-text images (photos, objects, scenes) now get analytical description in `summary` + any visible labels in `transcription` instead of refusal | — | `app/main.py` (`SCAN_PROMPT`) |
 | 2 | **Publish visibility default → "Me only"** — new notes default to private; user must opt in to share publicly | — | `results.html` (`#pub-visibility` select) |
 | 3 | **Globe button on home page** — globe icon (links to published list) added to `#header-right` left of the folder icon; hidden until settings confirm `list_token` exists | v52 | `index.html`, `app.js` (`initIndex`) |
@@ -129,3 +130,9 @@ Sends text fields (`title`, `summary`, etc.) + `publish_options` + `visibility` 
 25. Publish a new note → visibility defaults to "Me only" without any user action.
 26. Home page header (signed in) → globe icon appears to left of folder icon; clicking it opens the published list.
 27. Upload a photo of an object (not text) → scan returns descriptive title + analytical summary; transcription is empty or contains only visible labels. No "this is not a text note" language.
+28. Home page (signed in) → book/notebook icon visible in header; clicking opens `/notebooks`.
+29. `/notebooks` → create a notebook → it appears with note count 0; rename inline → title updates; delete → removed.
+30. Save a scan → Notebooks card appears below the publish card; checkboxes for all notebooks shown; check one → immediately saved (no separate save button).
+31. Open an old note (pre-notebook feature) → Notebooks card shows with all notebooks unchecked; can assign to notebooks.
+32. My Notes → notebook filter dropdown visible below search bar; select a notebook → list narrows to only notes in that notebook; select "All notebooks" → all notes shown.
+33. Click a notebook title on `/notebooks` → navigates to My Notes with that notebook pre-selected in the filter.
