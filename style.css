@@ -1009,6 +1009,28 @@ details[open] .images-toggle::before {
   max-width: 320px;
 }
 
+.pub-slug-input {
+  font-size: 0.85rem;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  width: 100%;
+  max-width: 320px;
+  font-family: monospace;
+}
+.pub-slug-preview {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+  word-break: break-all;
+}
+.pub-options-locked .pub-slug-input {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 .share-link-unpublished {
   opacity: 0.45;
 }
@@ -1132,7 +1154,8 @@ details[open] .images-toggle::before {
   z-index: 200;
 }
 .sp-edit-btn,
-.sp-visibility-icon {
+.sp-visibility-icon,
+.sp-share-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1153,6 +1176,15 @@ details[open] .images-toggle::before {
 }
 .sp-visibility-icon {
   cursor: default;
+}
+.sp-share-btn {
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+.sp-share-btn:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.14);
 }
 
 /* ── My Notes — thumbnails and published badge ── */

@@ -6,6 +6,7 @@ SQLite file during development (when neither env var is set).
 """
 
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -77,6 +78,7 @@ notes = Table(
     Column("publish_options", JSON, nullable=True),
     Column("is_published", Boolean, nullable=True, default=False),
     Column("visibility", String(32), nullable=True, default="public"),
+    Column("slug", String(255), nullable=True),
 )
 
 user_settings = Table(
@@ -114,6 +116,8 @@ def _migrate_schema() -> None:
                 conn.execute(text("UPDATE notes SET is_published = 1 WHERE share_token IS NOT NULL"))
             if "visibility" not in existing:
                 conn.execute(text("ALTER TABLE notes ADD COLUMN visibility VARCHAR(32) DEFAULT 'public'"))
+            if "slug" not in existing:
+                conn.execute(text("ALTER TABLE notes ADD COLUMN slug VARCHAR(255) NULL"))
     except Exception as e:
         print(f"[db] migration warning: {e}")
 
@@ -138,6 +142,34 @@ def _iso(dt):
     if isinstance(dt, datetime):
         return dt.isoformat() + ("" if dt.tzinfo is not None else "+00:00")
     return dt
+
+
+def _slugify(title: str) -> str:
+    """Convert a title to a URL-safe slug (max 60 chars)."""
+    s = title.lower().strip()
+    s = re.sub(r"[^\w\s-]", "", s)
+    s = re.sub(r"[\s_]+", "-", s)
+    s = re.sub(r"-+", "-", s)
+    s = s.strip("-")
+    return s[:60] or "note"
+
+
+def _make_slug(base_slug: str, user_id: str, exclude_note_id: str = None) -> str:
+    """Return `base_slug` if unused for this user, else `base_slug-N` (smallest N≥2)."""
+    with engine.connect() as conn:
+        stmt = select(notes.c.slug).where(
+            notes.c.user_id == user_id,
+            notes.c.slug.isnot(None),
+        )
+        if exclude_note_id:
+            stmt = stmt.where(notes.c.id != exclude_note_id)
+        existing = {r[0] for r in conn.execute(stmt).fetchall()}
+    if base_slug not in existing:
+        return base_slug
+    i = 2
+    while f"{base_slug}-{i}" in existing:
+        i += 1
+    return f"{base_slug}-{i}"
 
 
 def create_note(user_id: str, data: dict, files: list, note_id: str = None) -> str:
@@ -223,13 +255,20 @@ def get_note(user_id: str, note_id: str):
     return d
 
 
-_EDITABLE = ("title", "summary", "transcription", "additional_notes", "publish_options", "scanned_at", "visibility")
+_EDITABLE = ("title", "summary", "transcription", "additional_notes", "publish_options", "scanned_at", "visibility", "slug")
 
 
 def update_note(user_id: str, note_id: str, fields: dict) -> int:
     values = {k: fields[k] for k in _EDITABLE if k in fields}
     if not values:
         return 0
+    if "slug" in values:
+        raw = (values["slug"] or "").strip()
+        if raw:
+            base = _slugify(raw)
+            values["slug"] = _make_slug(base, user_id, exclude_note_id=note_id)
+        else:
+            del values["slug"]  # Don't overwrite existing slug with empty
     if "scanned_at" in values:
         parsed = _parse_dt(values["scanned_at"])
         if parsed:
@@ -268,8 +307,8 @@ def delete_note(user_id: str, note_id: str) -> int:
 
 
 def publish_note(user_id: str, note_id: str):
-    """Generate/reuse share token and mark note as published. Returns token or None if not found."""
-    stmt = select(notes.c.share_token).where(
+    """Generate/reuse share token, ensure slug, mark published. Returns dict or None if not found."""
+    stmt = select(notes.c.share_token, notes.c.title, notes.c.slug).where(
         notes.c.id == note_id, notes.c.user_id == user_id
     )
     with engine.connect() as conn:
@@ -277,13 +316,17 @@ def publish_note(user_id: str, note_id: str):
     if row is None:
         return None
     token = row["share_token"] or str(uuid.uuid4())
+    slug = row["slug"]
+    if not slug:
+        base = _slugify(row["title"] or "note")
+        slug = _make_slug(base, user_id, exclude_note_id=note_id)
     with engine.begin() as conn:
         conn.execute(
             sa_update(notes)
             .where(notes.c.id == note_id, notes.c.user_id == user_id)
-            .values(share_token=token, is_published=True)
+            .values(share_token=token, is_published=True, slug=slug)
         )
-    return token
+    return {"share_token": token, "slug": slug}
 
 
 def unpublish_note(user_id: str, note_id: str) -> bool:
@@ -296,6 +339,24 @@ def unpublish_note(user_id: str, note_id: str) -> bool:
     with engine.begin() as conn:
         result = conn.execute(stmt)
     return result.rowcount > 0
+
+
+def get_note_by_slug(slug: str):
+    """Fetch a published note by slug (no user auth check)."""
+    stmt = select(notes).where(
+        notes.c.slug == slug,
+        notes.c.is_published == True,
+    )
+    with engine.connect() as conn:
+        row = conn.execute(stmt).mappings().first()
+    if not row:
+        return None
+    d = dict(row)
+    d["scanned_at"] = _iso(d.get("scanned_at"))
+    d["created_at"] = _iso(d.get("created_at"))
+    d["updated_at"] = _iso(d.get("updated_at"))
+    d["files"] = d.get("files") or []
+    return d
 
 
 def get_note_by_share_token(token: str):
