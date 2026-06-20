@@ -1,4 +1,5 @@
 import base64
+import html as _html
 import json
 import os
 import re
@@ -10,8 +11,8 @@ from pathlib import Path
 from typing import List
 
 import anthropic
-from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi import Body, Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 try:
@@ -382,11 +383,69 @@ def published_page_route(list_token: str):
 
 
 @app.get("/share/{token}", include_in_schema=False)
-def share_page_route(token: str):
+def share_page_route(token: str, request: Request):
     path = Path("share.html")
     if not path.exists():
         raise HTTPException(status_code=404)
-    return FileResponse(str(path))
+
+    page = path.read_text(encoding="utf-8")
+    origin = str(request.base_url).rstrip("/")
+
+    note = db.get_note_by_share_token(token) or db.get_note_by_slug(token)
+
+    if note and note.get("is_published"):
+        vis = (note.get("visibility") or "public").strip()
+        if vis == "public":
+            og_title = note.get("title") or "ReadWrite"
+            raw = note.get("summary") or ""
+            og_desc = re.sub(r"\s+", " ", re.sub(r"[#*_`\[\]()>~]", "", raw)).strip()[:160]
+            pub_opts = note.get("publish_options") or {}
+            excluded = set(pub_opts.get("excludedImages") or [])
+            files = note.get("files") or []
+            first_img = next(
+                (f for f in files if f.get("kind") == "image" and f.get("position") not in excluded),
+                None,
+            ) if pub_opts.get("showImages", True) else None
+            og_image = f"{origin}/api/share/{token}/images/{first_img['position']}" if first_img else ""
+            og_url = f"{origin}/share/{note.get('slug') or token}"
+        else:
+            og_title = "ReadWrite"
+            og_desc = "Sign in to view this note."
+            og_image = ""
+            og_url = f"{origin}/share/{token}"
+    else:
+        og_title = "ReadWrite"
+        og_desc = "Scan and share your handwritten notes."
+        og_image = ""
+        og_url = f"{origin}/share/{token}"
+
+    et = _html.escape(og_title, quote=True)
+    ed = _html.escape(og_desc, quote=True)
+    eu = _html.escape(og_url, quote=True)
+    ei = _html.escape(og_image, quote=True)
+    card = "summary_large_image" if og_image else "summary"
+    img_meta = f'\n  <meta property="og:image" content="{ei}">\n  <meta name="twitter:image" content="{ei}">' if og_image else ""
+
+    meta_block = (
+        f'  <meta property="og:type" content="article">\n'
+        f'  <meta property="og:site_name" content="ReadWrite">\n'
+        f'  <meta property="og:title" content="{et}">\n'
+        f'  <meta property="og:description" content="{ed}">\n'
+        f'  <meta property="og:url" content="{eu}">{img_meta}\n'
+        f'  <meta name="twitter:card" content="{card}">\n'
+        f'  <meta name="twitter:title" content="{et}">\n'
+        f'  <meta name="twitter:description" content="{ed}">\n'
+    )
+
+    page = page.replace("</head>", meta_block + "</head>", 1)
+    if og_title != "ReadWrite":
+        page = page.replace(
+            "<title>ReadWrite</title>",
+            f"<title>{_html.escape(og_title)} — ReadWrite</title>",
+            1,
+        )
+
+    return HTMLResponse(content=page)
 
 
 @app.get("/api/share/{token}")
