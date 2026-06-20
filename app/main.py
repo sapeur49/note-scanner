@@ -347,13 +347,18 @@ def get_published_list(list_token: str, authorization: str = Header(default=""))
     if settings.get("list_public") != "true":
         raise HTTPException(status_code=403, detail="This list is private")
     is_owner = False
+    is_authenticated = False
     if authorization.startswith("Bearer "):
         try:
             req_user = verify_clerk_token(authorization[7:])
             is_owner = req_user["sub"] == settings["user_id"]
+            is_authenticated = True
         except Exception:
             pass
     notes_list = db.list_published_notes(settings["user_id"])
+    if not is_owner:
+        allowed = {"public", "logged_in"} if is_authenticated else {"public"}
+        notes_list = [n for n in notes_list if (n.get("visibility") or "public") in allowed]
     return {
         "settings": {
             "storyListTitle": settings.get("story_list_title") or "",
