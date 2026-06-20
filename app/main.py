@@ -389,7 +389,9 @@ def share_page_route(token: str, request: Request):
         raise HTTPException(status_code=404)
 
     page = path.read_text(encoding="utf-8")
-    origin = str(request.base_url).rstrip("/")
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
+    origin = f"{proto}://{host}"
 
     note = db.get_note_by_share_token(token) or db.get_note_by_slug(token)
 
