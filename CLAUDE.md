@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in `index.html`, `results.html`, and `notes.html`. Bump N in all files when deploying JS/CSS changes. Currently at **`v=34`**. (`share.html`, `published.html`, and `settings.html` use absolute paths `/style.css?v=N` and `/app.js?v=N` — update those too.)
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css` in all HTML files. Bump N in **all six files** when deploying JS/CSS changes. Currently at **`v=37`**. `share.html`, `published.html`, and `settings.html` use **absolute** paths (`/style.css?v=N`, `/app.js?v=N`) — relative paths would resolve incorrectly under `/share/{token}` etc.
 
 ---
 
@@ -50,7 +50,7 @@ app/auth/verify.py JWT verification via Clerk JWKS (PyJWT + PyJWKClient)
 index.html         Upload UI (sign-in wall + app div + My Notes + Settings links)
 results.html       Scan results: image strip, summary, transcription, additional notes, share panel, save/update/delete/publish
 notes.html         My Notes list — search, browse, open saved notes (thumbnails + published badge)
-share.html         Public share page — no Clerk, loaded from /share/{token}; template/logo from owner settings
+share.html         Public share page — Clerk loaded for auth wall + owner detection; visibility-controlled; template/logo from owner settings
 settings.html      Settings page — story list title, template, logo, published list visibility (auth'd)
 published.html     Public published notes list — /published/{list_token}; template-aware, searchable
 app.js             All frontend logic — auth, thumbnails, scan POST, sessionStorage, EXIF display,
@@ -90,7 +90,7 @@ The scan `fetch` sends `Authorization: Bearer <token>` where token = `await wind
 
 **Auth state changes** are handled via `window.Clerk.addListener(({ user }) => ...)` in `initIndex()`. Do not rely solely on a one-time `window.Clerk.user` check.
 
-To update the Clerk publishable key: change `data-clerk-publishable-key` in `index.html`, `results.html`, and `notes.html`.
+To update the Clerk publishable key: change `data-clerk-publishable-key` in `index.html`, `results.html`, `notes.html`, and `share.html`.
 
 ---
 
@@ -124,16 +124,16 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `POST /api/notes` — save a scanned note with file attachments
 - `GET /api/notes` — list notes for the signed-in user (supports `?q=` search)
 - `GET /api/notes/{id}` — fetch a single note (includes `share_token` field)
-- `PUT /api/notes/{id}` — update editable fields: `title`, `summary`, `transcription`, `additional_notes`, `publish_options`
+- `PUT /api/notes/{id}` — update editable fields: `title`, `summary`, `transcription`, `additional_notes`, `scanned_at`, `visibility`, `publish_options`
 - `DELETE /api/notes/{id}` — delete note + remove volume files
 - `GET /api/notes/{id}/files/{position}` — serve an attached file (auth'd)
 - `POST /api/notes/{id}/files` — upload additional images/PDFs to a saved note; assigns positions continuing from existing max; extracts EXIF (auth'd)
 - `DELETE /api/notes/{id}/files/{position}` — delete a single file from a saved note; removes from disk and updates `files` JSON (auth'd)
-- `POST /api/notes/{id}/publish` — generate/return share token (idempotent, auth'd)
-- `DELETE /api/notes/{id}/publish` — revoke share token (auth'd)
+- `POST /api/notes/{id}/publish` — generate/return share token (idempotent); sets `is_published=True` (auth'd)
+- `DELETE /api/notes/{id}/publish` — sets `is_published=False`; token preserved for republish (auth'd)
 - `GET /api/settings` — fetch user settings (auth'd)
 - `PUT /api/settings` — upsert user settings; auto-generates `list_token` if absent (auth'd)
-- `GET /api/share/{token}` — return note JSON + owner settings fields (`template`, `logo_on`, `list_token` if public) (no auth)
+- `GET /api/share/{token}` — return note JSON + owner settings; accepts optional `Authorization` header; returns `is_owner: true` when auth matches owner; returns `visibility`, `prev_token`, `next_token`; enforces visibility (401/403 for restricted notes)
 - `GET /api/share/{token}/images/{position}` — serve a published note image (no auth)
 - `GET /api/published/{list_token}` — return published notes list + settings; 403 if `list_public != true` (no auth)
 - `GET /share/{token}` — serve `share.html` (no auth)
@@ -148,9 +148,17 @@ A saved note can be published: `POST /api/notes/{id}/publish` generates a stable
 
 `GET /share/{token}` serves `share.html`, which has **absolute** asset paths (`/style.css?v=N`, `/app.js?v=N`) — critical because the URL path `/share/{token}` would make relative paths resolve to `/share/style.css` (404). Same applies to `published.html` and `settings.html`.
 
-`initShare()` in `app.js` fetches `/api/share/{token}`, which now includes the owner's `template`, `logo_on`, and `list_token` (if their published list is public). Template and logo are **global** (from `user_settings`), not per-note. Per-note `publish_options` controls: `showImages`, `showSectionTitles`, `showSummary`, `showTranscription`, `showAdditional`, `imagePosition`, `includeInList`, `excludedImages` (array of positions excluded from the share page).
+`initShare()` in `app.js` fetches `/api/share/{token}`, which includes the owner's `template`, `logo_on`, and `list_token` (if their published list is public). Template and logo are **global** (from `user_settings`), not per-note. Per-note `publish_options` controls: `showImages`, `showSectionTitles`, `showSummary`, `showTranscription`, `showAdditional`, `imagePosition`, `includeInList`, `excludedImages` (array of positions excluded from the share page).
 
 **Publish panel UX**: When a note is already published, all options are locked/greyed out. "Edit options" button re-enables them, showing "Save options" and "Republish" buttons.
+
+**Persistent token**: `DELETE /api/notes/{id}/publish` sets `is_published=False` but leaves `share_token` intact. The share URL is always shown in the publish panel — `showUnpublishedLink(token)` renders it dimmed with a "Currently unpublished — URL is saved" label and a Republish button; `showShareLink(token)` restores the normal locked state. Republishing reuses the same URL.
+
+**Visibility levels**: Each note has a `visibility` column (`public` / `logged_in` / `me`). `share_data_route` enforces it: `logged_in` requires any valid Clerk token; `me` requires a token matching the note owner. The share page handles 401 by loading Clerk and showing a sign-in wall; 403 shows "This note is private." Visibility is set via `#pub-visibility` select in the publish panel and stored in `notes.visibility` alongside `publish_options`.
+
+**Prev/next navigation**: When the published list is public and the note has adjacent entries, `initShare()` adds ← and → links flanking the "Home" footer link. Powered by `get_adjacent_published_notes()` in `db.py`, returned as `prev_token` / `next_token` in the share response.
+
+**Owner edit button**: `#sp-edit-btn` — a fixed-position pencil icon (top-right) visible only to the note owner. For visibility-protected notes `is_owner` is set in the initial auth'd fetch; for public notes `initShare()` does an async Clerk check followed by a second authenticated fetch. Clicking links to `results.html?id={note_id}`.
 
 **Published list**: Each user has a stable `list_token` (auto-generated on first settings save). `GET /published/{list_token}` serves the public list page when `list_public = "true"` in `user_settings`. Notes are excluded from the list if `publish_options.includeInList = false`.
 
@@ -165,7 +173,7 @@ A saved note can be published: `POST /api/notes/{id}/publish` generates a stable
 EXIF date format from cameras is `YYYY:MM:DD HH:MM:SS` — `app.js` converts the colons in the date part to dashes before display.
 
 Each tile also renders:
-- **Exclude button** (`.pub-exclude-btn`) — toggles the position in the `excludedImages` Set; serialised into `publish_options.excludedImages` on save/publish. Excluded images are hidden on the share page.
+- **Exclude button** (`.pub-exclude-btn`) — toggles the position in the `excludedImages` Set; immediately calls `savePublishOptions()` (saved mode only) so exclusions persist without a manual save. Excluded images are hidden on the share page.
 - **Delete button** (`.thumb-delete-btn`, saved mode only) — calls `DELETE /api/notes/{id}/files/{position}`, removes the `<figure>` from the DOM immediately.
 
 **Adding images to a saved note**: `enableAddImages(noteId)` in `app.js` shows `#add-images-row` and wires the file input to `POST /api/notes/{id}/files`. A `dataset.wired` guard prevents double-wiring if called more than once. The function is called in two places: in the saved-mode init branch and after a successful save in fresh mode (so the button appears immediately after first save).
@@ -174,11 +182,19 @@ Each tile also renders:
 
 ## Database: app/db.py
 
-SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()` runs after `create_all()` and adds new columns via `ALTER TABLE` only if absent — works for both engines. Currently migrates: `share_token`, `publish_options` on `notes`.
+SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()` runs after `create_all()` and adds new columns via `ALTER TABLE` only if absent — works for both engines. Currently migrates on `notes`: `share_token`, `publish_options`, `is_published` (TINYINT/INTEGER, backfilled `1` where `share_token IS NOT NULL`), `visibility` (VARCHAR 32, default `'public'`).
 
 `files` JSON column stores per-file metadata including `exif` (if available) — no separate EXIF column needed.
 
-`publish_note()` is idempotent: reuses existing token if one already exists.
+`_EDITABLE` tuple controls which fields `update_note()` accepts: `title`, `summary`, `transcription`, `additional_notes`, `scanned_at`, `visibility`, `publish_options`. `scanned_at` values are parsed via `_parse_dt()` before write.
+
+`publish_note()` is idempotent: reuses existing token if one already exists; sets `is_published=True`.
+
+`unpublish_note()`: sets `is_published=False` only — token is preserved for republish.
+
+`get_note_by_share_token()`: filters `notes.c.is_published == True` so unpublished notes (token present, `is_published=False`) return None → 404.
+
+`get_adjacent_published_notes(user_id, note_id)`: returns `{"prev_token": …, "next_token": …}` for footer navigation on the share page (`None` at list boundaries).
 
 **`user_settings` table** (new — created via `create_all`, no migration needed):
 | Column | Type | Purpose |
@@ -214,7 +230,9 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 - **Markdown rendering**: edit `renderMarkdown()` in `app.js`
 - **Share checkboxes** (title/date/images/summary/transcription/additional notes): `#share-card` in `results.html`; the `#share-btn` handler in `app.js` assembles checked sections and calls `share()`; additional notes only added to output when non-empty
 - **Publish options** (per-note): `#publish-card` in `results.html`; `getPublishOptions()`/`restorePublishOptions()` in `app.js`; stored in `notes.publish_options` JSON column. `savePublishOptions()` sends both text fields and publish_options together so title/summary edits are never lost when using publish actions.
-- **Image exclude/delete per tile**: `addImageTile()` in `app.js` — Exclude button toggles `excludedImages` Set; Delete button calls `DELETE /api/notes/{id}/files/{position}` (saved mode only)
+- **Done=save**: in saved mode, clicking Done on any edit field calls `autoSave()` immediately (PUT current text fields to server) — no separate Save button needed for text edits. In fresh (unsaved) mode Done only updates the DOM; the Save button creates the note.
+- **Visibility per note**: `#pub-visibility` select in `results.html #publish-card`; read by `getPublishOptions()`, sent as top-level `visibility` in PUT body, stored in `notes.visibility` column via `_EDITABLE`
+- **Image exclude/delete per tile**: `addImageTile()` in `app.js` — Exclude button toggles `excludedImages` Set and immediately calls `savePublishOptions()` (saved mode); Delete button calls `DELETE /api/notes/{id}/files/{position}` (saved mode only)
 - **Add images to saved note**: `enableAddImages(noteId)` in `app.js` — call after save or on saved-mode load; uses `dataset.wired` guard to prevent double-wiring
 - **Global settings** (template/logo/list title): `settings.html` + `initSettings()` in `app.js`; stored in `user_settings` table via `PUT /api/settings`
 - **DB schema changes on `notes`**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`. New tables: just add to `metadata` — `create_all()` handles them automatically.
