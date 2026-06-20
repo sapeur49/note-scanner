@@ -1150,8 +1150,6 @@ async function initNotes() {
         const badge = document.createElement('a');
         badge.className = 'note-pub-badge';
         badge.href = `/share/${n.share_token}`;
-        badge.target = '_blank';
-        badge.rel = 'noopener';
         badge.textContent = '↗ Published page';
         wrapper.appendChild(badge);
       }
