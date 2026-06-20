@@ -71,6 +71,15 @@ function friendlyDate(iso) {
   });
 }
 
+function slugify(s) {
+  return s.toLowerCase().trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 60) || 'note';
+}
+
 /* ── Clerk auth ── */
 
 async function waitForClerk() {
@@ -729,6 +738,7 @@ async function initResults() {
 
   let currentNoteId = savedId;
   let currentShareToken = null;
+  let currentSlug = null;
 
   function getPublishOptions() {
     return {
@@ -743,7 +753,7 @@ async function initResults() {
     };
   }
 
-  function restorePublishOptions(opts, visibility) {
+  function restorePublishOptions(opts, visibility, slug) {
     if (opts) {
       const setCheck = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val !== false; };
       const setRadio = (name, val) => {
@@ -771,6 +781,8 @@ async function initResults() {
     }
     const visEl = document.getElementById('pub-visibility');
     if (visEl) visEl.value = visibility || 'public';
+    const slugInput = document.getElementById('pub-slug');
+    if (slugInput && slug) slugInput.value = slug;
   }
 
   const pubOptionsEl     = document.getElementById('pub-options');
@@ -792,6 +804,24 @@ async function initResults() {
     if (pubEditBtn) pubEditBtn.hidden = true;
     if (pubSaveOptsBtn) pubSaveOptsBtn.hidden = false;
     if (republishBtn) republishBtn.hidden = false;
+  }
+
+  // Slug preview helper
+  function updateSlugPreview(displaySlug) {
+    const preview = document.getElementById('pub-slug-preview');
+    if (preview) preview.textContent = displaySlug ? `${window.location.origin}/share/${displaySlug}` : '';
+  }
+
+  // Wire slug input: live preview + debounced auto-save
+  const slugInput = document.getElementById('pub-slug');
+  if (slugInput) {
+    slugInput.addEventListener('input', () => {
+      const val = slugInput.value.trim();
+      const derived = val ? slugify(val) : slugify(document.getElementById('note-title')?.value?.trim() || 'note');
+      updateSlugPreview(derived);
+      clearTimeout(optionsSaveTimer);
+      optionsSaveTimer = setTimeout(savePublishOptions, 800);
+    });
   }
 
   if (pubEditBtn) pubEditBtn.addEventListener('click', unlockPublishOptions);
@@ -820,8 +850,8 @@ async function initResults() {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         });
         if (!resp.ok) throw new Error('Republish failed');
-        const { share_token } = await resp.json();
-        showShareLink(share_token);
+        const { share_token, slug } = await resp.json();
+        showShareLink(share_token, slug);
         copiedMsg.textContent = '';
       } catch (e) {
         copiedMsg.textContent = e.message || 'Republish failed';
@@ -836,10 +866,13 @@ async function initResults() {
     try {
       const token = await getToken();
       const visibility = document.getElementById('pub-visibility')?.value ?? 'public';
+      const slugVal = document.getElementById('pub-slug')?.value?.trim() || '';
+      const payload = { ...currentTextFields(), publish_options: getPublishOptions(), visibility };
+      if (slugVal) payload.slug = slugVal;
       await fetch(`${NOTES_URL}/${currentNoteId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ ...currentTextFields(), publish_options: getPublishOptions(), visibility }),
+        body: JSON.stringify(payload),
       });
     } catch (_) {}
   }
@@ -853,10 +886,13 @@ async function initResults() {
     });
   });
 
-  function showShareLink(token) {
+  function showShareLink(token, slug) {
     currentShareToken = token;
-    const url = `${window.location.origin}/share/${token}`;
+    currentSlug = slug || null;
+    const display = slug || token;
+    const url = `${window.location.origin}/share/${encodeURIComponent(display)}`;
     if (shareLinkA) { shareLinkA.href = url; shareLinkA.textContent = url; shareLinkA.classList.remove('share-link-unpublished'); }
+    updateSlugPreview(display);
     const unpubLabel = document.getElementById('share-unpublished-label');
     if (unpubLabel) unpubLabel.hidden = true;
     if (shareLinkRow) shareLinkRow.hidden = false;
@@ -866,10 +902,13 @@ async function initResults() {
     lockPublishOptions();
   }
 
-  function showUnpublishedLink(token) {
+  function showUnpublishedLink(token, slug) {
     currentShareToken = token;
-    const url = `${window.location.origin}/share/${token}`;
+    currentSlug = slug || null;
+    const display = slug || token;
+    const url = `${window.location.origin}/share/${encodeURIComponent(display)}`;
     if (shareLinkA) { shareLinkA.href = url; shareLinkA.textContent = url; shareLinkA.classList.add('share-link-unpublished'); }
+    updateSlugPreview(display);
     if (shareLinkRow) shareLinkRow.hidden = false;
     const unpubLabel = document.getElementById('share-unpublished-label');
     if (unpubLabel) unpubLabel.hidden = false;
@@ -898,12 +937,12 @@ async function initResults() {
   // Initial publish state in saved mode
   if (mode === 'saved') {
     if (publishCard) publishCard.hidden = false;
-    restorePublishOptions(data.publish_options, data.visibility);
+    restorePublishOptions(data.publish_options, data.visibility, data.slug);
     if (data.share_token) {
       if (data.is_published) {
-        showShareLink(data.share_token);
+        showShareLink(data.share_token, data.slug);
       } else {
-        showUnpublishedLink(data.share_token);
+        showUnpublishedLink(data.share_token, data.slug);
       }
     }
   }
@@ -921,8 +960,8 @@ async function initResults() {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         });
         if (!resp.ok) throw new Error('Publish failed');
-        const { share_token } = await resp.json();
-        showShareLink(share_token);
+        const { share_token, slug } = await resp.json();
+        showShareLink(share_token, slug);
         copiedMsg.textContent = '';
       } catch (e) {
         copiedMsg.textContent = e.message || 'Publish failed';
@@ -944,7 +983,7 @@ async function initResults() {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {},
         });
         if (!resp.ok) throw new Error('Unpublish failed');
-        showUnpublishedLink(currentShareToken);
+        showUnpublishedLink(currentShareToken, currentSlug);
         copiedMsg.textContent = 'Page unpublished.';
         setTimeout(() => { copiedMsg.textContent = ''; }, 2500);
       } catch (e) {
@@ -1493,6 +1532,25 @@ async function initShare() {
     }
 
     if (contentEl) contentEl.hidden = false;
+
+    // Share button — visible to all visitors
+    const shareBtn = document.getElementById('sp-share-btn');
+    if (shareBtn) {
+      shareBtn.hidden = false;
+      shareBtn.addEventListener('click', async () => {
+        const url = window.location.href;
+        const title = document.title;
+        if (navigator.share) {
+          try { await navigator.share({ title, url }); } catch (_) {}
+        } else {
+          try {
+            await navigator.clipboard.writeText(url);
+            shareBtn.setAttribute('aria-label', 'Copied!');
+            setTimeout(() => shareBtn.setAttribute('aria-label', 'Share'), 1800);
+          } catch (_) {}
+        }
+      });
+    }
 
     // Show edit button + visibility icon if the viewer owns this note
     function showEditBtn(noteId) {

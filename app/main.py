@@ -314,10 +314,10 @@ def get_note_file(note_id: str, position: int, _user: dict = Depends(require_use
 
 @app.post("/api/notes/{note_id}/publish")
 def publish_note_route(note_id: str, _user: dict = Depends(require_user)):
-    token = db.publish_note(_user["sub"], note_id)
-    if token is None:
+    result = db.publish_note(_user["sub"], note_id)
+    if result is None:
         raise HTTPException(status_code=404, detail="Note not found")
-    return {"share_token": token}
+    return result  # {"share_token": ..., "slug": ...}
 
 
 @app.delete("/api/notes/{note_id}/publish")
@@ -391,7 +391,7 @@ def share_page_route(token: str):
 
 @app.get("/api/share/{token}")
 def share_data_route(token: str, authorization: str = Header(default="")):
-    note = db.get_note_by_share_token(token)
+    note = db.get_note_by_share_token(token) or db.get_note_by_slug(token)
     if not note:
         raise HTTPException(status_code=404, detail="Note not published or not found")
     vis = (note.get("visibility") or "public").strip()
@@ -430,7 +430,7 @@ def share_data_route(token: str, authorization: str = Header(default="")):
 
 @app.get("/api/share/{token}/images/{position}")
 def share_note_image(token: str, position: int, authorization: str = Header(default="")):
-    note = db.get_note_by_share_token(token)
+    note = db.get_note_by_share_token(token) or db.get_note_by_slug(token)
     if not note:
         raise HTTPException(status_code=404, detail="Not found")
     vis = (note.get("visibility") or "public").strip()

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ReadWrite — Results</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
-  <link rel="stylesheet" href="style.css?v=39">
+  <link rel="stylesheet" href="style.css?v=40">
 </head>
 <body>
   <div class="container">
@@ -114,6 +114,11 @@
             <option value="me">Me only — only you</option>
           </select>
         </div>
+        <div class="pub-opt-group">
+          <div class="pub-opt-label">URL slug</div>
+          <input type="text" id="pub-slug" class="pub-slug-input" placeholder="auto-generated from title" autocomplete="off" spellcheck="false">
+          <div id="pub-slug-preview" class="pub-slug-preview"></div>
+        </div>
       </div>
       <div id="share-link-row" hidden>
         <a id="share-link-a" href="#" class="share-link-display"></a>
@@ -217,6 +222,6 @@
     type="text/javascript"
   ></script>
   <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
-  <script src="app.js?v=41"></script>
+  <script src="app.js?v=42"></script>
 </body>
 </html>
