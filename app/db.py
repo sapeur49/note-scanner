@@ -21,6 +21,7 @@ from sqlalchemy import (
     Text,
     create_engine,
     delete as sa_delete,
+    func,
     insert,
     inspect as sa_inspect,
     or_,
@@ -90,6 +91,22 @@ user_settings = Table(
     Column("logo_on", String(8), nullable=True),      # "true"|"false"
     Column("list_public", String(8), nullable=True),  # "true"|"false"
     Column("list_token", String(36), nullable=True),  # stable public UUID
+)
+
+notebooks = Table(
+    "notebooks",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("user_id", String(255), nullable=False, index=True),
+    Column("title", String(512), nullable=False),
+    Column("created_at", DateTime, nullable=False),
+)
+
+note_notebooks = Table(
+    "note_notebooks",
+    metadata,
+    Column("note_id", String(36), primary_key=True),
+    Column("notebook_id", String(36), primary_key=True),
 )
 
 
@@ -193,7 +210,7 @@ def create_note(user_id: str, data: dict, files: list, note_id: str = None) -> s
     return note_id
 
 
-def list_notes(user_id: str, q: str = "") -> list:
+def list_notes(user_id: str, q: str = "", notebook_id: str = "") -> list:
     stmt = select(
         notes.c.id,
         notes.c.title,
@@ -206,6 +223,12 @@ def list_notes(user_id: str, q: str = "") -> list:
         notes.c.files,
     ).where(notes.c.user_id == user_id)
 
+    if notebook_id:
+        stmt = stmt.where(
+            notes.c.id.in_(
+                select(note_notebooks.c.note_id).where(note_notebooks.c.notebook_id == notebook_id)
+            )
+        )
     if q:
         like = f"%{q}%"
         stmt = stmt.where(
@@ -254,6 +277,7 @@ def get_note(user_id: str, note_id: str):
     d["created_at"] = _iso(d.get("created_at"))
     d["updated_at"] = _iso(d.get("updated_at"))
     d["files"] = d.get("files") or []
+    d["notebook_ids"] = get_note_notebook_ids(note_id)
     return d
 
 
@@ -300,11 +324,11 @@ def update_note_files(user_id: str, note_id: str, files: list) -> int:
 
 
 def delete_note(user_id: str, note_id: str) -> int:
-    stmt = sa_delete(notes).where(
-        notes.c.id == note_id, notes.c.user_id == user_id
-    )
     with engine.begin() as conn:
-        result = conn.execute(stmt)
+        conn.execute(sa_delete(note_notebooks).where(note_notebooks.c.note_id == note_id))
+        result = conn.execute(
+            sa_delete(notes).where(notes.c.id == note_id, notes.c.user_id == user_id)
+        )
     return result.rowcount
 
 
@@ -465,6 +489,84 @@ def list_published_notes(user_id: str) -> list:
             "visibility": r["visibility"] or "public",
         })
     return out
+
+
+# ── Notebooks ─────────────────────────────────────────────────────────────────
+
+def get_note_notebook_ids(note_id: str) -> list:
+    stmt = select(note_notebooks.c.notebook_id).where(note_notebooks.c.note_id == note_id)
+    with engine.connect() as conn:
+        return [r[0] for r in conn.execute(stmt).fetchall()]
+
+
+def list_notebooks(user_id: str) -> list:
+    stmt = (
+        select(
+            notebooks.c.id,
+            notebooks.c.title,
+            notebooks.c.created_at,
+            func.count(note_notebooks.c.note_id).label("note_count"),
+        )
+        .select_from(
+            notebooks.outerjoin(note_notebooks, notebooks.c.id == note_notebooks.c.notebook_id)
+        )
+        .where(notebooks.c.user_id == user_id)
+        .group_by(notebooks.c.id, notebooks.c.title, notebooks.c.created_at)
+        .order_by(notebooks.c.created_at)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(stmt).mappings().all()
+    return [{"id": r["id"], "title": r["title"], "note_count": r["note_count"]} for r in rows]
+
+
+def create_notebook(user_id: str, title: str) -> dict:
+    nb_id = str(uuid.uuid4())
+    now = _utcnow()
+    with engine.begin() as conn:
+        conn.execute(insert(notebooks).values(id=nb_id, user_id=user_id, title=title, created_at=now))
+    return {"id": nb_id, "title": title, "note_count": 0}
+
+
+def update_notebook(user_id: str, notebook_id: str, title: str) -> bool:
+    stmt = (
+        sa_update(notebooks)
+        .where(notebooks.c.id == notebook_id, notebooks.c.user_id == user_id)
+        .values(title=title)
+    )
+    with engine.begin() as conn:
+        result = conn.execute(stmt)
+    return result.rowcount > 0
+
+
+def delete_notebook(user_id: str, notebook_id: str) -> bool:
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(notebooks.c.id).where(notebooks.c.id == notebook_id, notebooks.c.user_id == user_id)
+        ).first()
+    if not row:
+        return False
+    with engine.begin() as conn:
+        conn.execute(sa_delete(note_notebooks).where(note_notebooks.c.notebook_id == notebook_id))
+        conn.execute(sa_delete(notebooks).where(notebooks.c.id == notebook_id))
+    return True
+
+
+def set_note_notebooks(user_id: str, note_id: str, notebook_ids: list) -> bool:
+    with engine.connect() as conn:
+        row = conn.execute(
+            select(notes.c.id).where(notes.c.id == note_id, notes.c.user_id == user_id)
+        ).first()
+    if not row:
+        return False
+    with engine.begin() as conn:
+        conn.execute(sa_delete(note_notebooks).where(note_notebooks.c.note_id == note_id))
+        if notebook_ids:
+            conn.execute(
+                insert(note_notebooks).values(
+                    [{"note_id": note_id, "notebook_id": nb_id} for nb_id in notebook_ids]
+                )
+            )
+    return True
 
 
 def get_adjacent_published_notes(user_id: str, note_id: str) -> dict:

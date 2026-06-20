@@ -274,8 +274,8 @@ async def save_note(
 
 
 @app.get("/api/notes")
-def list_notes(q: str = "", _user: dict = Depends(require_user)):
-    return db.list_notes(_user["sub"], q.strip())
+def list_notes(q: str = "", notebook_id: str = "", _user: dict = Depends(require_user)):
+    return db.list_notes(_user["sub"], q.strip(), notebook_id.strip())
 
 
 @app.get("/api/notes/{note_id}")
@@ -376,6 +376,52 @@ def get_published_list(list_token: str, authorization: str = Header(default=""))
         },
         "notes": notes_list,
     }
+
+
+@app.get("/api/notebooks")
+def list_notebooks_route(_user: dict = Depends(require_user)):
+    return db.list_notebooks(_user["sub"])
+
+
+@app.post("/api/notebooks")
+def create_notebook_route(payload: dict = Body(...), _user: dict = Depends(require_user)):
+    title = (payload.get("title") or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title required")
+    return db.create_notebook(_user["sub"], title)
+
+
+@app.put("/api/notebooks/{notebook_id}")
+def update_notebook_route(notebook_id: str, payload: dict = Body(...), _user: dict = Depends(require_user)):
+    title = (payload.get("title") or "").strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Title required")
+    if not db.update_notebook(_user["sub"], notebook_id, title):
+        raise HTTPException(status_code=404, detail="Notebook not found")
+    return {"ok": True}
+
+
+@app.delete("/api/notebooks/{notebook_id}")
+def delete_notebook_route(notebook_id: str, _user: dict = Depends(require_user)):
+    if not db.delete_notebook(_user["sub"], notebook_id):
+        raise HTTPException(status_code=404, detail="Notebook not found")
+    return {"ok": True}
+
+
+@app.put("/api/notes/{note_id}/notebooks")
+def set_note_notebooks_route(note_id: str, payload: dict = Body(...), _user: dict = Depends(require_user)):
+    notebook_ids = payload.get("notebook_ids") or []
+    if not db.set_note_notebooks(_user["sub"], note_id, notebook_ids):
+        raise HTTPException(status_code=404, detail="Note not found")
+    return {"ok": True}
+
+
+@app.get("/notebooks", include_in_schema=False)
+def notebooks_page():
+    path = Path("notebooks.html")
+    if not path.exists():
+        raise HTTPException(status_code=404)
+    return FileResponse(str(path))
 
 
 @app.get("/settings", include_in_schema=False)

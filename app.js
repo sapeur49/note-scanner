@@ -581,6 +581,8 @@ async function initResults() {
 
     // Show add-images UI in saved mode
     enableAddImages(savedId);
+    // Show notebooks card in saved mode
+    loadNotebooksCard(savedId);
   }
 
   const copiedMsg = document.getElementById('copied-msg');
@@ -1024,6 +1026,65 @@ async function initResults() {
     });
   }
 
+  // ── Notebooks card ──
+  async function loadNotebooksCard(noteId) {
+    const card = document.getElementById('notebooks-card');
+    const listEl = document.getElementById('notebooks-picker-list');
+    const emptyMsg = document.getElementById('notebooks-empty-msg');
+    if (!card || !listEl) return;
+
+    card.hidden = false;
+    listEl.innerHTML = '';
+
+    try {
+      const authToken = await getToken();
+      const headers = authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+      const [nbResp, noteResp] = await Promise.all([
+        fetch('/api/notebooks', { headers }),
+        fetch(`${NOTES_URL}/${noteId}`, { headers }),
+      ]);
+      if (!nbResp.ok) return;
+      const notebooks = await nbResp.json();
+      const noteData  = noteResp.ok ? await noteResp.json() : {};
+      const memberIds = new Set(noteData.notebook_ids || []);
+
+      if (!notebooks.length) {
+        if (emptyMsg) emptyMsg.hidden = false;
+        return;
+      }
+      if (emptyMsg) emptyMsg.hidden = true;
+
+      notebooks.forEach(nb => {
+        const label = document.createElement('label');
+        label.className = 'nb-picker-item';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = nb.id;
+        cb.checked = memberIds.has(nb.id);
+        cb.addEventListener('change', async () => {
+          if (cb.checked) memberIds.add(nb.id); else memberIds.delete(nb.id);
+          try {
+            const tok = await getToken();
+            await fetch(`${NOTES_URL}/${noteId}/notebooks`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', ...(tok ? { 'Authorization': `Bearer ${tok}` } : {}) },
+              body: JSON.stringify({ notebook_ids: [...memberIds] }),
+            });
+          } catch (_) {}
+        });
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(` ${nb.title}`));
+        listEl.appendChild(label);
+      });
+
+      const manageLink = document.createElement('a');
+      manageLink.href = 'notebooks.html';
+      manageLink.className = 'nb-manage-link';
+      manageLink.textContent = 'Manage notebooks →';
+      listEl.appendChild(manageLink);
+    } catch (_) {}
+  }
+
   // ── Add images to a saved note ──
   function enableAddImages(noteId) {
     const addImagesRow    = document.getElementById('add-images-row');
@@ -1113,6 +1174,7 @@ async function initResults() {
         setTimeout(() => { copiedMsg.textContent = ''; }, 2500);
         if (publishCard) publishCard.hidden = false;
         enableAddImages(currentNoteId);
+        loadNotebooksCard(currentNoteId);
       } catch (e) {
         saveBtn.disabled = false;
         copiedMsg.textContent = e.message || 'Save failed';
@@ -1201,6 +1263,30 @@ async function initNotes() {
   const emptyEl  = document.getElementById('notes-empty');
   const searchEl = document.getElementById('notes-search');
   const filterEl = document.getElementById('notes-vis-filter');
+  const notebookFilterEl = document.getElementById('notes-notebook-filter');
+
+  // Load notebooks into the filter dropdown
+  try {
+    const nbResp = await fetch('/api/notebooks', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+    if (nbResp.ok) {
+      const nbs = await nbResp.json();
+      if (notebookFilterEl) {
+        nbs.forEach(nb => {
+          const opt = document.createElement('option');
+          opt.value = nb.id;
+          opt.textContent = `${nb.title} (${nb.note_count})`;
+          notebookFilterEl.appendChild(opt);
+        });
+        // Pre-select notebook from URL param (e.g. notes.html?notebook=<id>)
+        const urlNb = new URLSearchParams(location.search).get('notebook');
+        if (urlNb) notebookFilterEl.value = urlNb;
+      }
+    }
+  } catch (_) {}
+
+  if (notebookFilterEl) {
+    notebookFilterEl.addEventListener('change', () => loadAll());
+  }
 
   const unlockSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`;
   const personSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
@@ -1274,7 +1360,9 @@ async function initNotes() {
 
   async function loadAll() {
     try {
-      const resp = await fetch(NOTES_URL, {
+      const notebookId = notebookFilterEl?.value || '';
+      const qs = notebookId ? `?notebook_id=${encodeURIComponent(notebookId)}` : '';
+      const resp = await fetch(`${NOTES_URL}${qs}`, {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
       if (resp.ok) notes = await resp.json();
@@ -1949,12 +2037,191 @@ async function initPublished() {
   }
 }
 
+/* ── Notebooks page logic ── */
+
+async function initNotebooks() {
+  await waitForClerk();
+  await window.Clerk.load();
+
+  const signInWall  = document.getElementById('sign-in-wall');
+  const notebooksEl = document.getElementById('notebooks-view');
+
+  if (!window.Clerk.user) {
+    notebooksEl.hidden = true;
+    signInWall.hidden = false;
+    window.Clerk.mountSignIn(document.getElementById('clerk-sign-in'));
+    return;
+  }
+  signInWall.hidden = true;
+  notebooksEl.hidden = false;
+
+  initHamburger();
+
+  const token = await getToken();
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+
+  const listEl   = document.getElementById('notebooks-list');
+  const emptyEl  = document.getElementById('notebooks-empty');
+
+  let notebooks = [];
+
+  function renderNotebooks() {
+    listEl.innerHTML = '';
+    emptyEl.hidden = notebooks.length > 0;
+    notebooks.forEach(nb => {
+      const card = document.createElement('div');
+      card.className = 'nb-card';
+
+      const info = document.createElement('a');
+      info.href = `notes.html?notebook=${encodeURIComponent(nb.id)}`;
+      info.className = 'nb-card-info';
+      info.innerHTML = `<span class="nb-card-title">${escapeHtml(nb.title)}</span><span class="nb-card-count">${nb.note_count} note${nb.note_count !== 1 ? 's' : ''}</span>`;
+      card.appendChild(info);
+
+      const actions = document.createElement('div');
+      actions.className = 'nb-card-actions';
+
+      // Edit button
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn-outline btn-sm btn-icon-sm';
+      editBtn.title = 'Rename';
+      editBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+      editBtn.addEventListener('click', e => {
+        e.preventDefault();
+        startEditNotebook(nb, card, info, editBtn);
+      });
+      actions.appendChild(editBtn);
+
+      // Delete button
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-danger btn-sm btn-icon-sm';
+      delBtn.title = 'Delete notebook';
+      delBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
+      delBtn.addEventListener('click', async e => {
+        e.preventDefault();
+        if (!confirm(`Delete notebook "${nb.title}"? Notes will not be deleted.`)) return;
+        delBtn.disabled = true;
+        try {
+          const resp = await fetch(`/api/notebooks/${nb.id}`, { method: 'DELETE', headers });
+          if (!resp.ok) throw new Error();
+          notebooks = notebooks.filter(n => n.id !== nb.id);
+          renderNotebooks();
+        } catch (_) { delBtn.disabled = false; }
+      });
+      actions.appendChild(delBtn);
+
+      card.appendChild(actions);
+      listEl.appendChild(card);
+    });
+  }
+
+  function startEditNotebook(nb, card, infoEl, editBtn) {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = nb.title;
+    input.className = 'new-notebook-input nb-inline-input';
+    input.maxLength = 255;
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn-save btn-sm';
+    saveBtn.textContent = 'Save';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn-outline btn-sm';
+    cancelBtn.textContent = 'Cancel';
+
+    const editRow = document.createElement('div');
+    editRow.className = 'nb-edit-row';
+    editRow.append(input, saveBtn, cancelBtn);
+
+    infoEl.hidden = true;
+    editBtn.hidden = true;
+    card.insertBefore(editRow, card.querySelector('.nb-card-actions'));
+    input.focus();
+
+    async function doSave() {
+      const title = input.value.trim();
+      if (!title) return;
+      saveBtn.disabled = true;
+      try {
+        const resp = await fetch(`/api/notebooks/${nb.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...headers },
+          body: JSON.stringify({ title }),
+        });
+        if (!resp.ok) throw new Error();
+        nb.title = title;
+        editRow.remove();
+        infoEl.hidden = false;
+        editBtn.hidden = false;
+        infoEl.querySelector('.nb-card-title').textContent = title;
+      } catch (_) { saveBtn.disabled = false; }
+    }
+
+    saveBtn.addEventListener('click', doSave);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') doSave(); else if (e.key === 'Escape') cancelBtn.click(); });
+    cancelBtn.addEventListener('click', () => {
+      editRow.remove();
+      infoEl.hidden = false;
+      editBtn.hidden = false;
+    });
+  }
+
+  // Load notebooks
+  try {
+    const resp = await fetch('/api/notebooks', { headers });
+    if (resp.ok) notebooks = await resp.json();
+  } catch (_) {}
+  renderNotebooks();
+
+  // New notebook form
+  const newBtn    = document.getElementById('new-notebook-btn');
+  const form      = document.getElementById('new-notebook-form');
+  const newInput  = document.getElementById('new-notebook-input');
+  const saveBtn   = document.getElementById('new-notebook-save');
+  const cancelBtn = document.getElementById('new-notebook-cancel');
+
+  newBtn.addEventListener('click', () => {
+    form.hidden = false;
+    newBtn.hidden = true;
+    newInput.value = '';
+    newInput.focus();
+  });
+  cancelBtn.addEventListener('click', () => {
+    form.hidden = true;
+    newBtn.hidden = false;
+  });
+  async function createNotebook() {
+    const title = newInput.value.trim();
+    if (!title) return;
+    saveBtn.disabled = true;
+    try {
+      const resp = await fetch('/api/notebooks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ title }),
+      });
+      if (!resp.ok) throw new Error();
+      const nb = await resp.json();
+      notebooks.push(nb);
+      renderNotebooks();
+      form.hidden = true;
+      newBtn.hidden = false;
+    } catch (_) {}
+    saveBtn.disabled = false;
+  }
+  saveBtn.addEventListener('click', createNotebook);
+  newInput.addEventListener('keydown', e => { if (e.key === 'Enter') createNotebook(); else if (e.key === 'Escape') cancelBtn.click(); });
+}
+
 /* ── Router ── */
 
 if (document.getElementById('scan-btn')) {
   initIndex().catch(console.error);
 } else if (document.getElementById('notes-list')) {
   initNotes().catch(console.error);
+} else if (document.getElementById('notebooks-view')) {
+  initNotebooks().catch(console.error);
 } else if (document.getElementById('settings-app')) {
   initSettings().catch(console.error);
 } else if (document.getElementById('published-view')) {
