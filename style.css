@@ -1944,23 +1944,20 @@ body[data-template="magazine"] .sp-footer {
   .sp-corner-btn:hover { background: rgba(255,255,255,0.2); }
 }
 
-/* ── Visibility status badge (top-left on share page, owner only) ── */
+/* ── Visibility status icon (owner-only, inside .sp-corner-btns) ── */
 
 .sp-vis-status {
-  position: fixed;
-  top: 14px;
-  left: 14px;
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 10px 5px 8px;
-  border-radius: 20px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
   background: rgba(0,0,0,0.07);
   color: #555;
-  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0.7;
-  line-height: 1;
+  cursor: default;
+  flex-shrink: 0;
 }
 @media (prefers-color-scheme: dark) {
   .sp-vis-status { background: rgba(255,255,255,0.12); color: #ccc; }
