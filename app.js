@@ -1219,8 +1219,18 @@ async function initNotes() {
 
       const body = document.createElement('div');
       body.className = 'pub-card-body';
+      const vis = n.share_token ? (n.visibility || 'public') : null;
+      const unlockSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>`;
+      const personSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+      const eyeSvg    = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+      const visSvgs   = { public: unlockSvg, logged_in: personSvg, me: eyeSvg };
+      const visLabels = { public: 'Public', logged_in: 'Members only', me: 'Private' };
+      const visHtml   = vis ? `<span class="pub-card-vis" title="${visLabels[vis] || 'Public'}">${visSvgs[vis] || unlockSvg}</span>` : '';
       body.innerHTML = `
-        <div class="pub-card-title">${escapeHtml(n.title || 'Untitled')}</div>
+        <div class="pub-card-title-row">
+          <div class="pub-card-title">${escapeHtml(n.title || 'Untitled')}</div>
+          ${visHtml}
+        </div>
         <div class="pub-card-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
         <div class="pub-card-snippet">${escapeHtml(n.summary_snippet || '')}</div>
       `;

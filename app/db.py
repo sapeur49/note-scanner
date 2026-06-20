@@ -202,6 +202,7 @@ def list_notes(user_id: str, q: str = "") -> list:
         notes.c.created_at,
         notes.c.share_token,
         notes.c.is_published,
+        notes.c.visibility,
         notes.c.files,
     ).where(notes.c.user_id == user_id)
 
@@ -233,6 +234,7 @@ def list_notes(user_id: str, q: str = "") -> list:
                 "scanned_at": _iso(r["scanned_at"]),
                 "created_at": _iso(r["created_at"]),
                 "share_token": r["share_token"] if r.get("is_published") else None,
+                "visibility": r["visibility"] or "public",
                 "first_image_position": first_image["position"] if first_image else None,
             }
         )
