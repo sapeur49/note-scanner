@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReadWrite — Scan &amp; Understand Your Notes with AI</title>
+  <style>
+    /* ── Design tokens (matches style.css) ── */
+    :root {
+      --bg: #ffffff;
+      --surface: #f5f7fa;
+      --border: #d1d9e0;
+      --text: #1a1f2e;
+      --text-muted: #6b7280;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-light: #eff6ff;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 4px 12px rgba(0,0,0,0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1117;
+        --surface: #1a1f2e;
+        --border: #2d3748;
+        --text: #f1f5f9;
+        --text-muted: #94a3b8;
+        --accent: #3b82f6;
+        --accent-hover: #60a5fa;
+        --accent-light: #1e3a5f;
+      }
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ── Nav ── */
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 32px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 100;
+    }
+    .logo { font-size: 1.5rem; font-weight: 700; color: var(--accent); text-decoration: none; letter-spacing: -0.5px; }
+    .logo span { color: var(--text); }
+    .nav-cta {
+      padding: 9px 20px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .nav-cta:hover { background: var(--accent-hover); }
+
+    /* ── Hero ── */
+    .hero {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 80px 24px 64px;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--accent-light);
+      color: var(--accent);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 20px;
+      margin-bottom: 24px;
+      letter-spacing: 0.02em;
+    }
+    .hero-badge svg { width: 13px; height: 13px; }
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.25rem);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -1px;
+      color: var(--text);
+      margin-bottom: 20px;
+    }
+    h1 em { font-style: normal; color: var(--accent); }
+    .hero-sub {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 520px;
+      margin: 0 auto 36px;
+      line-height: 1.7;
+    }
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn-primary {
+      padding: 14px 28px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+    .btn-secondary {
+      padding: 14px 28px;
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Hero preview card ── */
+    .hero-preview {
+      max-width: 620px;
+      margin: 56px auto 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.06);
+      overflow: hidden;
+    }
+    .preview-bar {
+      background: var(--border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .preview-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .preview-dot:nth-child(1) { background: #ff5f57; }
+    .preview-dot:nth-child(2) { background: #febc2e; }
+    .preview-dot:nth-child(3) { background: #28c840; }
+    .preview-body { padding: 24px; text-align: left; }
+    .preview-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .preview-thumbs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .preview-thumb {
+      width: 72px;
+      height: 72px;
+      border-radius: 8px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+    }
+    .preview-thumb.active { border-color: var(--accent); background: var(--accent-light); }
+    .preview-section { margin-bottom: 16px; }
+    .preview-section-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .preview-text-block {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 0.88rem;
+      color: var(--text);
+      line-height: 1.55;
+    }
+    .preview-text-block strong { color: var(--accent); }
+    .preview-tag {
+      display: inline-block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: var(--accent-light);
+      color: var(--accent);
+      margin-top: 8px;
+    }
+
+    /* ── Sections ── */
+    section { padding: 72px 24px; }
+    section + section { border-top: 1px solid var(--border); }
+    .section-inner { max-width: 900px; margin: 0 auto; }
+    .section-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 12px;
+      text-align: center;
+    }
+    h2 {
+      font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: var(--text);
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    .section-sub {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 1rem;
+      max-width: 480px;
+      margin: 0 auto 52px;
+    }
+
+    /* ── How it works ── */
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 24px;
+    }
+    .step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+      position: relative;
+    }
+    .step-num {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.85rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .step h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+    .step p { font-size: 0.88rem; color: var(--text-muted); line-height: 1.55; }
+    .step-icon { font-size: 1.5rem; margin-bottom: 12px; }
+
+    /* ── Features ── */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .feature {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+      transition: box-shadow 0.15s, transform 0.15s;
+    }
+    .feature:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.1); transform: translateY(-2px); }
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: var(--accent-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 14px;
+    }
+    .feature-icon svg { width: 22px; height: 22px; stroke: var(--accent); fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+    .feature h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 6px; }
+    .feature p { font-size: 0.875rem; color: var(--text-muted); line-height: 1.55; }
+
+    /* ── Example output ── */
+    .example-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 600px) { .example-grid { grid-template-columns: 1fr; } }
+    .example-input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      text-align: center;
+    }
+    .example-note {
+      background: #fefce8;
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      padding: 20px;
+      font-family: 'Georgia', serif;
+      font-size: 0.88rem;
+      color: #44403c;
+      line-height: 1.8;
+      text-align: left;
+      box-shadow: 2px 2px 6px rgba(0,0,0,0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      .example-note { background: #292524; border-color: #57534e; color: #d6d3d1; }
+    }
+    .example-note-title { font-weight: 700; font-size: 0.95rem; margin-bottom: 10px; color: #57534e; }
+    @media (prefers-color-scheme: dark) { .example-note-title { color: #a8a29e; } }
+    .handwritten { font-style: italic; }
+    .example-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      color: var(--accent);
+      padding: 8px 0;
+    }
+    .example-output {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+    .output-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      background: var(--accent-light);
+      padding: 3px 9px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+    .output-text { font-size: 0.88rem; color: var(--text); line-height: 1.6; }
+    .output-divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+    /* ── Testimonials ── */
+    .testimonials {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+    }
+    .testimonial {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+    .testimonial-text {
+      font-size: 0.9rem;
+      color: var(--text);
+      line-height: 1.6;
+      margin-bottom: 16px;
+      font-style: italic;
+    }
+    .testimonial-author { display: flex; align-items: center; gap: 10px; }
+    .testimonial-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    .testimonial-name { font-size: 0.85rem; font-weight: 600; }
+    .testimonial-role { font-size: 0.78rem; color: var(--text-muted); }
+
+    /* ── CTA section ── */
+    .cta-section {
+      background: var(--accent);
+      padding: 80px 24px;
+      text-align: center;
+    }
+    .cta-section h2 { color: #fff; }
+    .cta-section p { color: rgba(255,255,255,0.8); max-width: 440px; margin: 12px auto 36px; font-size: 1.05rem; }
+    .btn-white {
+      padding: 14px 32px;
+      background: #fff;
+      color: var(--accent);
+      border: none;
+      border-radius: var(--radius);
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn-white:hover { opacity: 0.92; transform: translateY(-1px); }
+    .cta-note { font-size: 0.8rem; color: rgba(255,255,255,0.6); margin-top: 14px; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .footer-logo { font-size: 1.1rem; font-weight: 700; color: var(--accent); text-decoration: none; }
+    .footer-logo span { color: var(--text); }
+    footer p { font-size: 0.8rem; color: var(--text-muted); }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a { font-size: 0.8rem; color: var(--text-muted); text-decoration: none; }
+    .footer-links a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="nav">
+    <a href="#" class="logo">Read<span>Write</span></a>
+    <a href="index.html" class="nav-cta">Get Started Free</a>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-badge">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+      </svg>
+      Powered by Claude AI
+    </div>
+    <h1>Turn handwritten notes into<br><em>structured, searchable text</em></h1>
+    <p class="hero-sub">Photograph your notes, receipts, whiteboards, or documents. ReadWrite scans them with AI vision, transcribes the content, and writes you a clear summary — in seconds.</p>
+    <div class="hero-actions">
+      <a href="index.html" class="btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Start Scanning
+      </a>
+      <a href="#how-it-works" class="btn-secondary">See how it works</a>
+    </div>
+
+    <!-- Browser mockup -->
+    <div class="hero-preview">
+      <div class="preview-bar">
+        <div class="preview-dot"></div>
+        <div class="preview-dot"></div>
+        <div class="preview-dot"></div>
+      </div>
+      <div class="preview-body">
+        <div class="preview-label">Scanned files</div>
+        <div class="preview-thumbs">
+          <div class="preview-thumb active">📝</div>
+          <div class="preview-thumb">📄</div>
+          <div class="preview-thumb">🖊️</div>
+        </div>
+        <div class="preview-section">
+          <div class="preview-section-title">Summary</div>
+          <div class="preview-text-block">
+            Meeting notes cover three key action items: <strong>product launch deadline moved to Q3</strong>, design review scheduled for Friday, and Sarah to own the onboarding flow redesign.
+            <br><span class="preview-tag">3 action items found</span>
+          </div>
+        </div>
+        <div class="preview-section">
+          <div class="preview-section-title">Transcription</div>
+          <div class="preview-text-block">
+            ## Q2 Product Review — June 14<br>
+            - Launch → push to Q3 (resource constraints)<br>
+            - Design review: Fri @ 2pm w/ Jake<br>
+            - Onboarding redesign → Sarah owns
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section id="how-it-works">
+    <div class="section-inner">
+      <p class="section-label">Simple by design</p>
+      <h2>Three steps to clarity</h2>
+      <p class="section-sub">No setup, no training data, no waiting. Just drop your files and go.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-icon">📸</div>
+          <h3>Upload your files</h3>
+          <p>Drag in images, PDFs, or shoot directly from your phone camera. Mix and match formats — multiple files per scan.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-icon">🤖</div>
+          <h3>AI reads everything</h3>
+          <p>Claude's vision model scans each page — handwriting, printed text, diagrams, and labels — and understands the content in context.</p>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-icon">✨</div>
+          <h3>Get your results</h3>
+          <p>Receive a clean title, a concise summary, and a full transcription. Save, share, or publish your notes with one tap.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Example output -->
+  <section>
+    <div class="section-inner">
+      <p class="section-label">See it in action</p>
+      <h2>From scrawl to structure</h2>
+      <p class="section-sub">A photo of handwritten notes becomes clean, readable, shareable text.</p>
+      <div class="example-grid">
+        <div class="example-input">
+          <div class="preview-label" style="text-align:left;margin-bottom:12px;">Your photo</div>
+          <div class="example-note">
+            <div class="example-note-title handwritten">Budget Review — March</div>
+            <div class="handwritten">
+              Q1 total: $48,320<br>
+              → over by ~$2k (travel)<br>
+              <br>
+              Cut: conference trips (save ~$3k)<br>
+              Keep: software subs OK<br>
+              <br>
+              Review again w/ mgr end of April<br>
+              * send report by Fri
+            </div>
+          </div>
+        </div>
+        <div class="example-output">
+          <div class="preview-label" style="margin-bottom:12px;">ReadWrite output</div>
+          <div class="output-chip">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Summary
+          </div>
+          <div class="output-text">Q1 budget came in $2k over due to travel costs. Plan is to cut conference trips (~$3k saving) while maintaining software subscriptions. A management review is scheduled for end of April; a report is due Friday.</div>
+          <hr class="output-divider">
+          <div class="output-chip">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Transcription
+          </div>
+          <div class="output-text">
+            <strong>Budget Review — March</strong><br><br>
+            Q1 total: $48,320<br>
+            → over by ~$2k (travel)<br><br>
+            Cut: conference trips (save ~$3k)<br>
+            Keep: software subscriptions OK<br><br>
+            Review again with manager end of April<br>
+            * send report by Friday
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features">
+    <div class="section-inner">
+      <p class="section-label">Everything you need</p>
+      <h2>Built for real note-takers</h2>
+      <p class="section-sub">Not just transcription — ReadWrite understands and organises your content.</p>
+      <div class="features">
+
+        <div class="feature">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+          <h3>AI-powered OCR</h3>
+          <p>Reads messy handwriting, mixed languages, and low-light photos that traditional OCR tools fail on.</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <h3>Smart summaries</h3>
+          <p>Get a concise, human-readable summary automatically extracted from each scan — not just raw text.</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+          </div>
+          <h3>Multi-file scans</h3>
+          <p>Upload entire notebooks at once. All pages are processed together, keeping context across pages.</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          </div>
+          <h3>Share &amp; publish</h3>
+          <p>Share results via a public link, or publish a curated list of notes with your own template and branding.</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <h3>Custom instructions</h3>
+          <p>Ask follow-up questions, request translations, or tell the AI to total up numbers — per scan.</p>
+        </div>
+
+        <div class="feature">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <h3>My Notes library</h3>
+          <p>Every saved scan is searchable and browsable. Access your full archive from any device, any time.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonials -->
+  <section>
+    <div class="section-inner">
+      <p class="section-label">From users</p>
+      <h2>People who've made the switch</h2>
+      <p class="section-sub">ReadWrite works for students, researchers, and anyone who thinks on paper.</p>
+      <div class="testimonials">
+        <div class="testimonial">
+          <p class="testimonial-text">"I photograph my whiteboard after every brainstorm. ReadWrite turns it into structured notes I can actually search later."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar">MK</div>
+            <div>
+              <div class="testimonial-name">Maya K.</div>
+              <div class="testimonial-role">Product designer</div>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial">
+          <p class="testimonial-text">"I journal by hand every morning. Being able to search three years of entries after scanning them changed everything for me."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar">JL</div>
+            <div>
+              <div class="testimonial-name">James L.</div>
+              <div class="testimonial-role">Writer &amp; educator</div>
+            </div>
+          </div>
+        </div>
+        <div class="testimonial">
+          <p class="testimonial-text">"The custom instructions feature is a hidden gem. I ask it to extract action items and it just does it, every single time."</p>
+          <div class="testimonial-author">
+            <div class="testimonial-avatar">SR</div>
+            <div>
+              <div class="testimonial-name">Sofia R.</div>
+              <div class="testimonial-role">Engineering manager</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <h2>Start scanning your notes today</h2>
+    <p>Free to use. No app download required. Works on any device with a camera.</p>
+    <a href="index.html" class="btn-white">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Get Started — it's free
+    </a>
+    <p class="cta-note">Sign in with Google or email. No credit card needed.</p>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <a href="#" class="footer-logo">Read<span>Write</span></a>
+    <p>© 2026 ReadWrite. Powered by Claude AI.</p>
+    <div class="footer-links">
+      <a href="index.html">App</a>
+      <a href="notes.html">My Notes</a>
+      <a href="settings.html">Settings</a>
+    </div>
+  </footer>
+
+</body>
+</html>
