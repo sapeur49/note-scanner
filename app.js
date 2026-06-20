@@ -1,5 +1,11 @@
 /* ReadWrite — app.js */
 
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(err => {
+    console.warn('Service worker registration failed:', err);
+  });
+}
+
 const RESULTS_KEY  = 'rw_results';
 const IMAGES_KEY   = 'rw_images';
 const LIGHTBOX_KEY = 'rw_lightbox';

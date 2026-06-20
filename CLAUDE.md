@@ -47,6 +47,9 @@ Push to `main` → Railway auto-deploys (~1-2 min). `Procfile` defines the start
 app/main.py        FastAPI: POST /api/scan + CRUD /api/notes + publish/share/settings/published routes + static file mount
 app/db.py          SQLAlchemy Core persistence — MySQL prod / SQLite dev fallback
 app/auth/verify.py JWT verification via Clerk JWKS (PyJWT + PyJWKClient)
+manifest.json      PWA web app manifest (name, icons, theme_color, display: standalone)
+sw.js              Service worker — pass-through fetch only; no offline caching yet
+icons/             PWA icons: icon-192.png, icon-512.png (placeholder "RW" tiles; swap for real art)
 index.html         Upload UI (sign-in wall + app div + My Notes + Settings links)
 results.html       Scan results: image strip, summary, transcription, additional notes, share panel, save/update/delete/publish
 notes.html         My Notes list — search, browse, open saved notes (thumbnails + published badge)
@@ -247,6 +250,7 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 - **Published list owner features** (visibility icons on cards, filter bar): `initPublished()` in `app.js`; filter bar is `#pub-vis-filter` in `published.html` (hidden until owner confirmed); `renderNotes()` adds `.pub-card-vis` badge when `settings.isOwner`
 - **DB schema changes on `notes`**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`. New tables: just add to `metadata` — `create_all()` handles them automatically.
 - **Tests**: add blocks inside `runTests()` in `test.html`
+- **PWA icons**: replace `icons/icon-192.png` and `icons/icon-512.png` with real branded art (192×192 and 512×512 PNG). Colors in `manifest.json` (`background_color`, `theme_color`) and the `<meta name="theme-color">` in all six HTML files should match the `--bg` and `--accent` CSS variables in `style.css`.
 
 ---
 
