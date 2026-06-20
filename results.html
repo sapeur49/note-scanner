@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#2563eb">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
-  <link rel="stylesheet" href="style.css?v=46">
+  <link rel="stylesheet" href="style.css?v=47">
 </head>
 <body>
   <div class="container">
@@ -164,6 +164,16 @@
       </div>
     </div>
 
+    <div class="card" id="notebooks-card" hidden>
+      <div class="section-title">
+        <svg class="icon"><use href="#icon-library"/></svg> Notebooks
+      </div>
+      <div id="notebooks-picker-list" class="notebooks-picker-list"></div>
+      <div id="notebooks-empty-msg" class="notebooks-empty-msg" hidden>
+        No notebooks yet. <a href="notebooks.html">Create one</a> to start organizing.
+      </div>
+    </div>
+
     <div class="note-actions" id="note-actions">
       <button class="btn-save" id="save-btn">
         <svg class="icon"><use href="#icon-save"/></svg> Save Note
@@ -239,6 +249,10 @@
       <line x1="8" y1="12" x2="16" y2="12"/>
       <line x1="2" y1="2" x2="22" y2="22"/>
     </symbol>
+    <symbol id="icon-library" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+    </symbol>
   </svg>
 
   <script
@@ -249,6 +263,6 @@
     type="text/javascript"
   ></script>
   <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
-  <script src="app.js?v=52"></script>
+  <script src="app.js?v=53"></script>
 </body>
 </html>

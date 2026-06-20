@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ReadWrite — My Notes</title>
+  <title>ReadWrite — Notebooks</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#2563eb">
   <link rel="stylesheet" href="style.css?v=47">
@@ -30,17 +30,9 @@
       </div>
       <a href="index.html" class="logo">Read<span>Write</span></a>
       <div class="header-right">
-        <a href="#" id="pub-list-btn" class="hdr-icon-btn" aria-label="Published list" hidden>
+        <a href="notes.html" class="hdr-icon-btn" aria-label="My Notes">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="2" y1="12" x2="22" y2="12"/>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-          </svg>
-        </a>
-        <a href="notebooks.html" class="hdr-icon-btn" aria-label="Notebooks">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
           </svg>
         </a>
         <a href="index.html" class="hdr-icon-btn" aria-label="Home">
@@ -56,34 +48,24 @@
       <div id="clerk-sign-in"></div>
     </div>
 
-    <div id="notes-app" hidden>
-      <div id="notes-vis-filter" class="pub-vis-filter">
-        <button class="pub-vis-btn pub-vis-active" data-vis="">All</button>
-        <button class="pub-vis-btn" data-vis="public" title="Public">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-        </button>
-        <button class="pub-vis-btn" data-vis="logged_in" title="Members only">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        </button>
-        <button class="pub-vis-btn" data-vis="me" title="Private">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-        </button>
+    <div id="notebooks-view" hidden>
+      <div class="notebooks-header-row">
+        <h2 class="notebooks-page-title">Notebooks</h2>
+        <button class="btn-outline btn-sm" id="new-notebook-btn">+ New Notebook</button>
       </div>
-      <select id="notes-notebook-filter" class="notes-notebook-filter">
-        <option value="">All notebooks</option>
-      </select>
-      <input type="search" id="notes-search" class="notes-search" placeholder="Search notes…" autocomplete="off">
-      <div id="notes-list" class="pub-card-grid"></div>
-      <div id="notes-empty" class="notes-empty" hidden>No saved notes yet. Scan and save one to get started.</div>
+
+      <div id="new-notebook-form" class="new-notebook-form" hidden>
+        <input type="text" id="new-notebook-input" class="new-notebook-input" placeholder="Notebook title…" maxlength="255" autocomplete="off">
+        <button class="btn-save btn-sm" id="new-notebook-save">Create</button>
+        <button class="btn-outline btn-sm" id="new-notebook-cancel">Cancel</button>
+      </div>
+
+      <div id="notebooks-list" class="notebooks-list"></div>
+      <div id="notebooks-empty" class="notebooks-empty" hidden>
+        No notebooks yet. Create one to start organizing your notes.
+      </div>
     </div>
   </div>
-
-  <svg hidden xmlns="http://www.w3.org/2000/svg">
-    <symbol id="icon-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M19 12H5"/>
-      <polyline points="12 19 5 12 12 5"/>
-    </symbol>
-  </svg>
 
   <script
     async
