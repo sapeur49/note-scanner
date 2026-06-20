@@ -1599,7 +1599,7 @@ body[data-template="magazine"] .sp-logo-link {
   text-transform: uppercase;
 }
 
-body[data-template="magazine"] .sp-logo-link span { color: #111; }
+body[data-template="magazine"] .sp-logo-link span { color: #999; }
 
 body[data-template="magazine"] .sp-header {
   background: #111;
