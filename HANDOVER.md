@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-busters: **`style.css?v=45`**, **`app.js?v=48`** across all six HTML files.
+Cache-busters: **`style.css?v=46`**, **`app.js?v=52`** across all six HTML files.
 
 ---
 
@@ -17,7 +17,12 @@ Cache-busters: **`style.css?v=45`**, **`app.js?v=48`** across all six HTML files
 
 | # | Feature | Version | Key files |
 |---|---|---|---|
-| 1 | **Nav refinements** — My Notes removed from hamburger (Settings + Sign out only); My Notes icon header-right on index/results; published-list globe on notes header; note cards get Edit/Published action strip; share corner buttons horizontal row; globe links to published list; published page shows My Notes + Home cluster for logged-in users | v46 / v43 | `index.html`, `results.html`, `notes.html`, `settings.html`, `share.html`, `published.html`, `app.js` (`showApp`, `initNotes`, `initPublished`, `showEditBtn`), `style.css` (`.header-right`, `.hdr-icon-btn`, `.note-card-actions`, `.sp-corner-btns`, `.pub-nav-btns`, `.sp-corner-btn`, `.sp-vis-link`) |
+| 1 | **Adaptive scan prompt** — non-text images (photos, objects, scenes) now get analytical description in `summary` + any visible labels in `transcription` instead of refusal | — | `app/main.py` (`SCAN_PROMPT`) |
+| 2 | **Publish visibility default → "Me only"** — new notes default to private; user must opt in to share publicly | — | `results.html` (`#pub-visibility` select) |
+| 3 | **Globe button on home page** — globe icon (links to published list) added to `#header-right` left of the folder icon; hidden until settings confirm `list_token` exists | v52 | `index.html`, `app.js` (`initIndex`) |
+| 4 | **Security fix: restricted notes hidden from public published list** — `logged_in`/`me` notes no longer shown to unauthenticated or non-owner viewers on `/api/published/{list_token}` | — | `app/main.py` (`get_published_list`) |
+| 5 | **Icon vocabulary overhaul + My Notes visibility filter** — globe = published list link; unlock = public; folder = My Notes (book/notebook icon removed everywhere, reserved for future); My Notes page gets All/unlock/person/eye filter bar; client-side filtering in `initNotes()`; visibility badge in note card title row | v52 / v46 | `notes.html`, `published.html`, `share.html`, `index.html`, `results.html`, `app.js` (`initNotes`, `initPublished`, `showEditBtn`), `style.css` (`.sp-vis-status`) |
+| 6 | **Nav refinements** — My Notes removed from hamburger (Settings + Sign out only); My Notes icon header-right on index/results; published-list globe on notes header; note cards get Edit/Published action strip; share corner buttons horizontal row; globe links to published list; published page shows My Notes + Home cluster for logged-in users | v46 / v43 | `index.html`, `results.html`, `notes.html`, `settings.html`, `share.html`, `published.html`, `app.js` (`showApp`, `initNotes`, `initPublished`, `showEditBtn`), `style.css` (`.header-right`, `.hdr-icon-btn`, `.note-card-actions`, `.sp-corner-btns`, `.pub-nav-btns`, `.sp-corner-btn`, `.sp-vis-link`) |
 | 2 | **UI polish** — hamburger nav (Settings / Sign out) top-left on all app pages; My Notes page switched to card-grid layout matching published list; home icon top-right on app pages, fixed corner on share/published for logged-in users; tagline removed; "Import images and files" / "Scan Files" copy; instructions hint text removed | v44 / v41 | `index.html`, `notes.html`, `results.html`, `settings.html`, `share.html`, `published.html`, `app.js` (`initHamburger`, `initNotes` card rendering), `style.css` (`.app-header`, `#site-nav`, `.hamburger-btn`, `.nav-menu`, `.home-btn`, `.sp-home-btn`) |
 | 2 | **PWA support** — installable on Android (install banner) and iOS (Add to Home Screen, standalone display, no browser chrome). Minimal pass-through service worker; no offline caching yet | v43 | `manifest.json`, `sw.js`, `icons/icon-192.png`, `icons/icon-512.png`, `app.js` (service worker registration), all six HTML files (manifest link + theme-color) |
 | 2 | **OG link previews** — share page now server-side renders OG + Twitter Card meta tags. Public notes: real title, summary excerpt, hero image (`summary_large_image`). Restricted/not-found notes: generic "ReadWrite" / "Sign in" branding, no image | — | `app/main.py` (`share_page_route`) |
@@ -115,3 +120,8 @@ Sends text fields (`title`, `summary`, etc.) + `publish_options` + `visibility` 
 19. Prev/next links on share page navigate between published notes.
 20. My Notes → thumbnails and "↗ Published page" badge for published notes; clicking badge opens in same tab.
 21. Paste a public share URL into iMessage or Slack → preview card shows note title, summary excerpt, and hero image.
+22. My Notes visibility filter: click unlock/person/eye → list narrows to published notes of that visibility; click "All" → all notes shown.
+23. Published list in incognito → only `public` notes visible; `logged_in`/`me` notes absent entirely.
+24. Publish a new note → visibility defaults to "Me only" without any user action.
+25. Home page header (signed in) → globe icon appears to left of folder icon; clicking it opens the published list.
+26. Upload a photo of an object (not text) → scan returns descriptive title + analytical summary; transcription is empty or contains only visible labels. No "this is not a text note" language.

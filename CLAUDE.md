@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=40`, `app.js?v=42`). Update all six HTML files: `index.html`, `results.html`, `notes.html`, `settings.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=46`, `app.js?v=52`). Update all six HTML files: `index.html`, `results.html`, `notes.html`, `settings.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
 
 ---
 
@@ -100,7 +100,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 ## Backend: app/main.py
 
 - `MODEL` constant selects the Claude model — currently `claude-sonnet-4-6`; `max_tokens=4096`
-- `SCAN_PROMPT` controls the Claude prompt. Claude's reply is parsed by extracting the first `{...}` block via regex — the JSON-only output constraint is load-bearing. Prose before/after the JSON breaks parsing silently (returns 502).
+- `SCAN_PROMPT` controls the Claude prompt. Claude's reply is parsed by extracting the first `{...}` block via regex — the JSON-only output constraint is load-bearing. Prose before/after the JSON breaks parsing silently (returns 502). The prompt is **adaptive**: text-dominant images get full transcription + summary; primarily visual images (photos, objects, scenes) get an analytical description in `summary` and any visible labels/text in `transcription`.
 - `scanned_at` (ISO-8601 UTC) is added server-side; Claude never generates timestamps.
 
 **EXIF extraction** (`_extract_exif` in `app/main.py`):
@@ -138,7 +138,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `PUT /api/settings` — upsert user settings; auto-generates `list_token` if absent (auth'd)
 - `GET /api/share/{token}` — `token` may be a UUID share token or a slug; tries UUID lookup first, then slug fallback. Returns note JSON + owner settings; checks `visibility`; adds `is_owner: true`; adds `prev_token`/`next_token` for adjacent published notes when the list is public
 - `GET /api/share/{token}/images/{position}` — serve a published note image; enforces `visibility` (no auth required for `public`)
-- `GET /api/published/{list_token}` — return published notes list + settings; 403 if `list_public != true`; accepts optional `Authorization` header — if the bearer token matches the list owner, adds `isOwner: true` to settings and includes `visibility` on each note
+- `GET /api/published/{list_token}` — return published notes list + settings; 403 if `list_public != true`; accepts optional `Authorization` header — if the bearer token matches the list owner, adds `isOwner: true` to settings and includes `visibility` on each note; **visibility filtering**: unauthenticated viewers see only `public` notes, authenticated non-owners see `public` + `logged_in`, owners see all
 - `GET /share/{token}` — server-side render `share.html` with OG/Twitter Card meta tags injected; public notes get real title, summary excerpt, and hero image URL; restricted/not-found notes get generic ReadWrite branding (no content leaked)
 - `GET /settings` — serve `settings.html`
 - `GET /published/{list_token}` — serve `published.html` (no auth)
@@ -159,11 +159,11 @@ A saved note can be published: `POST /api/notes/{id}/publish` generates a stable
 
 **Share button on share page**: `#sp-share-btn` in `.sp-corner-btns` is visible to all visitors. Uses `navigator.share` (native share sheet on mobile) with clipboard fallback on desktop. Wired in `initShare()` after data loads.
 
-**Owner-only UI on share page**: When `is_owner: true` is returned by the API, `showEditBtn()` in `app.js` shows both the pencil edit button (links to `results.html?id=…`) and a visibility icon (globe = public, person = logged-in, eye = me-only) in `.sp-corner-btns` top-right.
+**Owner-only UI on share page**: When `is_owner: true` is returned by the API, `showEditBtn()` in `app.js` shows both the pencil edit button (links to `results.html?id=…`) and a visibility icon (unlock = public, person = logged-in, eye = me-only) in `.sp-corner-btns` top-right.
 
 **Publish panel UX**: When a note is already published, all options are locked/greyed out. "Edit options" button re-enables them, showing "Save options" and "Republish" buttons.
 
-**Published list**: Each user has a stable `list_token` (auto-generated on first settings save). `GET /published/{list_token}` serves the public list page when `list_public = "true"` in `user_settings`. Notes are excluded from the list if `publish_options.includeInList = false`. When the logged-in user is the owner, `initPublished()` re-fetches with auth to get `isOwner: true` — the owner then sees a visibility icon badge on each card and a filter bar (All / globe / person / eye) above the search input.
+**Published list**: Each user has a stable `list_token` (auto-generated on first settings save). `GET /published/{list_token}` serves the public list page when `list_public = "true"` in `user_settings`. Notes are excluded from the list if `publish_options.includeInList = false`. When the logged-in user is the owner, `initPublished()` re-fetches with auth to get `isOwner: true` — the owner then sees a visibility icon badge on each card and a filter bar (All / unlock / person / eye) above the search input. Restricted-visibility notes are hidden from non-owner/unauthenticated viewers at the API level.
 
 **Settings**: Template (minimal/bold/magazine), logo on/off, story list title, and list visibility are global per-user settings stored in `user_settings` table, managed via `/settings` page.
 
@@ -232,6 +232,21 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 
 ---
 
+## Icon vocabulary (do not deviate)
+
+| Icon | Meaning | Used on |
+|---|---|---|
+| Globe (circle + lat/lon lines) | Link to published notes list | Home, notes.html, share.html, published.html header buttons |
+| Unlock / open padlock | Public visibility status | Visibility filter bars, visibility badges on cards |
+| Person silhouette | Members-only (`logged_in`) visibility | Same filter/badge contexts |
+| Eye | Private (`me`) visibility | Same filter/badge contexts |
+| Folder | My Notes navigation link | All pages with header-right |
+| House | Home navigation | share.html, published.html corner cluster |
+| Pencil on page | Edit note | Owner-only on share page |
+| **Book / notebook** | **RESERVED** — do not use anywhere yet | future notebook feature |
+
+---
+
 ## Making Changes
 
 - **Claude prompt / model**: edit `SCAN_PROMPT` / `MODEL` constant in `app/main.py`
@@ -248,6 +263,9 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 - **OG meta tags on share page**: `share_page_route` in `app/main.py`; builds meta block from DB data; use proxy headers (`x-forwarded-proto`, `x-forwarded-host`) for correct public origin; all user content HTML-escaped via `_html.escape()`
 - **Owner-only share page UI** (visibility icon + edit button): `showEditBtn()` in `app.js`; called when `data.is_owner` is true; icons defined inline in the function; container is `.sp-corner-btns` in `share.html`
 - **Published list owner features** (visibility icons on cards, filter bar): `initPublished()` in `app.js`; filter bar is `#pub-vis-filter` in `published.html` (hidden until owner confirmed); `renderNotes()` adds `.pub-card-vis` badge when `settings.isOwner`
+- **My Notes visibility filter**: `#notes-vis-filter` in `notes.html`; `initNotes()` in `app.js` uses client-side filtering (`filteredNotes()`) — notes loaded once, filtered in memory by `activeVis` + search query. Filter works on `n.visibility` field; non-published notes hidden when a visibility filter is active.
+- **Publish visibility default**: `<option value="me" selected>` in `#pub-visibility` select in `results.html`. Change the `selected` attribute to change the default.
+- **Scan prompt for visual images**: `SCAN_PROMPT` in `app/main.py` — edit the "If primarily VISUAL" branch to change how non-text images are described.
 - **DB schema changes on `notes`**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`. New tables: just add to `metadata` — `create_all()` handles them automatically.
 - **Tests**: add blocks inside `runTests()` in `test.html`
 - **PWA icons**: replace `icons/icon-192.png` and `icons/icon-512.png` with real branded art (192×192 and 512×512 PNG). Colors in `manifest.json` (`background_color`, `theme_color`) and the `<meta name="theme-color">` in all six HTML files should match the `--bg` and `--accent` CSS variables in `style.css`.
