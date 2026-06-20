@@ -159,6 +159,8 @@ async function initIndex() {
     appEl.hidden = false;
     const siteNav = document.getElementById('site-nav');
     if (siteNav) siteNav.hidden = false;
+    const headerRight = document.getElementById('header-right');
+    if (headerRight) headerRight.hidden = false;
     if (!hamburgerInited) { initHamburger(); hamburgerInited = true; }
   }
 
@@ -1167,12 +1169,27 @@ async function initNotes() {
 
   initHamburger();
 
+  const token = await getToken();
+
+  // Show published-list link if user has a list token
+  try {
+    const sResp = await fetch('/api/settings', {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    });
+    if (sResp.ok) {
+      const s = await sResp.json();
+      if (s.list_token) {
+        const btn = document.getElementById('pub-list-btn');
+        if (btn) { btn.href = `/published/${s.list_token}`; btn.hidden = false; }
+      }
+    }
+  } catch (_) {}
+
   const listEl   = document.getElementById('notes-list');
   const emptyEl  = document.getElementById('notes-empty');
   const searchEl = document.getElementById('notes-search');
 
   async function load(q) {
-    const token = await getToken();
     let notes = [];
     try {
       const resp = await fetch(`${NOTES_URL}?q=${encodeURIComponent(q || '')}`, {
@@ -1186,9 +1203,12 @@ async function initNotes() {
     notes.forEach(n => {
       const hasThumb = n.first_image_position !== null && n.first_image_position !== undefined;
 
-      const card = document.createElement('a');
+      const card = document.createElement('div');
       card.className = 'pub-card';
-      card.href = `results.html?id=${encodeURIComponent(n.id)}`;
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', () => {
+        window.location.href = `results.html?id=${encodeURIComponent(n.id)}`;
+      });
 
       if (hasThumb) {
         const hero = document.createElement('img');
@@ -1204,6 +1224,16 @@ async function initNotes() {
         <div class="pub-card-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
         <div class="pub-card-snippet">${escapeHtml(n.summary_snippet || '')}</div>
       `;
+
+      const actions = document.createElement('div');
+      actions.className = 'note-card-actions';
+      const editSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+      const extSvg  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
+      actions.innerHTML = `
+        <a href="results.html?id=${encodeURIComponent(n.id)}" class="note-card-action" onclick="event.stopPropagation()">${editSvg} Edit</a>
+        ${n.share_token ? `<a href="/share/${encodeURIComponent(n.share_token)}" class="note-card-action note-card-action-pub" onclick="event.stopPropagation()" target="_blank">${extSvg} Published</a>` : ''}
+      `;
+      body.appendChild(actions);
       card.appendChild(body);
       listEl.appendChild(card);
 
@@ -1729,8 +1759,8 @@ async function initPublished() {
       await waitForClerk();
       await window.Clerk.load();
       if (window.Clerk.user) {
-        const homeBtn = document.getElementById('sp-home-btn');
-        if (homeBtn) homeBtn.hidden = false;
+        const navBtns = document.getElementById('pub-nav-btns');
+        if (navBtns) navBtns.hidden = false;
         pubClerkToken = await window.Clerk.session.getToken();
         const ownerResp = await fetch(`/api/published/${encodeURIComponent(listToken)}`, {
           headers: { 'Authorization': `Bearer ${pubClerkToken}` },
