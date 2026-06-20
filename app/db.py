@@ -372,6 +372,7 @@ def list_published_notes(user_id: str) -> list:
         notes.c.share_token,
         notes.c.files,
         notes.c.publish_options,
+        notes.c.visibility,
     ).where(
         notes.c.user_id == user_id,
         notes.c.is_published == True,
@@ -398,6 +399,7 @@ def list_published_notes(user_id: str) -> list:
             "created_at": _iso(r["created_at"]),
             "share_token": r["share_token"],
             "image_positions": image_positions,
+            "visibility": r["visibility"] or "public",
         })
     return out
 

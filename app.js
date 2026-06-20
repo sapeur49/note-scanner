@@ -1638,10 +1638,34 @@ async function initPublished() {
     return;
   }
 
+  const VIS_SVG = {
+    public:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+    logged_in: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+    me:        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  };
+  const VIS_LABEL = { public: 'Public', logged_in: 'Members only', me: 'Private' };
+
   try {
     const resp = await fetch(`/api/published/${encodeURIComponent(listToken)}`);
     if (!resp.ok) throw new Error('not found or private');
-    const { settings, notes } = await resp.json();
+    let { settings, notes } = await resp.json();
+
+    // Owner detection — non-blocking; Clerk may or may not be present
+    let pubClerkToken = null;
+    try {
+      await waitForClerk();
+      await window.Clerk.load();
+      if (window.Clerk.user) {
+        pubClerkToken = await window.Clerk.session.getToken();
+        const ownerResp = await fetch(`/api/published/${encodeURIComponent(listToken)}`, {
+          headers: { 'Authorization': `Bearer ${pubClerkToken}` },
+        });
+        if (ownerResp.ok) {
+          const ownerData = await ownerResp.json();
+          if (ownerData.settings.isOwner) { settings = ownerData.settings; notes = ownerData.notes; }
+        }
+      }
+    } catch (_) {}
 
     if (loadingEl) loadingEl.hidden = true;
 
@@ -1662,9 +1686,12 @@ async function initPublished() {
       if (logoTopEl)   logoTopEl.hidden = false;
     }
 
-    const listEl  = document.getElementById('pub-notes-list');
-    const emptyEl = document.getElementById('pub-notes-empty');
+    const listEl   = document.getElementById('pub-notes-list');
+    const emptyEl  = document.getElementById('pub-notes-empty');
     const searchEl = document.getElementById('pub-search');
+    const filterEl = document.getElementById('pub-vis-filter');
+
+    const needsAuth = vis => pubClerkToken && (vis === 'logged_in' || vis === 'me');
 
     function renderNotes(items) {
       if (!listEl) return;
@@ -1674,39 +1701,84 @@ async function initPublished() {
         const positions = n.image_positions || [];
         const heroPos = positions.length > 0 ? positions[0] : null;
         const extraPositions = positions.slice(1);
+        const vis = n.visibility || 'public';
         const card = document.createElement('a');
         card.className = 'pub-card';
         card.href = `/share/${n.share_token}`;
-        const heroHtml = heroPos !== null
-          ? `<img class="pub-card-hero" src="/api/share/${encodeURIComponent(n.share_token)}/images/${heroPos}" alt="" loading="lazy">`
+
+        const visIconHtml = settings.isOwner
+          ? `<span class="pub-card-vis" title="${VIS_LABEL[vis] || 'Public'}">${VIS_SVG[vis] || VIS_SVG.public}</span>`
           : '';
+
+        // Placeholder img elements (src set below, possibly via auth fetch)
+        const heroId    = heroPos !== null ? `pub-hero-${n.id}` : null;
+        const heroHtml  = heroPos !== null
+          ? `<img id="${heroId}" class="pub-card-hero" src="" alt="" loading="lazy">`
+          : '';
+        const thumbIds  = extraPositions.map((p, i) => `pub-thumb-${n.id}-${i}`);
         const thumbsHtml = extraPositions.length
-          ? `<div class="pub-card-thumbs">${extraPositions.map(p =>
-              `<img class="pub-card-thumb" src="/api/share/${encodeURIComponent(n.share_token)}/images/${p}" alt="" loading="lazy">`
+          ? `<div class="pub-card-thumbs">${extraPositions.map((p, i) =>
+              `<img id="${thumbIds[i]}" class="pub-card-thumb" src="" alt="" loading="lazy">`
             ).join('')}</div>`
           : '';
+
         card.innerHTML = `
           ${heroHtml}
           <div class="pub-card-body">
-            <div class="pub-card-title">${escapeHtml(n.title || 'Untitled')}</div>
+            <div class="pub-card-title-row">
+              <div class="pub-card-title">${escapeHtml(n.title || 'Untitled')}</div>
+              ${visIconHtml}
+            </div>
             <div class="pub-card-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
             <div class="pub-card-snippet">${renderMarkdown(n.summary_snippet || '')}</div>
             ${thumbsHtml}
           </div>`;
         listEl.appendChild(card);
+
+        // Populate image srcs — auth-fetch for restricted notes, direct URL for public
+        function setImgSrc(imgId, position) {
+          const img = document.getElementById(imgId);
+          if (!img) return;
+          const url = `/api/share/${encodeURIComponent(n.share_token)}/images/${position}`;
+          if (needsAuth(vis)) {
+            fetch(url, { headers: { 'Authorization': `Bearer ${pubClerkToken}` } })
+              .then(r => r.ok ? r.blob() : null)
+              .then(blob => { if (blob && img) img.src = URL.createObjectURL(blob); })
+              .catch(() => {});
+          } else {
+            img.src = url;
+          }
+        }
+        if (heroId !== null) setImgSrc(heroId, heroPos);
+        extraPositions.forEach((p, i) => setImgSrc(thumbIds[i], p));
       });
+    }
+
+    let activeVis = '';
+    function filteredNotes() {
+      const q = searchEl ? searchEl.value.trim().toLowerCase() : '';
+      return notes.filter(n =>
+        (activeVis === '' || (n.visibility || 'public') === activeVis) &&
+        (!q || (n.title || '').toLowerCase().includes(q) || (n.summary_snippet || '').toLowerCase().includes(q))
+      );
     }
 
     renderNotes(notes);
 
     if (searchEl) {
-      searchEl.addEventListener('input', () => {
-        const q = searchEl.value.trim().toLowerCase();
-        if (!q) { renderNotes(notes); return; }
-        renderNotes(notes.filter(n =>
-          (n.title || '').toLowerCase().includes(q) ||
-          (n.summary_snippet || '').toLowerCase().includes(q)
-        ));
+      searchEl.addEventListener('input', () => renderNotes(filteredNotes()));
+    }
+
+    // Visibility filter — owner only
+    if (settings.isOwner && filterEl) {
+      filterEl.hidden = false;
+      filterEl.addEventListener('click', e => {
+        const btn = e.target.closest('.pub-vis-btn');
+        if (!btn) return;
+        filterEl.querySelectorAll('.pub-vis-btn').forEach(b => b.classList.remove('pub-vis-active'));
+        btn.classList.add('pub-vis-active');
+        activeVis = btn.dataset.vis;
+        renderNotes(filteredNotes());
       });
     }
 

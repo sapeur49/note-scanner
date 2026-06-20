@@ -1198,6 +1198,45 @@ details[open] .images-toggle::before {
 .note-pub-badge:hover { opacity: 0.75; text-decoration: underline; }
 
 /* ── Published list: card grid ── */
+/* Visibility filter bar (owner-only) */
+.pub-vis-filter {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.pub-vis-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.pub-vis-btn:hover { border-color: var(--accent); color: var(--accent); }
+.pub-vis-btn.pub-vis-active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+
+/* Card title row with visibility icon */
+.pub-card-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+.pub-card-title-row .pub-card-title { margin-bottom: 0; flex: 1; }
+.pub-card-vis {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
 .pub-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
