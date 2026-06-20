@@ -50,6 +50,7 @@ app/auth/verify.py JWT verification via Clerk JWKS (PyJWT + PyJWKClient)
 manifest.json      PWA web app manifest (name, icons, theme_color, display: standalone)
 sw.js              Service worker — pass-through fetch only; no offline caching yet
 icons/             PWA icons: icon-192.png, icon-512.png (placeholder "RW" tiles; swap for real art)
+landing.html       Public marketing landing page — hero, how-it-works, before/after example, features, testimonials, CTA; self-contained CSS; served at /landing by the static file mount
 index.html         Upload UI (sign-in wall + app div + My Notes + Settings links)
 results.html       Scan results: image strip, summary, transcription, additional notes, share panel, save/update/delete/publish
 notes.html         My Notes list — search, browse, open saved notes (thumbnails + published badge)
@@ -253,6 +254,7 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 - **EXIF fields extracted**: edit `_extract_exif()` in `app/main.py`
 - **Styling**: CSS variables at top of `style.css`
 - **Markdown rendering**: edit `renderMarkdown()` in `app.js`
+- **Landing page**: edit `landing.html` directly — it is self-contained (inline CSS, no app.js/style.css dependency). Served at `/landing` and `/landing.html` by the static file mount with no explicit route needed.
 - **Share checkboxes** (title/date/images/summary/transcription/additional notes): `#share-card` in `results.html`; the `#share-btn` handler in `app.js` assembles checked sections and calls `share()`; additional notes only added to output when non-empty
 - **Publish options** (per-note): `#publish-card` in `results.html`; `getPublishOptions()`/`restorePublishOptions()` in `app.js`; stored in `notes.publish_options` JSON column. `savePublishOptions()` sends both text fields and publish_options together so title/summary edits are never lost when using publish actions.
 - **Image exclude/delete per tile**: `addImageTile()` in `app.js` — Exclude button toggles `excludedImages` Set; Delete button calls `DELETE /api/notes/{id}/files/{position}` (saved mode only)
