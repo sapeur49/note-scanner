@@ -59,6 +59,14 @@ Respond with ONLY valid JSON in this exact shape:
 app = FastAPI()
 
 
+@app.middleware("http")
+async def no_cache_html(request: Request, call_next):
+    response = await call_next(request)
+    if "text/html" in response.headers.get("content-type", ""):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 def _parse_gps(gps_ifd: dict):
     try:
         gps = {_GPSTAGS.get(k, k): v for k, v in gps_ifd.items()}
