@@ -50,7 +50,7 @@ app/auth/verify.py JWT verification via Clerk JWKS (PyJWT + PyJWKClient)
 index.html         Upload UI (sign-in wall + app div + My Notes + Settings links)
 results.html       Scan results: image strip, summary, transcription, additional notes, share panel, save/update/delete/publish
 notes.html         My Notes list — search, browse, open saved notes (thumbnails + published badge)
-share.html         Public share page — Clerk loaded async for owner detection; template/logo from owner settings; share button (all visitors) + owner visibility icon + edit button (top-right corner)
+share.html         Public share page — route is server-side rendered (OG/Twitter Card meta tags injected for social previews); Clerk loaded async for owner detection; template/logo from owner settings; share button (all visitors) + owner visibility icon + edit button (top-right corner)
 settings.html      Settings page — story list title, template, logo, published list visibility (auth'd)
 published.html     Public published notes list — /published/{list_token}; Clerk loaded async (non-blocking) for owner detection; owner sees visibility icon per card + filter bar above search
 app.js             All frontend logic — auth, thumbnails, scan POST, sessionStorage, EXIF display,
@@ -136,7 +136,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `GET /api/share/{token}` — `token` may be a UUID share token or a slug; tries UUID lookup first, then slug fallback. Returns note JSON + owner settings; checks `visibility`; adds `is_owner: true`; adds `prev_token`/`next_token` for adjacent published notes when the list is public
 - `GET /api/share/{token}/images/{position}` — serve a published note image; enforces `visibility` (no auth required for `public`)
 - `GET /api/published/{list_token}` — return published notes list + settings; 403 if `list_public != true`; accepts optional `Authorization` header — if the bearer token matches the list owner, adds `isOwner: true` to settings and includes `visibility` on each note
-- `GET /share/{token}` — serve `share.html` (no auth)
+- `GET /share/{token}` — server-side render `share.html` with OG/Twitter Card meta tags injected; public notes get real title, summary excerpt, and hero image URL; restricted/not-found notes get generic ReadWrite branding (no content leaked)
 - `GET /settings` — serve `settings.html`
 - `GET /published/{list_token}` — serve `published.html` (no auth)
 
@@ -151,6 +151,8 @@ A saved note can be published: `POST /api/notes/{id}/publish` generates a stable
 `initShare()` in `app.js` fetches `/api/share/{token}`, which now includes the owner's `template`, `logo_on`, and `list_token` (if their published list is public). Template and logo are **global** (from `user_settings`), not per-note. Per-note `publish_options` controls: `showImages`, `showSectionTitles`, `showSummary`, `showTranscription`, `showAdditional`, `imagePosition`, `includeInList`, `excludedImages` (array of positions excluded from the share page).
 
 **Image auth on share/published pages**: `<img>` tags cannot send `Authorization` headers. For notes with `visibility = logged_in` or `me`, `initShare()` and `initPublished()` pre-fetch each image via `fetch()` with `Authorization: Bearer <token>`, convert the response blob to an object URL via `URL.createObjectURL()`, and set that as `img.src`. Public notes use plain `/api/share/{token}/images/{position}` URLs directly.
+
+**OG meta tags**: `GET /share/{token}` injects Open Graph + Twitter Card meta tags server-side before returning `share.html`, so social platforms (Slack, iMessage, X) see real content without executing JS. Public notes: `og:title` = note title, `og:description` = first 160 chars of summary (markdown stripped), `og:image` = first non-excluded image at `/api/share/{token}/images/{pos}`, `twitter:card` = `summary_large_image` (or `summary` when no image). Restricted (`logged_in`/`me`) and not-found notes return generic ReadWrite branding with no image. Origin URL derived from `X-Forwarded-Proto`/`X-Forwarded-Host` headers (Railway proxy) rather than `request.base_url`.
 
 **Share button on share page**: `#sp-share-btn` in `.sp-corner-btns` is visible to all visitors. Uses `navigator.share` (native share sheet on mobile) with clipboard fallback on desktop. Wired in `initShare()` after data loads.
 
@@ -240,6 +242,7 @@ Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get
 - **Global settings** (template/logo/list title): `settings.html` + `initSettings()` in `app.js`; stored in `user_settings` table via `PUT /api/settings`
 - **Share button on share page**: `#sp-share-btn` in `share.html`; always shown (not owner-gated); wired in `initShare()` after data loads; uses `navigator.share` with clipboard fallback
 - **URL slug for published notes**: editable `#pub-slug` input in `results.html` publish panel; `savePublishOptions()` sends `slug` in PUT body; auto-filled from title client-side via `slugify()`; server deduplicates with `_make_slug()`; `restorePublishOptions()` populates from `data.slug`
+- **OG meta tags on share page**: `share_page_route` in `app/main.py`; builds meta block from DB data; use proxy headers (`x-forwarded-proto`, `x-forwarded-host`) for correct public origin; all user content HTML-escaped via `_html.escape()`
 - **Owner-only share page UI** (visibility icon + edit button): `showEditBtn()` in `app.js`; called when `data.is_owner` is true; icons defined inline in the function; container is `.sp-corner-btns` in `share.html`
 - **Published list owner features** (visibility icons on cards, filter bar): `initPublished()` in `app.js`; filter bar is `#pub-vis-filter` in `published.html` (hidden until owner confirmed); `renderNotes()` adds `.pub-card-vis` badge when `settings.isOwner`
 - **DB schema changes on `notes`**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`. New tables: just add to `metadata` — `create_all()` handles them automatically.
