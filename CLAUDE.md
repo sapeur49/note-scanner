@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=47`, `app.js?v=53`). Update all seven HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=48`, `app.js?v=54`). Update all eight HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
 
 ---
 
@@ -54,13 +54,14 @@ landing.html       Public marketing landing page — hero, how-it-works, before/
 index.html         Upload UI (sign-in wall + app div + Notebooks + My Notes + Settings links)
 results.html       Scan results: image strip, summary, transcription, additional notes, notebooks card, share panel, save/update/delete/publish
 notes.html         My Notes list — visibility filter, search, notebook filter dropdown, browse, open saved notes (thumbnails + published badge)
-notebooks.html     Notebooks management page — list notebooks, create/rename/delete, click through to filtered notes list
+notebooks.html     Notebooks management page — list notebooks, create/rename/delete, click through to filtered notes list; globe icon in header
+help.html          User help guide — icon reference table, scanning, My Notes, Notebooks, Publishing, Settings sections; accessible without auth; served at /help
 share.html         Public share page — route is server-side rendered (OG/Twitter Card meta tags injected for social previews); Clerk loaded async for owner detection; template/logo from owner settings; share button (all visitors) + owner visibility icon + edit button (top-right corner)
 settings.html      Settings page — story list title, template, logo, published list visibility (auth'd)
 published.html     Public published notes list — /published/{list_token}; Clerk loaded async (non-blocking) for owner detection; owner sees visibility icon per card + filter bar above search
 app.js             All frontend logic — auth, thumbnails, scan POST, sessionStorage, EXIF display,
                    lightbox carousel, edit, share, notes CRUD, publish/unpublish, initShare(),
-                   initSettings(), initPublished(), initNotebooks()
+                   initSettings(), initPublished(), initNotebooks(), initHelp()
 style.css          Shared styles, CSS variables, auto light/dark mode, 3 share page templates
 test.html          Browser-based QA harness
 ```
@@ -150,6 +151,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `GET /settings` — serve `settings.html`
 - `GET /published/{list_token}` — serve `published.html` (no auth)
 - `GET /notebooks` — serve `notebooks.html` (auth'd by client-side Clerk check)
+- `GET /help` — serve `help.html` (no auth required; public documentation)
 
 ---
 
@@ -269,7 +271,8 @@ Notebook functions: `list_notebooks(user_id)` — LEFT JOIN with `note_notebooks
 | Folder | My Notes navigation link | All pages with header-right |
 | House | Home navigation | share.html, published.html corner cluster |
 | Pencil on page | Edit note | Owner-only on share page |
-| Book / notebook | Notebooks navigation link | All app pages with header-right (`index.html`, `results.html`, `notes.html`, `settings.html`); also in owner nav on `published.html` |
+| Book / notebook | Notebooks navigation link | All app pages with header-right (`index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html` header); also in owner nav on `published.html` |
+| Question-mark circle | Help | Hamburger menu item on all app pages |
 
 ---
 
@@ -294,6 +297,9 @@ Notebook functions: `list_notebooks(user_id)` — LEFT JOIN with `note_notebooks
 - **My Notes notebook filter**: `#notes-notebook-filter` select in `notes.html` (below the search bar); `initNotes()` populates it from `GET /api/notebooks` on load; change triggers `loadAll()` which passes `?notebook_id=` to the server — notes are server-filtered by notebook, then client-filtered by search + visibility. Pre-selects from `?notebook` URL param so notebook links from `notebooks.html` work.
 - **Notebooks management page**: `notebooks.html` + `initNotebooks()` in `app.js`; lists notebooks with note count; inline rename; delete with confirm; "New Notebook" form; clicking a notebook info link navigates to `notes.html?notebook=<id>`.
 - **Notebooks card on results page**: `#notebooks-card` in `results.html` (hidden until note is saved); `loadNotebooksCard(noteId, initialNotebookIds)` in `app.js` — fetches notebook list, renders checkboxes, each toggle immediately calls `PUT /api/notes/{noteId}/notebooks`. Called in saved mode with `data.notebook_ids` from `GET /api/notes/{id}`; called with `[]` immediately after a fresh save. Existing notes have `notebook_ids: []` by default (no migration needed).
+- **Help page**: `help.html` served at `/help`; `initHelp()` in `app.js` loads Clerk, shows `#site-nav`, calls `initHamburger()` — no auth wall (page is informational). Hamburger on the help page links to Help (self), Settings, Sign out. Header-right: Notebooks, My Notes, Home.
+- **Hamburger menu**: Contains Help → Settings → Sign out on all app pages. Help link uses question-mark circle icon.
+- **HTML caching fix**: FastAPI middleware `no_cache_html` in `app/main.py` sets `Cache-Control: no-cache` on all `text/html` responses, preventing stale pages on mobile PWA installs where there is no visible browser refresh.
 - **Publish visibility default**: `<option value="me" selected>` in `#pub-visibility` select in `results.html`. Change the `selected` attribute to change the default.
 - **Scan prompt for visual images**: `SCAN_PROMPT` in `app/main.py` — edit the "If primarily VISUAL" branch to change how non-text images are described.
 - **DB schema changes on `notes`**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`. New tables: just add to `metadata` — `create_all()` handles them automatically.

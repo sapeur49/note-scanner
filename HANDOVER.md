@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-busters: **`style.css?v=47`**, **`app.js?v=53`** across all seven HTML files (`notebooks.html` added).
+Cache-busters: **`style.css?v=48`**, **`app.js?v=54`** across eight HTML files (`help.html` added).
 
 `landing.html` is live at `/landing` — static marketing page, no auth required, self-contained CSS.
 
@@ -19,7 +19,10 @@ Cache-busters: **`style.css?v=47`**, **`app.js?v=53`** across all seven HTML fil
 
 | # | Feature | Version | Key files |
 |---|---|---|---|
-| 0 | **Notebook categorization** — notes can belong to multiple notebooks (many-to-many). Notebooks page (`/notebooks`) lists all notebooks with note counts; create/rename/delete inline. Notebook book icon added to all app page headers. My Notes page gains a notebook filter dropdown below the search bar (server-filtered via `?notebook_id=`). Results page shows a Notebooks card after saving — checkboxes for all notebooks, toggled immediately via `PUT /api/notes/{id}/notebooks`. Existing notes default to no notebooks with no migration required (join-table design). | v47 / v53 | `notebooks.html` (new), `app/db.py` (`notebooks` + `note_notebooks` tables, 6 new functions), `app/main.py` (6 new routes), `app.js` (`initNotebooks`, `loadNotebooksCard`, `initNotes` notebook filter), `notes.html`, `results.html`, `index.html`, `settings.html`, `published.html`, `style.css` (notebook styles) |
+| 0 | **Help page + icon guide** — `/help` route serves `help.html`, a full user guide covering scanning, My Notes, notebooks, publishing, settings, and an icon reference table. Help link (question-circle icon) added as the first item in the hamburger nav-menu on all five app pages. `initHelp()` in `app.js` loads Clerk so the sign-out button works without enforcing an auth wall on the guide. | v48 / v54 | `help.html` (new), `app/main.py` (`GET /help` route), `app.js` (`initHelp`, router branch), `style.css` (`.help-*`, `.icon-legend*` classes), `index.html`, `results.html`, `notes.html`, `notebooks.html`, `settings.html` (hamburger Help link) |
+| 1 | **No-cache HTML middleware** — FastAPI `StaticFiles` and `FileResponse` apply heuristic HTTP caching to HTML without an explicit `Cache-Control` header; iOS PWA installs were serving stale HTML after deploys. One middleware added after `app = FastAPI()` sets `Cache-Control: no-cache` on all `text/html` responses. Browser still revalidates via ETags (304 when unchanged). | — | `app/main.py` (`no_cache_html` middleware) |
+| 2 | **Globe icon on Notebooks page** — `#pub-list-btn` added to `notebooks.html` header-right (hidden by default); `initNotebooks()` fetches `/api/settings` after auth to get `list_token` and reveals the button. | v48 / v54 | `notebooks.html`, `app.js` (`initNotebooks`) |
+| 3 | **Notebook categorization** — notes can belong to multiple notebooks (many-to-many). Notebooks page (`/notebooks`) lists all notebooks with note counts; create/rename/delete inline. Notebook book icon added to all app page headers. My Notes page gains a notebook filter dropdown below the search bar (server-filtered via `?notebook_id=`). Results page shows a Notebooks card after saving — checkboxes for all notebooks, toggled immediately via `PUT /api/notes/{id}/notebooks`. Existing notes default to no notebooks with no migration required (join-table design). | v47 / v53 | `notebooks.html` (new), `app/db.py` (`notebooks` + `note_notebooks` tables, 6 new functions), `app/main.py` (6 new routes), `app.js` (`initNotebooks`, `loadNotebooksCard`, `initNotes` notebook filter), `notes.html`, `results.html`, `index.html`, `settings.html`, `published.html`, `style.css` (notebook styles) |
 | 1 | **Landing page** — public marketing page at `/landing`; hero with app mockup, how-it-works steps, before/after example, 6-feature grid, testimonials, CTA. Self-contained inline CSS matching design tokens. No explicit route needed — served by the `StaticFiles` mount (`html=True`). | — | `landing.html` |
 | 1 | **Adaptive scan prompt** — non-text images (photos, objects, scenes) now get analytical description in `summary` + any visible labels in `transcription` instead of refusal | — | `app/main.py` (`SCAN_PROMPT`) |
 | 2 | **Publish visibility default → "Me only"** — new notes default to private; user must opt in to share publicly | — | `results.html` (`#pub-visibility` select) |
@@ -136,3 +139,8 @@ Sends text fields (`title`, `summary`, etc.) + `publish_options` + `visibility` 
 31. Open an old note (pre-notebook feature) → Notebooks card shows with all notebooks unchecked; can assign to notebooks.
 32. My Notes → notebook filter dropdown visible below search bar; select a notebook → list narrows to only notes in that notebook; select "All notebooks" → all notes shown.
 33. Click a notebook title on `/notebooks` → navigates to My Notes with that notebook pre-selected in the filter.
+34. All app pages: hamburger menu contains Help → Settings → Sign out (in that order).
+35. Visit `/help` without signing in → help page renders fully; no sign-in wall.
+36. `/help` icon reference table shows all icons (menu, notebooks, my notes, home, globe, unlock, person, eye, pencil, share, help) with names and descriptions.
+37. `/notebooks` header-right: globe icon appears (linked to published list) after sign-in when user has a list_token; hidden before auth or if no list_token.
+38. After a deploy, reload any page on the iOS PWA → browser revalidates HTML; no stale cached version served. Network tab shows `Cache-Control: no-cache` on HTML responses.
