@@ -134,6 +134,18 @@ function resizeImage(file, maxPx, quality) {
 
 /* ── Index page logic ── */
 
+function initHamburger() {
+  const btn  = document.getElementById('hamburger-btn');
+  const menu = document.getElementById('nav-menu');
+  if (!btn || !menu) return;
+  btn.addEventListener('click', e => { e.stopPropagation(); menu.hidden = !menu.hidden; });
+  document.addEventListener('click', () => { menu.hidden = true; });
+  document.getElementById('btn-signout')?.addEventListener('click', async () => {
+    try { await window.Clerk.signOut(); } catch (_) {}
+    window.location.href = 'index.html';
+  });
+}
+
 async function initIndex() {
   await waitForClerk();
   await window.Clerk.load();
@@ -141,12 +153,13 @@ async function initIndex() {
   const signInWall = document.getElementById('sign-in-wall');
   const appEl      = document.getElementById('app');
 
+  let hamburgerInited = false;
   function showApp() {
     signInWall.hidden = true;
     appEl.hidden = false;
-    const email = window.Clerk.user?.primaryEmailAddress?.emailAddress || '';
-    const emailEl = document.getElementById('user-email');
-    if (emailEl) emailEl.textContent = email;
+    const siteNav = document.getElementById('site-nav');
+    if (siteNav) siteNav.hidden = false;
+    if (!hamburgerInited) { initHamburger(); hamburgerInited = true; }
   }
 
   function showSignIn() {
@@ -166,11 +179,6 @@ async function initIndex() {
   } else {
     showSignIn();
   }
-
-  document.getElementById('btn-signout')?.addEventListener('click', async () => {
-    await window.Clerk.signOut();
-    // addListener above handles the UI transition
-  });
 
   const dropZone = document.getElementById('drop-zone');
   const fileInput = document.getElementById('file-input');
@@ -326,6 +334,8 @@ async function initResults() {
     await waitForClerk();
     await window.Clerk.load();
   }
+
+  initHamburger();
 
   setMd(document.getElementById('summary-text'), data.summary || '');
   setMd(document.getElementById('transcription-text'), data.transcription || '');
@@ -1155,6 +1165,8 @@ async function initNotes() {
   signInWall.hidden = true;
   notesApp.hidden = false;
 
+  initHamburger();
+
   const listEl   = document.getElementById('notes-list');
   const emptyEl  = document.getElementById('notes-empty');
   const searchEl = document.getElementById('notes-search');
@@ -1174,36 +1186,29 @@ async function initNotes() {
     notes.forEach(n => {
       const hasThumb = n.first_image_position !== null && n.first_image_position !== undefined;
 
-      const wrapper = document.createElement('div');
-      wrapper.className = 'note-row-wrapper';
-
-      const row = document.createElement('a');
-      row.className = 'note-row';
-      row.href = `results.html?id=${encodeURIComponent(n.id)}`;
-      row.innerHTML = `
-        <div class="note-row-inner">
-          ${hasThumb ? '<img class="note-row-thumb" alt="">' : ''}
-          <div class="note-row-body">
-            <div class="note-row-title">${escapeHtml(n.title || 'Untitled')}</div>
-            <div class="note-row-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
-            <div class="note-row-snippet">${escapeHtml(n.summary_snippet || '')}</div>
-          </div>
-        </div>`;
-      wrapper.appendChild(row);
-
-      if (n.share_token) {
-        const badge = document.createElement('a');
-        badge.className = 'note-pub-badge';
-        badge.href = `/share/${n.share_token}`;
-        badge.textContent = '↗ Published page';
-        wrapper.appendChild(badge);
-      }
-
-      listEl.appendChild(wrapper);
+      const card = document.createElement('a');
+      card.className = 'pub-card';
+      card.href = `results.html?id=${encodeURIComponent(n.id)}`;
 
       if (hasThumb) {
-        const imgEl = row.querySelector('.note-row-thumb');
-        loadNoteThumbnail(imgEl, n.id, n.first_image_position, token);
+        const hero = document.createElement('img');
+        hero.className = 'pub-card-hero';
+        hero.alt = '';
+        card.appendChild(hero);
+      }
+
+      const body = document.createElement('div');
+      body.className = 'pub-card-body';
+      body.innerHTML = `
+        <div class="pub-card-title">${escapeHtml(n.title || 'Untitled')}</div>
+        <div class="pub-card-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
+        <div class="pub-card-snippet">${escapeHtml(n.summary_snippet || '')}</div>
+      `;
+      card.appendChild(body);
+      listEl.appendChild(card);
+
+      if (hasThumb) {
+        loadNoteThumbnail(card.querySelector('.pub-card-hero'), n.id, n.first_image_position, token);
       }
     });
   }
@@ -1577,12 +1582,16 @@ async function initShare() {
     }
     if (data.is_owner) {
       showEditBtn(data.id);
+      const homeBtn = document.getElementById('sp-home-btn');
+      if (homeBtn) homeBtn.hidden = false;
     } else {
       (async () => {
         try {
           await waitForClerk();
           await window.Clerk.load();
           if (!window.Clerk.user) return;
+          const homeBtn = document.getElementById('sp-home-btn');
+          if (homeBtn) homeBtn.hidden = false;
           const clerkTok = await window.Clerk.session.getToken();
           const ownerResp = await fetchShareData(`Bearer ${clerkTok}`);
           if (!ownerResp.ok) return;
@@ -1614,6 +1623,8 @@ async function initSettings() {
   }
   if (signInWall) signInWall.hidden = true;
   if (settingsApp) settingsApp.hidden = false;
+
+  initHamburger();
 
   const token = await getToken();
   const statusEl = document.getElementById('settings-status');
@@ -1718,6 +1729,8 @@ async function initPublished() {
       await waitForClerk();
       await window.Clerk.load();
       if (window.Clerk.user) {
+        const homeBtn = document.getElementById('sp-home-btn');
+        if (homeBtn) homeBtn.hidden = false;
         pubClerkToken = await window.Clerk.session.getToken();
         const ownerResp = await fetch(`/api/published/${encodeURIComponent(listToken)}`, {
           headers: { 'Authorization': `Bearer ${pubClerkToken}` },

@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-busters: **`style.css?v=40`**, **`app.js?v=43`** across all six HTML files.
+Cache-busters: **`style.css?v=41`**, **`app.js?v=44`** across all six HTML files.
 
 ---
 
@@ -17,7 +17,8 @@ Cache-busters: **`style.css?v=40`**, **`app.js?v=43`** across all six HTML files
 
 | # | Feature | Version | Key files |
 |---|---|---|---|
-| 1 | **PWA support** — installable on Android (install banner) and iOS (Add to Home Screen, standalone display, no browser chrome). Minimal pass-through service worker; no offline caching yet | v43 | `manifest.json`, `sw.js`, `icons/icon-192.png`, `icons/icon-512.png`, `app.js` (service worker registration), all six HTML files (manifest link + theme-color) |
+| 1 | **UI polish** — hamburger nav (My Notes / Settings / Sign out) top-left on all app pages; My Notes page switched to card-grid layout matching published list; home icon top-right on app pages, fixed corner on share/published for logged-in users; tagline removed; "Import images and files" / "Scan Files" copy; instructions hint text removed | v44 / v41 | `index.html`, `notes.html`, `results.html`, `settings.html`, `share.html`, `published.html`, `app.js` (`initHamburger`, `initNotes` card rendering), `style.css` (`.app-header`, `#site-nav`, `.hamburger-btn`, `.nav-menu`, `.home-btn`, `.sp-home-btn`) |
+| 2 | **PWA support** — installable on Android (install banner) and iOS (Add to Home Screen, standalone display, no browser chrome). Minimal pass-through service worker; no offline caching yet | v43 | `manifest.json`, `sw.js`, `icons/icon-192.png`, `icons/icon-512.png`, `app.js` (service worker registration), all six HTML files (manifest link + theme-color) |
 | 2 | **OG link previews** — share page now server-side renders OG + Twitter Card meta tags. Public notes: real title, summary excerpt, hero image (`summary_large_image`). Restricted/not-found notes: generic "ReadWrite" / "Sign in" branding, no image | — | `app/main.py` (`share_page_route`) |
 | 3 | **Fix: OG image URL in Railway proxy** — `request.base_url` returned internal host; fixed by reading `X-Forwarded-Proto`/`X-Forwarded-Host` headers to build correct public HTTPS origin | — | `app/main.py` (`share_page_route`) |
 | 4 | **Share button on share page** — upload/share icon in top-right `.sp-corner-btns`, visible to all visitors. Triggers native device share sheet (`navigator.share`) on mobile; clipboard copy with "Copied!" feedback on desktop | v42 | `share.html` (`#sp-share-btn`), `app.js` (`initShare`), `style.css` (`.sp-share-btn`) |

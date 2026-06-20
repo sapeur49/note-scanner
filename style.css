@@ -1761,3 +1761,114 @@ body[data-template="magazine"] .sp-footer {
   line-height: 1.7;
   border-left: 1px solid var(--border);
 }
+
+/* ── App header (three-zone: hamburger | logo | home) ── */
+
+.app-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 32px;
+  min-height: 48px;
+}
+
+/* ── Hamburger nav ── */
+
+#site-nav {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.hamburger-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text);
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.hamburger-btn:hover { background: var(--surface); }
+
+.nav-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 200;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.nav-menu-item {
+  padding: 11px 16px;
+  text-decoration: none;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: background 0.1s;
+}
+.nav-menu-item:hover { background: var(--accent-light); color: var(--accent); }
+
+.nav-signout {
+  border-top: 1px solid var(--border);
+  color: var(--error);
+}
+.nav-signout:hover { background: #fff1f1; color: var(--error); }
+@media (prefers-color-scheme: dark) {
+  .nav-signout:hover { background: #3d1515; }
+}
+
+/* ── Home button (inside .app-header) ── */
+
+.home-btn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  padding: 6px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: background 0.15s, color 0.15s;
+}
+.home-btn:hover { color: var(--accent); background: var(--accent-light); }
+
+/* ── Home button on share/published pages (fixed corner) ── */
+
+.sp-home-btn {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 150;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  box-shadow: var(--shadow);
+  transition: color 0.15s, background 0.15s;
+}
+.sp-home-btn:hover { color: var(--accent); background: var(--accent-light); }
