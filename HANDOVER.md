@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-busters: **`style.css?v=44`**, **`app.js?v=47`** across all six HTML files.
+Cache-busters: **`style.css?v=45`**, **`app.js?v=48`** across all six HTML files.
 
 ---
 
