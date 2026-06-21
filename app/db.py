@@ -596,6 +596,16 @@ def get_notebook_by_slug(user_id: str, slug: str):
     return dict(row) if row else None
 
 
+def get_notebook_by_global_slug(slug: str):
+    """Look up a notebook by slug globally (any user). Returns {id, title, slug, user_id} or None."""
+    stmt = select(
+        notebooks.c.id, notebooks.c.title, notebooks.c.slug, notebooks.c.user_id
+    ).where(notebooks.c.slug == slug).limit(1)
+    with engine.connect() as conn:
+        row = conn.execute(stmt).mappings().first()
+    return dict(row) if row else None
+
+
 # ── Notebooks ─────────────────────────────────────────────────────────────────
 
 def get_note_notebook_ids(note_id: str) -> list:

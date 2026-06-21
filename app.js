@@ -2207,7 +2207,7 @@ async function initPublished() {
       );
     }
 
-    renderNotes(notes);
+    renderNotes(filteredNotes());
 
     if (searchEl) {
       searchEl.addEventListener('input', () => renderNotes(filteredNotes()));
@@ -2218,15 +2218,13 @@ async function initPublished() {
         activeNotebook = nbFiltEl.value;
         const selectedNb = pubNotebooks.find(nb => nb.id === activeNotebook);
         if (selectedNb && selectedNb.slug) {
-          const newTitle = selectedNb.title;
-          if (titleEl) titleEl.textContent = newTitle;
-          document.title = newTitle + ' — ReadWrite';
-          const newUrl = `${location.pathname}?nb=${encodeURIComponent(selectedNb.slug)}`;
-          history.replaceState(null, '', newUrl);
+          if (titleEl) titleEl.textContent = selectedNb.title;
+          document.title = selectedNb.title + ' — ReadWrite';
+          history.replaceState(null, '', `/published/${encodeURIComponent(selectedNb.slug)}`);
         } else if (!activeNotebook) {
           if (titleEl) titleEl.textContent = settings.storyListTitle || 'Published Notes';
           document.title = (settings.storyListTitle || 'Published Notes') + ' — ReadWrite';
-          history.replaceState(null, '', location.pathname);
+          history.replaceState(null, '', `/published/${encodeURIComponent(listToken)}`);
         }
         renderNotes(filteredNotes());
       });
@@ -2421,13 +2419,13 @@ async function initNotebooks() {
       slugRow.innerHTML = '';
       if (!nb.slug) return;
 
-      const slugUrl = `${location.origin}/published/${window._pubListToken}?nb=${encodeURIComponent(nb.slug)}`;
+      const slugUrl = `${location.origin}/published/${encodeURIComponent(nb.slug)}`;
 
       const slugLink = document.createElement('a');
       slugLink.href = slugUrl;
       slugLink.className = 'nb-slug-link';
       slugLink.target = '_blank';
-      slugLink.textContent = `?nb=${nb.slug}`;
+      slugLink.textContent = `/published/${nb.slug}`;
       slugLink.title = slugUrl;
 
       const slugInput = document.createElement('input');
@@ -2466,11 +2464,10 @@ async function initNotebooks() {
             const updated = await resp.json();
             nb.slug = updated.slug;
             slugInput.value = nb.slug;
-            const newUrl = `${location.origin}/published/${window._pubListToken}?nb=${encodeURIComponent(nb.slug)}`;
+            const newUrl = `${location.origin}/published/${encodeURIComponent(nb.slug)}`;
             slugLink.href = newUrl;
-            slugLink.textContent = `?nb=${nb.slug}`;
+            slugLink.textContent = `/published/${nb.slug}`;
             slugLink.title = newUrl;
-            copyBtn.title = 'Copy link'; // reset tooltip
           } catch (_) {}
         }, 800);
       });

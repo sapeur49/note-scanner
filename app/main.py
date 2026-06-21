@@ -368,13 +368,24 @@ def update_settings_route(payload: dict = Body(...), _user: dict = Depends(requi
     return db.upsert_settings(_user["sub"], payload)
 
 
-@app.get("/api/published/{list_token}")
-def get_published_list(list_token: str, nb: str = "", authorization: str = Header(default="")):
-    settings = db.get_settings_by_list_token(list_token)
+@app.get("/api/published/{identifier}")
+def get_published_list(identifier: str, nb: str = "", authorization: str = Header(default="")):
+    # Try as list_token UUID first; if not found, try as a notebook slug globally
+    active_notebook = None
+    settings = db.get_settings_by_list_token(identifier)
     if not settings:
-        raise HTTPException(status_code=404, detail="Not found")
-    if settings.get("list_public") != "true":
-        raise HTTPException(status_code=403, detail="This list is private")
+        # Try global notebook slug lookup
+        nb_row = db.get_notebook_by_global_slug(identifier)
+        if not nb_row:
+            raise HTTPException(status_code=404, detail="Not found")
+        settings = db.get_settings(nb_row["user_id"])
+        if not settings or settings.get("list_public") != "true":
+            raise HTTPException(status_code=404, detail="Not found")
+        active_notebook = {"id": nb_row["id"], "title": nb_row["title"], "slug": nb_row["slug"]}
+    else:
+        if settings.get("list_public") != "true":
+            raise HTTPException(status_code=403, detail="This list is private")
+
     is_owner = False
     is_authenticated = False
     if authorization.startswith("Bearer "):
@@ -384,21 +395,28 @@ def get_published_list(list_token: str, nb: str = "", authorization: str = Heade
             is_authenticated = True
         except Exception:
             pass
+
     notes_list = db.list_published_notes(settings["user_id"])
     if not is_owner:
         allowed = {"public", "logged_in"} if is_authenticated else {"public"}
         notes_list = [n for n in notes_list if (n.get("visibility") or "public") in allowed]
-    pub_notebooks = db.list_published_notebooks(settings["user_id"])
-    # Resolve optional notebook slug filter
-    active_notebook = None
-    if nb:
+
+    # Resolve optional ?nb= slug filter (when using UUID list_token URL)
+    if nb and not active_notebook:
         active_notebook = db.get_notebook_by_slug(settings["user_id"], nb)
+
+    # Server-side filter notes to notebook when active_notebook is set
+    if active_notebook:
+        nb_id = active_notebook["id"]
+        notes_list = [n for n in notes_list if nb_id in (n.get("notebook_ids") or [])]
+
+    pub_notebooks = db.list_published_notebooks(settings["user_id"])
     return {
         "settings": {
             "storyListTitle": settings.get("story_list_title") or "",
             "template": settings.get("template") or "minimal",
             "logoOn": settings.get("logo_on") == "true",
-            "listToken": list_token,
+            "listToken": settings.get("list_token") or identifier,
             "isOwner": is_owner,
             "showNotebookFilter": settings.get("show_notebook_filter") == "true",
         },
