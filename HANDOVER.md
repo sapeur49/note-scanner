@@ -7,7 +7,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 ## Where we are
 
-Branch **`claude/readwrite-five-changes-qbrsqy`** has five changes ready to merge. Not yet on main.
+Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
 Cache-busters: **`style.css?v=56`**, **`app.js?v=67`** across nine HTML files (relative paths: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html`; absolute paths `/style.css?vN`, `/app.js?vN`: `share.html`, `published.html`). `landing.html` uses self-contained inline CSS — no version bump needed.
 
@@ -177,3 +177,8 @@ Sends text fields (`title`, `summary`, etc.) + `publish_options` + `visibility` 
 52. Navigate to `/published/{list_token}?nb={slug}` → page `<h1>` and browser tab title show the notebook's title, not the user's global story list title; notes list is filtered to that notebook.
 53. On the published list page, change the notebook dropdown to a different notebook → page title and URL (`?nb=`) update live without a full page reload; change to "All" → title reverts to global story list title and `?nb=` param removed from URL.
 54. Edit a note's scan date to an older value → after save, note moves down in the published list when refreshed; edit to a newer date → note moves up.
+55. Visit the home page signed out for the first time (no `rw_seen_welcome` in localStorage) → welcome screen card shown ("Welcome to ReadWrite", body text, "Get Started" button); sign-in widget NOT shown yet. Click "Get Started" → welcome screen hides, sign-in widget appears. On subsequent signed-out visits → welcome screen skipped, sign-in widget shown directly.
+56. Sign in as `opti66@gmail.com` → Settings Advanced card shows "Daily scan limits" section with two number inputs (Per-user and Global). Change values → Save Advanced Settings → values persist on next page load. As another user, the Advanced card is hidden entirely (scan limits not visible or editable).
+57. `/notebooks` → enable public URL on a notebook (click grey chain-link → URL row appears). URL row shows the link, editable slug input, and copy button. An edit pen icon is visible to the right of the copy button. Click the edit pen → slug input gains focus and is fully selected (ready to type).
+58. `/help` → Scan Limits section (or any place referencing the published list feed) reads "Your published notes feed" (not "Your public published notes feed").
+59. `settings.html` hamburger menu contains exactly Help → Settings → Sign out (no Home, My Notes, Notebooks, or Published list items above a divider).
