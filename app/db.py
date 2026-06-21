@@ -652,15 +652,18 @@ def list_notebooks(user_id: str) -> list:
 def create_notebook(user_id: str, title: str) -> dict:
     nb_id = str(uuid.uuid4())
     now = _utcnow()
-    slug = _make_notebook_slug(_slugify(title) or "notebook", user_id)
     with engine.begin() as conn:
-        conn.execute(insert(notebooks).values(id=nb_id, user_id=user_id, title=title, created_at=now, slug=slug))
-    return {"id": nb_id, "title": title, "note_count": 0, "slug": slug, "is_system": False}
+        conn.execute(insert(notebooks).values(id=nb_id, user_id=user_id, title=title, created_at=now, slug=None))
+    return {"id": nb_id, "title": title, "note_count": 0, "slug": None, "is_system": False}
 
 
-def update_notebook(user_id: str, notebook_id: str, title: str, slug: str = None) -> bool:
+def update_notebook(user_id: str, notebook_id: str, title: str, slug=None) -> bool:
+    """slug=None → auto-derive from title. slug="" → clear slug to NULL. slug=str → use that slug."""
     values: dict = {"title": title}
-    if slug is not None:
+    if slug == "":
+        # Explicitly clearing the public URL
+        values["slug"] = None
+    elif slug is not None:
         # User-supplied slug — slugify and deduplicate
         values["slug"] = _make_notebook_slug(_slugify(slug) or "notebook", user_id, exclude_nb_id=notebook_id)
     else:

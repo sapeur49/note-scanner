@@ -2345,6 +2345,51 @@ async function initNotebooks() {
       });
       actions.appendChild(addBtn);
 
+      // Globe toggle — enables / disables public URL for this notebook
+      if (window._pubListToken) {
+        const globeBtn = document.createElement('button');
+        globeBtn.className = nb.slug ? 'btn-outline btn-sm btn-icon-sm nb-globe-active' : 'btn-outline btn-sm btn-icon-sm';
+        globeBtn.title = nb.slug ? 'Public URL enabled — click to disable' : 'Enable public URL for this notebook';
+        globeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
+        globeBtn.addEventListener('click', async e => {
+          e.preventDefault();
+          if (nb.slug) {
+            if (!confirm(`Remove public URL for "${nb.title}"? The link will stop working.`)) return;
+            globeBtn.disabled = true;
+            try {
+              const resp = await fetch(`/api/notebooks/${nb.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', ...headers },
+                body: JSON.stringify({ title: nb.title, slug: '' }),
+              });
+              if (!resp.ok) throw new Error();
+              const updated = await resp.json();
+              nb.slug = updated.slug || null;
+              renderSlugRow();
+              globeBtn.className = 'btn-outline btn-sm btn-icon-sm';
+              globeBtn.title = 'Enable public URL for this notebook';
+            } catch (_) { globeBtn.disabled = false; }
+          } else {
+            globeBtn.disabled = true;
+            try {
+              const resp = await fetch(`/api/notebooks/${nb.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', ...headers },
+                body: JSON.stringify({ title: nb.title }),
+              });
+              if (!resp.ok) throw new Error();
+              const updated = await resp.json();
+              nb.slug = updated.slug || null;
+              renderSlugRow();
+              globeBtn.className = 'btn-outline btn-sm btn-icon-sm nb-globe-active';
+              globeBtn.title = 'Public URL enabled — click to disable';
+            } catch (_) {}
+            globeBtn.disabled = false;
+          }
+        });
+        actions.appendChild(globeBtn);
+      }
+
       const delBtn = document.createElement('button');
       delBtn.className = 'btn-danger btn-sm btn-icon-sm';
       delBtn.title = 'Delete notebook';
@@ -2367,56 +2412,50 @@ async function initNotebooks() {
 
     card.appendChild(mainRow);
 
-    // Slug URL row for user notebooks (requires list_token to be known)
-    if (!nb.is_system && nb.slug && window._pubListToken) {
-      const slugRow = document.createElement('div');
-      slugRow.className = 'nb-slug-row';
+    // Slug URL row — shown when notebook has a slug and list_token is known
+    const slugRow = document.createElement('div');
+    slugRow.className = 'nb-slug-row';
+    if (!nb.is_system && window._pubListToken) card.appendChild(slugRow);
+
+    function renderSlugRow() {
+      slugRow.innerHTML = '';
+      if (!nb.slug) return;
 
       const slugUrl = `${location.origin}/published/${window._pubListToken}?nb=${encodeURIComponent(nb.slug)}`;
+
       const slugLink = document.createElement('a');
       slugLink.href = slugUrl;
       slugLink.className = 'nb-slug-link';
       slugLink.target = '_blank';
-      slugLink.textContent = `/published/${window._pubListToken}?nb=${nb.slug}`;
+      slugLink.textContent = `?nb=${nb.slug}`;
+      slugLink.title = slugUrl;
+
+      const slugInput = document.createElement('input');
+      slugInput.type = 'text';
+      slugInput.value = nb.slug;
+      slugInput.className = 'nb-slug-input';
+      slugInput.maxLength = 120;
+      slugInput.title = 'Edit URL slug';
 
       const copyBtn = document.createElement('button');
-      copyBtn.className = 'btn-outline btn-sm';
+      copyBtn.className = 'btn-outline btn-sm btn-icon-sm';
       copyBtn.title = 'Copy link';
       copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
       copyBtn.addEventListener('click', e => {
         e.preventDefault();
         navigator.clipboard.writeText(slugUrl).then(() => {
-          copyBtn.textContent = 'Copied!';
-          setTimeout(() => { copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`; }, 1500);
+          const orig = copyBtn.innerHTML;
+          copyBtn.textContent = '✓';
+          setTimeout(() => { copyBtn.innerHTML = orig; }, 1500);
         });
       });
 
-      const editSlugBtn = document.createElement('button');
-      editSlugBtn.className = 'btn-outline btn-sm';
-      editSlugBtn.title = 'Edit URL slug';
-      editSlugBtn.textContent = 'Edit slug';
-
-      editSlugBtn.addEventListener('click', e => {
-        e.preventDefault();
-        const slugInput = document.createElement('input');
-        slugInput.type = 'text';
-        slugInput.value = nb.slug;
-        slugInput.className = 'new-notebook-input nb-inline-input';
-        slugInput.maxLength = 120;
-        const saveSlugBtn = document.createElement('button');
-        saveSlugBtn.className = 'btn-save btn-sm';
-        saveSlugBtn.textContent = 'Save';
-        const cancelSlugBtn = document.createElement('button');
-        cancelSlugBtn.className = 'btn-outline btn-sm';
-        cancelSlugBtn.textContent = 'Cancel';
-        slugRow.innerHTML = '';
-        slugRow.append(slugInput, saveSlugBtn, cancelSlugBtn);
-        slugInput.focus();
-
-        async function doSaveSlug() {
+      let slugSaveTimer = null;
+      slugInput.addEventListener('input', () => {
+        clearTimeout(slugSaveTimer);
+        slugSaveTimer = setTimeout(async () => {
           const newSlug = slugInput.value.trim();
-          if (!newSlug) return;
-          saveSlugBtn.disabled = true;
+          if (!newSlug || newSlug === nb.slug) return;
           try {
             const resp = await fetch(`/api/notebooks/${nb.id}`, {
               method: 'PUT',
@@ -2426,25 +2465,20 @@ async function initNotebooks() {
             if (!resp.ok) throw new Error();
             const updated = await resp.json();
             nb.slug = updated.slug;
-            // Re-render slug row
-            slugRow.innerHTML = '';
+            slugInput.value = nb.slug;
             const newUrl = `${location.origin}/published/${window._pubListToken}?nb=${encodeURIComponent(nb.slug)}`;
             slugLink.href = newUrl;
-            slugLink.textContent = `/published/${window._pubListToken}?nb=${nb.slug}`;
-            slugRow.append(slugLink, copyBtn, editSlugBtn);
-          } catch (_) { saveSlugBtn.disabled = false; }
-        }
-        saveSlugBtn.addEventListener('click', doSaveSlug);
-        slugInput.addEventListener('keydown', e2 => { if (e2.key === 'Enter') doSaveSlug(); else if (e2.key === 'Escape') cancelSlugBtn.click(); });
-        cancelSlugBtn.addEventListener('click', () => {
-          slugRow.innerHTML = '';
-          slugRow.append(slugLink, copyBtn, editSlugBtn);
-        });
+            slugLink.textContent = `?nb=${nb.slug}`;
+            slugLink.title = newUrl;
+            copyBtn.title = 'Copy link'; // reset tooltip
+          } catch (_) {}
+        }, 800);
       });
 
-      slugRow.append(slugLink, copyBtn, editSlugBtn);
-      card.appendChild(slugRow);
+      slugRow.append(slugLink, slugInput, copyBtn);
     }
+
+    renderSlugRow();
 
     return card;
   }

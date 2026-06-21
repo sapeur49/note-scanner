@@ -2094,24 +2094,35 @@ body[data-template="magazine"] .sp-footer {
   flex: 1;
   min-width: 120px;
 }
+.nb-globe-active { border-color: var(--accent) !important; color: var(--accent) !important; }
 .nb-slug-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px 8px;
-  flex-wrap: wrap;
+  padding: 4px 14px 10px;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
+.nb-slug-row:empty { display: none; }
 .nb-slug-link {
   font-size: 0.78rem;
   color: var(--muted);
   text-decoration: none;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
-  min-width: 0;
+  flex-shrink: 0;
 }
 .nb-slug-link:hover { color: var(--accent); text-decoration: underline; }
+.nb-slug-input {
+  flex: 1;
+  min-width: 60px;
+  font-size: 0.78rem;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-family: monospace;
+}
 .nb-notes-panel {
   border-top: 1px solid var(--border);
   padding: 12px 14px;
