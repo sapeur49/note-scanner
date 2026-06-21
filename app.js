@@ -866,7 +866,7 @@ async function initResults() {
       });
     }
     const visEl = document.getElementById('pub-visibility');
-    if (visEl) visEl.value = visibility || 'public';
+    if (visEl && visibility) visEl.value = visibility;
     const slugInput = document.getElementById('pub-slug');
     if (slugInput && slug) slugInput.value = slug;
   }
