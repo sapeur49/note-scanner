@@ -265,8 +265,24 @@ def list_notes(user_id: str, q: str = "", notebook_id: str = "") -> list:
                 "share_token": r["share_token"] if r.get("is_published") else None,
                 "visibility": r["visibility"] or "public",
                 "first_image_position": first_image["position"] if first_image else None,
+                "notebook_ids": [],
             }
         )
+
+    # Attach notebook memberships in one batch query
+    if out:
+        note_ids = [n["id"] for n in out]
+        nn_stmt = select(note_notebooks.c.note_id, note_notebooks.c.notebook_id).where(
+            note_notebooks.c.note_id.in_(note_ids)
+        )
+        with engine.connect() as conn2:
+            nn_rows = conn2.execute(nn_stmt).fetchall()
+        note_nb_map: dict = {}
+        for note_id, notebook_id in nn_rows:
+            note_nb_map.setdefault(note_id, []).append(notebook_id)
+        for n in out:
+            n["notebook_ids"] = note_nb_map.get(n["id"], [])
+
     return out
 
 

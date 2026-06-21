@@ -2104,6 +2104,8 @@ async function initNotebooks() {
 
   let notebooks = [];
 
+  let allNotes = null; // lazy-loaded on first panel open
+
   function renderNotebooks() {
     listEl.innerHTML = '';
     emptyEl.hidden = notebooks.length > 0;
@@ -2111,25 +2113,44 @@ async function initNotebooks() {
       const card = document.createElement('div');
       card.className = 'nb-card';
 
+      // Main row
+      const mainRow = document.createElement('div');
+      mainRow.className = 'nb-card-main';
+
       const info = document.createElement('a');
       info.href = `notes.html?notebook=${encodeURIComponent(nb.id)}`;
       info.className = 'nb-card-info';
-      info.innerHTML = `<span class="nb-card-title">${escapeHtml(nb.title)}</span><span class="nb-card-count">${nb.note_count} note${nb.note_count !== 1 ? 's' : ''}</span>`;
-      card.appendChild(info);
+      const countEl = document.createElement('span');
+      countEl.className = 'nb-card-count';
+      countEl.textContent = `${nb.note_count} note${nb.note_count !== 1 ? 's' : ''}`;
+      info.innerHTML = `<span class="nb-card-title">${escapeHtml(nb.title)}</span>`;
+      info.appendChild(countEl);
+      mainRow.appendChild(info);
 
       const actions = document.createElement('div');
       actions.className = 'nb-card-actions';
 
-      // Edit button
+      // Rename button
       const editBtn = document.createElement('button');
       editBtn.className = 'btn-outline btn-sm btn-icon-sm';
       editBtn.title = 'Rename';
       editBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
       editBtn.addEventListener('click', e => {
         e.preventDefault();
-        startEditNotebook(nb, card, info, editBtn);
+        startEditNotebook(nb, mainRow, info, editBtn);
       });
       actions.appendChild(editBtn);
+
+      // Add notes button
+      const addBtn = document.createElement('button');
+      addBtn.className = 'btn-outline btn-sm btn-icon-sm';
+      addBtn.title = 'Add / remove notes';
+      addBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`;
+      addBtn.addEventListener('click', e => {
+        e.preventDefault();
+        toggleNotesPanel(nb, card, countEl, addBtn);
+      });
+      actions.appendChild(addBtn);
 
       // Delete button
       const delBtn = document.createElement('button');
@@ -2149,12 +2170,13 @@ async function initNotebooks() {
       });
       actions.appendChild(delBtn);
 
-      card.appendChild(actions);
+      mainRow.appendChild(actions);
+      card.appendChild(mainRow);
       listEl.appendChild(card);
     });
   }
 
-  function startEditNotebook(nb, card, infoEl, editBtn) {
+  function startEditNotebook(nb, mainRow, infoEl, editBtn) {
     const input = document.createElement('input');
     input.type = 'text';
     input.value = nb.title;
@@ -2175,7 +2197,7 @@ async function initNotebooks() {
 
     infoEl.hidden = true;
     editBtn.hidden = true;
-    card.insertBefore(editRow, card.querySelector('.nb-card-actions'));
+    mainRow.insertBefore(editRow, mainRow.querySelector('.nb-card-actions'));
     input.focus();
 
     async function doSave() {
@@ -2204,6 +2226,101 @@ async function initNotebooks() {
       infoEl.hidden = false;
       editBtn.hidden = false;
     });
+  }
+
+  async function toggleNotesPanel(nb, card, countEl, toggleBtn) {
+    // Toggle off if already open
+    const existing = card.querySelector('.nb-notes-panel');
+    if (existing) {
+      existing.remove();
+      toggleBtn.classList.remove('nb-btn-active');
+      return;
+    }
+
+    toggleBtn.disabled = true;
+
+    // Lazy-load all notes once
+    if (!allNotes) {
+      try {
+        const resp = await fetch('/api/notes', { headers });
+        allNotes = resp.ok ? await resp.json() : [];
+      } catch (_) { allNotes = []; }
+    }
+
+    toggleBtn.disabled = false;
+    toggleBtn.classList.add('nb-btn-active');
+
+    const panel = document.createElement('div');
+    panel.className = 'nb-notes-panel';
+
+    const searchInput = document.createElement('input');
+    searchInput.type = 'search';
+    searchInput.placeholder = 'Search notes…';
+    searchInput.className = 'nb-notes-search';
+    panel.appendChild(searchInput);
+
+    const checklistEl = document.createElement('div');
+    checklistEl.className = 'nb-notes-checklist';
+    panel.appendChild(checklistEl);
+
+    function renderChecklist(q = '') {
+      checklistEl.innerHTML = '';
+      const lower = q.toLowerCase();
+      const visible = allNotes.filter(n => !lower || (n.title || '').toLowerCase().includes(lower));
+      if (!visible.length) {
+        const empty = document.createElement('div');
+        empty.className = 'nb-notes-empty-msg';
+        empty.textContent = q ? 'No notes match.' : 'No notes yet.';
+        checklistEl.appendChild(empty);
+        return;
+      }
+      // Show notes in this notebook first
+      const inNb  = visible.filter(n => (n.notebook_ids || []).includes(nb.id));
+      const outNb = visible.filter(n => !(n.notebook_ids || []).includes(nb.id));
+      [...inNb, ...outNb].forEach(n => {
+        const label = document.createElement('label');
+        label.className = 'nb-picker-item';
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = (n.notebook_ids || []).includes(nb.id);
+
+        cb.addEventListener('change', async () => {
+          cb.disabled = true;
+          const currentIds = [...(n.notebook_ids || [])];
+          const newIds = cb.checked
+            ? (currentIds.includes(nb.id) ? currentIds : [...currentIds, nb.id])
+            : currentIds.filter(id => id !== nb.id);
+          try {
+            const resp = await fetch(`/api/notes/${n.id}/notebooks`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', ...headers },
+              body: JSON.stringify({ notebook_ids: newIds }),
+            });
+            if (resp.ok) {
+              n.notebook_ids = newIds;
+              nb.note_count = allNotes.filter(note => (note.notebook_ids || []).includes(nb.id)).length;
+              countEl.textContent = `${nb.note_count} note${nb.note_count !== 1 ? 's' : ''}`;
+            } else {
+              cb.checked = !cb.checked;
+            }
+          } catch (_) { cb.checked = !cb.checked; }
+          cb.disabled = false;
+        });
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = n.title || 'Untitled';
+
+        label.appendChild(cb);
+        label.appendChild(nameSpan);
+        checklistEl.appendChild(label);
+      });
+    }
+
+    renderChecklist();
+    searchInput.addEventListener('input', () => renderChecklist(searchInput.value.trim()));
+
+    card.appendChild(panel);
   }
 
   // Load notebooks

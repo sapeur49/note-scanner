@@ -2018,15 +2018,20 @@ body[data-template="magazine"] .sp-footer {
 }
 .nb-card {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 12px 14px;
+  overflow: hidden;
   transition: border-color 0.15s;
 }
 .nb-card:hover { border-color: var(--accent); }
+.nb-card-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+}
 .nb-card-info {
   flex: 1;
   display: flex;
@@ -2049,6 +2054,7 @@ body[data-template="magazine"] .sp-footer {
   white-space: nowrap;
 }
 .nb-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.nb-btn-active { border-color: var(--accent) !important; color: var(--accent) !important; background: var(--accent-light) !important; }
 .nb-edit-row {
   display: flex;
   gap: 8px;
@@ -2059,6 +2065,30 @@ body[data-template="magazine"] .sp-footer {
 .nb-inline-input {
   flex: 1;
   min-width: 120px;
+}
+.nb-notes-panel {
+  border-top: 1px solid var(--border);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.nb-notes-search {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.85rem;
+  box-sizing: border-box;
+}
+.nb-notes-search:focus { outline: none; border-color: var(--accent); }
+.nb-notes-checklist {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 .btn-sm {
   padding: 5px 12px;
