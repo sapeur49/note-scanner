@@ -19,6 +19,7 @@ from sqlalchemy import (
     String,
     Table,
     Text,
+    and_,
     create_engine,
     delete as sa_delete,
     func,
@@ -233,11 +234,20 @@ def list_notes(user_id: str, q: str = "", notebook_id: str = "") -> list:
     ).where(notes.c.user_id == user_id)
 
     if notebook_id:
-        stmt = stmt.where(
-            notes.c.id.in_(
-                select(note_notebooks.c.note_id).where(note_notebooks.c.notebook_id == notebook_id)
+        if notebook_id == "system:public":
+            stmt = stmt.where(and_(notes.c.is_published == True, notes.c.visibility == "public"))
+        elif notebook_id == "system:login_restricted":
+            stmt = stmt.where(and_(notes.c.is_published == True, notes.c.visibility == "logged_in"))
+        elif notebook_id == "system:me":
+            stmt = stmt.where(and_(notes.c.is_published == True, notes.c.visibility == "me"))
+        elif notebook_id == "system:unpublished":
+            stmt = stmt.where(or_(notes.c.is_published == None, notes.c.is_published == False))
+        else:
+            stmt = stmt.where(
+                notes.c.id.in_(
+                    select(note_notebooks.c.note_id).where(note_notebooks.c.notebook_id == notebook_id)
+                )
             )
-        )
     if q:
         like = f"%{q}%"
         stmt = stmt.where(
@@ -559,6 +569,14 @@ def get_note_notebook_ids(note_id: str) -> list:
         return [r[0] for r in conn.execute(stmt).fetchall()]
 
 
+_SYSTEM_NOTEBOOKS = [
+    {"id": "system:public",           "title": "Public",           "visibility": "public",    "published": True},
+    {"id": "system:login_restricted", "title": "Login restricted", "visibility": "logged_in", "published": True},
+    {"id": "system:me",               "title": "Only me",          "visibility": "me",        "published": True},
+    {"id": "system:unpublished",      "title": "Unpublished",      "visibility": None,        "published": False},
+]
+
+
 def list_notebooks(user_id: str) -> list:
     stmt = (
         select(
@@ -576,7 +594,23 @@ def list_notebooks(user_id: str) -> list:
     )
     with engine.connect() as conn:
         rows = conn.execute(stmt).mappings().all()
-    return [{"id": r["id"], "title": r["title"], "note_count": r["note_count"]} for r in rows]
+        result = [{"id": r["id"], "title": r["title"], "note_count": r["note_count"], "is_system": False} for r in rows]
+
+        # Append virtual system notebooks with live counts
+        base = notes.c.user_id == user_id
+        for sys_nb in _SYSTEM_NOTEBOOKS:
+            if sys_nb["published"]:
+                count_stmt = select(func.count()).select_from(notes).where(
+                    and_(base, notes.c.is_published == True, notes.c.visibility == sys_nb["visibility"])
+                )
+            else:
+                count_stmt = select(func.count()).select_from(notes).where(
+                    and_(base, or_(notes.c.is_published == None, notes.c.is_published == False))
+                )
+            count = conn.execute(count_stmt).scalar() or 0
+            result.append({"id": sys_nb["id"], "title": sys_nb["title"], "note_count": count, "is_system": True})
+
+    return result
 
 
 def create_notebook(user_id: str, title: str) -> dict:
@@ -612,6 +646,8 @@ def delete_notebook(user_id: str, notebook_id: str) -> bool:
 
 
 def set_note_notebooks(user_id: str, note_id: str, notebook_ids: list) -> bool:
+    # Strip out any system notebook IDs — they are virtual and cannot be assigned manually
+    notebook_ids = [nb_id for nb_id in notebook_ids if not nb_id.startswith("system:")]
     with engine.connect() as conn:
         row = conn.execute(
             select(notes.c.id).where(notes.c.id == note_id, notes.c.user_id == user_id)

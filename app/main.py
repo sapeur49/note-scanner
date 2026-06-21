@@ -31,7 +31,7 @@ NOTES_DIR = VOLUME_PATH / "notes"
 MODEL = "claude-sonnet-4-6"
 client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY")) if os.environ.get("ANTHROPIC_API_KEY") else None
 
-SCAN_PROMPT = """You are processing images submitted for scanning and analysis. For each image, first determine whether it is primarily text-based (handwritten or printed notes, documents) or primarily visual (photograph, object, scene, diagram).
+SCAN_PROMPT_BASE = """You are processing images submitted for scanning and analysis. For each image, first determine whether it is primarily text-based (handwritten or printed notes, documents) or primarily visual (photograph, object, scene, diagram).
 
 **If primarily TEXT (notes, documents):**
 1. Transcribe ALL visible text accurately, mirroring the original structure:
@@ -47,7 +47,9 @@ SCAN_PROMPT = """You are processing images submitted for scanning and analysis. 
 **If primarily VISUAL (photo, object, scene, diagram):**
 1. In "transcription": include any visible text, labels, numbers, or markings present in the image (empty string if none).
 2. In "summary": provide a detailed analytical description — identify the subject, describe what is depicted, note relevant details, context, and any meaningful observations.
-3. Create a short descriptive title (max ~8 words) capturing the subject — plain text, no markdown.
+3. Create a short descriptive title (max ~8 words) capturing the subject — plain text, no markdown."""
+
+SCAN_PROMPT_JSON_SHAPE = """
 
 Respond with ONLY valid JSON in this exact shape:
 {
@@ -55,6 +57,8 @@ Respond with ONLY valid JSON in this exact shape:
   "summary": "concise markdown-formatted summary or visual description",
   "transcription": "full text transcription, or empty string if no significant text"
 }"""
+
+SCAN_PROMPT = SCAN_PROMPT_BASE + SCAN_PROMPT_JSON_SHAPE
 
 app = FastAPI()
 
@@ -199,7 +203,8 @@ async def scan_notes(
 
     user_settings_row = db.get_settings(_user["sub"])
     custom_prompt = (user_settings_row.get("scan_prompt") or "").strip()
-    prompt = custom_prompt if custom_prompt else SCAN_PROMPT
+    # Always append JSON shape so custom prompts can't break parsing
+    prompt = (custom_prompt if custom_prompt else SCAN_PROMPT_BASE) + SCAN_PROMPT_JSON_SHAPE
     if instructions and instructions.strip():
         prompt += f"""\n\nAdditional instructions: {instructions.strip()}
 
@@ -346,6 +351,11 @@ def unpublish_note_route(note_id: str, _user: dict = Depends(require_user)):
     if not found:
         raise HTTPException(status_code=404, detail="Note not found")
     return {}
+
+
+@app.get("/api/default-scan-prompt")
+def get_default_scan_prompt(_user: dict = Depends(require_user)):
+    return {"prompt": SCAN_PROMPT_BASE + SCAN_PROMPT_JSON_SHAPE}
 
 
 @app.get("/api/settings")

@@ -6,7 +6,7 @@
   <title>ReadWrite — Notebooks</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#2563eb">
-  <link rel="stylesheet" href="style.css?v=51">
+  <link rel="stylesheet" href="style.css?v=52">
 </head>
 <body>
   <div class="container">
@@ -71,6 +71,14 @@
         <button class="btn-outline btn-sm" id="new-notebook-cancel">Cancel</button>
       </div>
 
+      <div class="nb-controls-row">
+        <input type="search" id="nb-search" class="nb-search-input" placeholder="Search notebooks…" autocomplete="off">
+        <select id="nb-sort" class="nb-sort-select">
+          <option value="alpha" selected>A–Z</option>
+          <option value="date">Date created</option>
+        </select>
+      </div>
+
       <div id="notebooks-list" class="notebooks-list"></div>
       <div id="notebooks-empty" class="notebooks-empty" hidden>
         No notebooks yet. Create one to start organizing your notes.
@@ -85,6 +93,6 @@
     src="https://glad-clam-42.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
     type="text/javascript"
   ></script>
-  <script src="app.js?v=60"></script>
+  <script src="app.js?v=61"></script>
 </body>
 </html>

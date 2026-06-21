@@ -1097,14 +1097,16 @@ async function initResults() {
       if (!nbResp.ok) return;
       const notebooks = await nbResp.json();
       const memberIds = new Set(initialNotebookIds || []);
+      // System notebooks are virtual (auto-maintained) — exclude from manual assignment
+      const userNotebooks = notebooks.filter(nb => !nb.is_system);
 
-      if (!notebooks.length) {
+      if (!userNotebooks.length) {
         if (emptyMsg) emptyMsg.hidden = false;
         return;
       }
       if (emptyMsg) emptyMsg.hidden = true;
 
-      notebooks.forEach(nb => {
+      userNotebooks.forEach(nb => {
         const label = document.createElement('label');
         label.className = 'nb-picker-item';
         const cb = document.createElement('input');
@@ -1874,15 +1876,38 @@ async function initSettings() {
   if (isAdmin && advancedCard) advancedCard.hidden = false;
 
   const token = await getToken();
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
   const statusEl = document.getElementById('settings-status');
   const listUrlRow = document.getElementById('setting-list-url-row');
   const listUrlA   = document.getElementById('setting-list-url-a');
 
   let current = {};
   try {
-    const resp = await fetch('/api/settings', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
-    if (resp.ok) current = await resp.json();
+    const resp = await fetch('/api/settings', { headers });
+    if (resp.ok) {
+      current = await resp.json();
+      // Show globe in nav menu if list_token exists
+      if (current.list_token) {
+        const navGlobe = document.getElementById('nav-globe-btn');
+        const pubListBtn = document.getElementById('pub-list-btn');
+        const url = `/published/${current.list_token}`;
+        if (navGlobe) { navGlobe.href = url; navGlobe.hidden = false; }
+        if (pubListBtn) { pubListBtn.href = url; pubListBtn.hidden = false; }
+      }
+    }
   } catch (_) {}
+
+  // Load default prompt into read-only display for admin
+  if (isAdmin) {
+    try {
+      const dResp = await fetch('/api/default-scan-prompt', { headers });
+      if (dResp.ok) {
+        const d = await dResp.json();
+        const defaultPromptEl = document.getElementById('setting-default-prompt');
+        if (defaultPromptEl) defaultPromptEl.value = d.prompt || '';
+      }
+    } catch (_) {}
+  }
 
   function applySettings(s) {
     const titleEl  = document.getElementById('setting-list-title');
@@ -2234,15 +2259,22 @@ async function initNotebooks() {
       const s = await sResp.json();
       if (s.list_token) {
         const btn = document.getElementById('pub-list-btn');
-        if (btn) { btn.href = `/published/${s.list_token}`; btn.hidden = false; }
+        const navGlobe = document.getElementById('nav-globe-btn');
+        const url = `/published/${s.list_token}`;
+        if (btn) { btn.href = url; btn.hidden = false; }
+        if (navGlobe) { navGlobe.href = url; navGlobe.hidden = false; }
       }
     }
   } catch (_) {}
 
   const listEl   = document.getElementById('notebooks-list');
   const emptyEl  = document.getElementById('notebooks-empty');
+  const searchEl = document.getElementById('nb-search');
+  const sortEl   = document.getElementById('nb-sort');
 
   let notebooks = [];
+  let nbQuery = '';
+  let nbSort = 'alpha';
 
   let allNotes = null; // lazy-loaded on first panel open
 
@@ -2250,7 +2282,7 @@ async function initNotebooks() {
 
   function createNbCard(nb) {
     const card = document.createElement('div');
-    card.className = 'nb-card';
+    card.className = nb.is_system ? 'nb-card nb-card-system' : 'nb-card';
 
     const mainRow = document.createElement('div');
     mainRow.className = 'nb-card-main';
@@ -2265,49 +2297,68 @@ async function initNotebooks() {
     info.appendChild(countEl);
     mainRow.appendChild(info);
 
-    const actions = document.createElement('div');
-    actions.className = 'nb-card-actions';
+    if (!nb.is_system) {
+      const actions = document.createElement('div');
+      actions.className = 'nb-card-actions';
 
-    const editBtn = document.createElement('button');
-    editBtn.className = 'btn-outline btn-sm btn-icon-sm';
-    editBtn.title = 'Rename';
-    editBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
-    editBtn.addEventListener('click', e => {
-      e.preventDefault();
-      startEditNotebook(nb, mainRow, info, editBtn);
-    });
-    actions.appendChild(editBtn);
+      const editBtn = document.createElement('button');
+      editBtn.className = 'btn-outline btn-sm btn-icon-sm';
+      editBtn.title = 'Rename';
+      editBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+      editBtn.addEventListener('click', e => {
+        e.preventDefault();
+        startEditNotebook(nb, mainRow, info, editBtn);
+      });
+      actions.appendChild(editBtn);
 
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn-outline btn-sm btn-icon-sm';
-    addBtn.title = 'Add / remove notes';
-    addBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`;
-    addBtn.addEventListener('click', e => {
-      e.preventDefault();
-      toggleNotesPanel(nb, card, countEl, addBtn);
-    });
-    actions.appendChild(addBtn);
+      const addBtn = document.createElement('button');
+      addBtn.className = 'btn-outline btn-sm btn-icon-sm';
+      addBtn.title = 'Add / remove notes';
+      addBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`;
+      addBtn.addEventListener('click', e => {
+        e.preventDefault();
+        toggleNotesPanel(nb, card, countEl, addBtn);
+      });
+      actions.appendChild(addBtn);
 
-    const delBtn = document.createElement('button');
-    delBtn.className = 'btn-danger btn-sm btn-icon-sm';
-    delBtn.title = 'Delete notebook';
-    delBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
-    delBtn.addEventListener('click', async e => {
-      e.preventDefault();
-      if (!confirm(`Delete notebook "${nb.title}"? Notes will not be deleted.`)) return;
-      delBtn.disabled = true;
-      try {
-        const resp = await fetch(`/api/notebooks/${nb.id}`, { method: 'DELETE', headers });
-        if (!resp.ok) throw new Error();
-        notebooks = notebooks.filter(n => n.id !== nb.id);
-        renderNotebooks();
-      } catch (_) { delBtn.disabled = false; }
-    });
-    actions.appendChild(delBtn);
+      const delBtn = document.createElement('button');
+      delBtn.className = 'btn-danger btn-sm btn-icon-sm';
+      delBtn.title = 'Delete notebook';
+      delBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
+      delBtn.addEventListener('click', async e => {
+        e.preventDefault();
+        if (!confirm(`Delete notebook "${nb.title}"? Notes will not be deleted.`)) return;
+        delBtn.disabled = true;
+        try {
+          const resp = await fetch(`/api/notebooks/${nb.id}`, { method: 'DELETE', headers });
+          if (!resp.ok) throw new Error();
+          notebooks = notebooks.filter(n => n.id !== nb.id);
+          renderNotebooks();
+        } catch (_) { delBtn.disabled = false; }
+      });
+      actions.appendChild(delBtn);
 
-    mainRow.appendChild(actions);
+      mainRow.appendChild(actions);
+    }
+
     card.appendChild(mainRow);
     return card;
+  }
+
+  function filteredNotebooks() {
+    const userNbs = notebooks.filter(nb => !nb.is_system);
+    const systemNbs = notebooks.filter(nb => nb.is_system);
+
+    const q = nbQuery.toLowerCase();
+    let filtered = q ? userNbs.filter(nb => nb.title.toLowerCase().includes(q)) : [...userNbs];
+
+    if (nbSort === 'alpha') {
+      filtered.sort((a, b) => a.title.localeCompare(b.title));
+    }
+    // For 'date', leave as returned (already created_at order from server)
+
+    const filteredSystem = q ? systemNbs.filter(nb => nb.title.toLowerCase().includes(q)) : [...systemNbs];
+    return [...filtered, ...filteredSystem];
   }
 
   function appendNbCards(items, fromIdx) {
@@ -2333,9 +2384,10 @@ async function initNotebooks() {
 
   function renderNotebooks() {
     listEl.innerHTML = '';
-    emptyEl.hidden = notebooks.length > 0;
+    const userNbs = notebooks.filter(nb => !nb.is_system);
+    emptyEl.hidden = userNbs.length > 0;
     if (nbObserver) { nbObserver.disconnect(); nbObserver = null; }
-    appendNbCards(notebooks, 0);
+    appendNbCards(filteredNotebooks(), 0);
   }
 
   function startEditNotebook(nb, mainRow, infoEl, editBtn) {
@@ -2530,6 +2582,20 @@ async function initNotebooks() {
   }
   saveBtn.addEventListener('click', createNotebook);
   newInput.addEventListener('keydown', e => { if (e.key === 'Enter') createNotebook(); else if (e.key === 'Escape') cancelBtn.click(); });
+
+  // Search and sort controls
+  if (searchEl) {
+    searchEl.addEventListener('input', () => {
+      nbQuery = searchEl.value.trim();
+      renderNotebooks();
+    });
+  }
+  if (sortEl) {
+    sortEl.addEventListener('change', () => {
+      nbSort = sortEl.value;
+      renderNotebooks();
+    });
+  }
 }
 
 async function initHelp() {
@@ -2538,6 +2604,23 @@ async function initHelp() {
   const siteNav = document.getElementById('site-nav');
   if (siteNav) siteNav.hidden = false;
   initHamburger();
+
+  if (window.Clerk.user) {
+    try {
+      const token = await getToken();
+      const resp = await fetch('/api/settings', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+      if (resp.ok) {
+        const s = await resp.json();
+        if (s.list_token) {
+          const navGlobe = document.getElementById('nav-globe-btn');
+          const pubListBtn = document.getElementById('pub-list-btn');
+          const url = `/published/${s.list_token}`;
+          if (navGlobe) { navGlobe.href = url; navGlobe.hidden = false; }
+          if (pubListBtn) { pubListBtn.href = url; pubListBtn.hidden = false; }
+        }
+      }
+    } catch (_) {}
+  }
 }
 
 /* ── Router ── */

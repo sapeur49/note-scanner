@@ -1828,6 +1828,7 @@ body[data-template="magazine"] .sp-footer {
   color: var(--error);
 }
 .nav-signout:hover { background: #fff1f1; color: var(--error); }
+.nav-menu-divider { height: 1px; background: var(--border); margin: 2px 0; }
 @media (prefers-color-scheme: dark) {
   .nav-signout:hover { background: #3d1515; }
 }
@@ -2054,6 +2055,33 @@ body[data-template="magazine"] .sp-footer {
   white-space: nowrap;
 }
 .nb-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.nb-card-system { opacity: 0.8; border-style: dashed; }
+.nb-card-system .nb-card-info { cursor: pointer; }
+.nb-controls-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+.nb-search-input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  background: var(--surface);
+  color: var(--text);
+}
+.nb-sort-select {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
 .nb-btn-active { border-color: var(--accent) !important; color: var(--accent) !important; background: var(--accent-light) !important; }
 .nb-edit-row {
   display: flex;
