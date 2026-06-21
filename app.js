@@ -2037,11 +2037,15 @@ async function initPublished() {
   };
   const VIS_LABEL = { public: 'Public', logged_in: 'Members only', me: 'Private' };
 
+  const urlParams = new URLSearchParams(location.search);
+  const nbSlugParam = urlParams.get('nb') || '';
+
   try {
-    const resp = await fetch(`/api/published/${encodeURIComponent(listToken)}`);
+    const apiUrl = `/api/published/${encodeURIComponent(listToken)}` + (nbSlugParam ? `?nb=${encodeURIComponent(nbSlugParam)}` : '');
+    const resp = await fetch(apiUrl);
     if (!resp.ok) throw new Error('not found or private');
-    let { settings, notes, notebooks: pubNbs } = await resp.json();
-    let data = { settings, notes, notebooks: pubNbs || [] };
+    let { settings, notes, notebooks: pubNbs, activeNotebook: activeNb } = await resp.json();
+    let data = { settings, notes, notebooks: pubNbs || [], activeNotebook: activeNb || null };
 
     // Owner detection — non-blocking; Clerk may or may not be present
     let pubClerkToken = null;
@@ -2052,7 +2056,8 @@ async function initPublished() {
         const navBtns = document.getElementById('pub-nav-btns');
         if (navBtns) navBtns.hidden = false;
         pubClerkToken = await window.Clerk.session.getToken();
-        const ownerResp = await fetch(`/api/published/${encodeURIComponent(listToken)}`, {
+        const ownerApiUrl = `/api/published/${encodeURIComponent(listToken)}` + (nbSlugParam ? `?nb=${encodeURIComponent(nbSlugParam)}` : '');
+        const ownerResp = await fetch(ownerApiUrl, {
           headers: { 'Authorization': `Bearer ${pubClerkToken}` },
         });
         if (ownerResp.ok) {
@@ -2060,7 +2065,7 @@ async function initPublished() {
           if (ownerData.settings.isOwner) {
             settings = ownerData.settings;
             notes = ownerData.notes;
-            data = { settings, notes, notebooks: ownerData.notebooks || data.notebooks };
+            data = { settings, notes, notebooks: ownerData.notebooks || data.notebooks, activeNotebook: ownerData.activeNotebook || data.activeNotebook };
           }
         }
       }
@@ -2069,10 +2074,11 @@ async function initPublished() {
     if (loadingEl) loadingEl.hidden = true;
 
     document.body.dataset.template = settings.template || 'minimal';
-    document.title = (settings.storyListTitle || 'Published Notes') + ' — ReadWrite';
+    const pageTitle = data.activeNotebook ? data.activeNotebook.title : (settings.storyListTitle || 'Published Notes');
+    document.title = pageTitle + ' — ReadWrite';
 
     const titleEl = document.getElementById('pub-list-title');
-    if (titleEl) titleEl.textContent = settings.storyListTitle || 'Published Notes';
+    if (titleEl) titleEl.textContent = pageTitle;
 
     const listUrl = `/published/${listToken}`;
     const logoTopEl    = document.getElementById('pub-logo-top');
@@ -2101,6 +2107,11 @@ async function initPublished() {
         nbFiltEl.appendChild(opt);
       });
       nbFiltEl.hidden = false;
+    }
+
+    // Pre-select notebook from URL param
+    if (data.activeNotebook && nbFiltEl) {
+      nbFiltEl.value = data.activeNotebook.id;
     }
 
     const needsAuth = vis => pubClerkToken && (vis === 'logged_in' || vis === 'me');
@@ -2186,7 +2197,7 @@ async function initPublished() {
     }
 
     let activeVis = '';
-    let activeNotebook = '';
+    let activeNotebook = data.activeNotebook ? data.activeNotebook.id : '';
     function filteredNotes() {
       const q = searchEl ? searchEl.value.trim().toLowerCase() : '';
       return notes.filter(n =>
@@ -2205,6 +2216,18 @@ async function initPublished() {
     if (nbFiltEl) {
       nbFiltEl.addEventListener('change', () => {
         activeNotebook = nbFiltEl.value;
+        const selectedNb = pubNotebooks.find(nb => nb.id === activeNotebook);
+        if (selectedNb && selectedNb.slug) {
+          const newTitle = selectedNb.title;
+          if (titleEl) titleEl.textContent = newTitle;
+          document.title = newTitle + ' — ReadWrite';
+          const newUrl = `${location.pathname}?nb=${encodeURIComponent(selectedNb.slug)}`;
+          history.replaceState(null, '', newUrl);
+        } else if (!activeNotebook) {
+          if (titleEl) titleEl.textContent = settings.storyListTitle || 'Published Notes';
+          document.title = (settings.storyListTitle || 'Published Notes') + ' — ReadWrite';
+          history.replaceState(null, '', location.pathname);
+        }
         renderNotes(filteredNotes());
       });
     }
@@ -2258,6 +2281,7 @@ async function initNotebooks() {
     if (sResp.ok) {
       const s = await sResp.json();
       if (s.list_token) {
+        window._pubListToken = s.list_token;
         const btn = document.getElementById('pub-list-btn');
         const navGlobe = document.getElementById('nav-globe-btn');
         const url = `/published/${s.list_token}`;
@@ -2342,6 +2366,86 @@ async function initNotebooks() {
     }
 
     card.appendChild(mainRow);
+
+    // Slug URL row for user notebooks (requires list_token to be known)
+    if (!nb.is_system && nb.slug && window._pubListToken) {
+      const slugRow = document.createElement('div');
+      slugRow.className = 'nb-slug-row';
+
+      const slugUrl = `${location.origin}/published/${window._pubListToken}?nb=${encodeURIComponent(nb.slug)}`;
+      const slugLink = document.createElement('a');
+      slugLink.href = slugUrl;
+      slugLink.className = 'nb-slug-link';
+      slugLink.target = '_blank';
+      slugLink.textContent = `/published/${window._pubListToken}?nb=${nb.slug}`;
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'btn-outline btn-sm';
+      copyBtn.title = 'Copy link';
+      copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+      copyBtn.addEventListener('click', e => {
+        e.preventDefault();
+        navigator.clipboard.writeText(slugUrl).then(() => {
+          copyBtn.textContent = 'Copied!';
+          setTimeout(() => { copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`; }, 1500);
+        });
+      });
+
+      const editSlugBtn = document.createElement('button');
+      editSlugBtn.className = 'btn-outline btn-sm';
+      editSlugBtn.title = 'Edit URL slug';
+      editSlugBtn.textContent = 'Edit slug';
+
+      editSlugBtn.addEventListener('click', e => {
+        e.preventDefault();
+        const slugInput = document.createElement('input');
+        slugInput.type = 'text';
+        slugInput.value = nb.slug;
+        slugInput.className = 'new-notebook-input nb-inline-input';
+        slugInput.maxLength = 120;
+        const saveSlugBtn = document.createElement('button');
+        saveSlugBtn.className = 'btn-save btn-sm';
+        saveSlugBtn.textContent = 'Save';
+        const cancelSlugBtn = document.createElement('button');
+        cancelSlugBtn.className = 'btn-outline btn-sm';
+        cancelSlugBtn.textContent = 'Cancel';
+        slugRow.innerHTML = '';
+        slugRow.append(slugInput, saveSlugBtn, cancelSlugBtn);
+        slugInput.focus();
+
+        async function doSaveSlug() {
+          const newSlug = slugInput.value.trim();
+          if (!newSlug) return;
+          saveSlugBtn.disabled = true;
+          try {
+            const resp = await fetch(`/api/notebooks/${nb.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', ...headers },
+              body: JSON.stringify({ title: nb.title, slug: newSlug }),
+            });
+            if (!resp.ok) throw new Error();
+            const updated = await resp.json();
+            nb.slug = updated.slug;
+            // Re-render slug row
+            slugRow.innerHTML = '';
+            const newUrl = `${location.origin}/published/${window._pubListToken}?nb=${encodeURIComponent(nb.slug)}`;
+            slugLink.href = newUrl;
+            slugLink.textContent = `/published/${window._pubListToken}?nb=${nb.slug}`;
+            slugRow.append(slugLink, copyBtn, editSlugBtn);
+          } catch (_) { saveSlugBtn.disabled = false; }
+        }
+        saveSlugBtn.addEventListener('click', doSaveSlug);
+        slugInput.addEventListener('keydown', e2 => { if (e2.key === 'Enter') doSaveSlug(); else if (e2.key === 'Escape') cancelSlugBtn.click(); });
+        cancelSlugBtn.addEventListener('click', () => {
+          slugRow.innerHTML = '';
+          slugRow.append(slugLink, copyBtn, editSlugBtn);
+        });
+      });
+
+      slugRow.append(slugLink, copyBtn, editSlugBtn);
+      card.appendChild(slugRow);
+    }
+
     return card;
   }
 

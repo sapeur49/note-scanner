@@ -103,6 +103,7 @@ notebooks = Table(
     Column("user_id", String(255), nullable=False, index=True),
     Column("title", String(512), nullable=False),
     Column("created_at", DateTime, nullable=False),
+    Column("slug", String(255), nullable=True),
 )
 
 note_notebooks = Table(
@@ -145,6 +146,11 @@ def _migrate_schema() -> None:
                     conn.execute(text("ALTER TABLE user_settings ADD COLUMN show_notebook_filter VARCHAR(8) NULL"))
                 if "scan_prompt" not in us_existing:
                     conn.execute(text("ALTER TABLE user_settings ADD COLUMN scan_prompt TEXT NULL"))
+        if "notebooks" in inspector.get_table_names():
+            nb_existing = {c["name"] for c in inspector.get_columns("notebooks")}
+            with engine.begin() as conn:
+                if "slug" not in nb_existing:
+                    conn.execute(text("ALTER TABLE notebooks ADD COLUMN slug VARCHAR(255) NULL"))
     except Exception as e:
         print(f"[db] migration warning: {e}")
 
@@ -190,6 +196,24 @@ def _make_slug(base_slug: str, user_id: str, exclude_note_id: str = None) -> str
         )
         if exclude_note_id:
             stmt = stmt.where(notes.c.id != exclude_note_id)
+        existing = {r[0] for r in conn.execute(stmt).fetchall()}
+    if base_slug not in existing:
+        return base_slug
+    i = 2
+    while f"{base_slug}-{i}" in existing:
+        i += 1
+    return f"{base_slug}-{i}"
+
+
+def _make_notebook_slug(base_slug: str, user_id: str, exclude_nb_id: str = None) -> str:
+    """Return `base_slug` if unused among this user's notebooks, else append -N."""
+    with engine.connect() as conn:
+        stmt = select(notebooks.c.slug).where(
+            notebooks.c.user_id == user_id,
+            notebooks.c.slug.isnot(None),
+        )
+        if exclude_nb_id:
+            stmt = stmt.where(notebooks.c.id != exclude_nb_id)
         existing = {r[0] for r in conn.execute(stmt).fetchall()}
     if base_slug not in existing:
         return base_slug
@@ -546,7 +570,7 @@ def list_published_notes(user_id: str) -> list:
 def list_published_notebooks(user_id: str) -> list:
     """Notebooks that contain at least one published note for the given user."""
     stmt = (
-        select(notebooks.c.id, notebooks.c.title)
+        select(notebooks.c.id, notebooks.c.title, notebooks.c.slug)
         .select_from(
             notebooks
             .join(note_notebooks, notebooks.c.id == note_notebooks.c.notebook_id)
@@ -558,7 +582,18 @@ def list_published_notebooks(user_id: str) -> list:
     )
     with engine.connect() as conn:
         rows = conn.execute(stmt).mappings().all()
-    return [{"id": r["id"], "title": r["title"]} for r in rows]
+    return [{"id": r["id"], "title": r["title"], "slug": r["slug"]} for r in rows]
+
+
+def get_notebook_by_slug(user_id: str, slug: str):
+    """Look up a notebook by slug for a given user."""
+    stmt = select(notebooks.c.id, notebooks.c.title, notebooks.c.slug).where(
+        notebooks.c.user_id == user_id,
+        notebooks.c.slug == slug,
+    )
+    with engine.connect() as conn:
+        row = conn.execute(stmt).mappings().first()
+    return dict(row) if row else None
 
 
 # ── Notebooks ─────────────────────────────────────────────────────────────────
@@ -583,18 +618,19 @@ def list_notebooks(user_id: str) -> list:
             notebooks.c.id,
             notebooks.c.title,
             notebooks.c.created_at,
+            notebooks.c.slug,
             func.count(note_notebooks.c.note_id).label("note_count"),
         )
         .select_from(
             notebooks.outerjoin(note_notebooks, notebooks.c.id == note_notebooks.c.notebook_id)
         )
         .where(notebooks.c.user_id == user_id)
-        .group_by(notebooks.c.id, notebooks.c.title, notebooks.c.created_at)
+        .group_by(notebooks.c.id, notebooks.c.title, notebooks.c.created_at, notebooks.c.slug)
         .order_by(notebooks.c.created_at)
     )
     with engine.connect() as conn:
         rows = conn.execute(stmt).mappings().all()
-        result = [{"id": r["id"], "title": r["title"], "note_count": r["note_count"], "is_system": False} for r in rows]
+        result = [{"id": r["id"], "title": r["title"], "note_count": r["note_count"], "slug": r["slug"], "is_system": False} for r in rows]
 
         # Append virtual system notebooks with live counts
         base = notes.c.user_id == user_id
@@ -616,16 +652,24 @@ def list_notebooks(user_id: str) -> list:
 def create_notebook(user_id: str, title: str) -> dict:
     nb_id = str(uuid.uuid4())
     now = _utcnow()
+    slug = _make_notebook_slug(_slugify(title) or "notebook", user_id)
     with engine.begin() as conn:
-        conn.execute(insert(notebooks).values(id=nb_id, user_id=user_id, title=title, created_at=now))
-    return {"id": nb_id, "title": title, "note_count": 0}
+        conn.execute(insert(notebooks).values(id=nb_id, user_id=user_id, title=title, created_at=now, slug=slug))
+    return {"id": nb_id, "title": title, "note_count": 0, "slug": slug, "is_system": False}
 
 
-def update_notebook(user_id: str, notebook_id: str, title: str) -> bool:
+def update_notebook(user_id: str, notebook_id: str, title: str, slug: str = None) -> bool:
+    values: dict = {"title": title}
+    if slug is not None:
+        # User-supplied slug — slugify and deduplicate
+        values["slug"] = _make_notebook_slug(_slugify(slug) or "notebook", user_id, exclude_nb_id=notebook_id)
+    else:
+        # Auto-update slug from new title
+        values["slug"] = _make_notebook_slug(_slugify(title) or "notebook", user_id, exclude_nb_id=notebook_id)
     stmt = (
         sa_update(notebooks)
         .where(notebooks.c.id == notebook_id, notebooks.c.user_id == user_id)
-        .values(title=title)
+        .values(**values)
     )
     with engine.begin() as conn:
         result = conn.execute(stmt)

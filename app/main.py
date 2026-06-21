@@ -369,7 +369,7 @@ def update_settings_route(payload: dict = Body(...), _user: dict = Depends(requi
 
 
 @app.get("/api/published/{list_token}")
-def get_published_list(list_token: str, authorization: str = Header(default="")):
+def get_published_list(list_token: str, nb: str = "", authorization: str = Header(default="")):
     settings = db.get_settings_by_list_token(list_token)
     if not settings:
         raise HTTPException(status_code=404, detail="Not found")
@@ -389,6 +389,10 @@ def get_published_list(list_token: str, authorization: str = Header(default=""))
         allowed = {"public", "logged_in"} if is_authenticated else {"public"}
         notes_list = [n for n in notes_list if (n.get("visibility") or "public") in allowed]
     pub_notebooks = db.list_published_notebooks(settings["user_id"])
+    # Resolve optional notebook slug filter
+    active_notebook = None
+    if nb:
+        active_notebook = db.get_notebook_by_slug(settings["user_id"], nb)
     return {
         "settings": {
             "storyListTitle": settings.get("story_list_title") or "",
@@ -400,6 +404,7 @@ def get_published_list(list_token: str, authorization: str = Header(default=""))
         },
         "notes": notes_list,
         "notebooks": pub_notebooks,
+        "activeNotebook": active_notebook,
     }
 
 
@@ -421,9 +426,12 @@ def update_notebook_route(notebook_id: str, payload: dict = Body(...), _user: di
     title = (payload.get("title") or "").strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title required")
-    if not db.update_notebook(_user["sub"], notebook_id, title):
+    slug = payload.get("slug")  # None = auto-derive from title
+    if not db.update_notebook(_user["sub"], notebook_id, title, slug=slug):
         raise HTTPException(status_code=404, detail="Notebook not found")
-    return {"ok": True}
+    nbs = db.list_notebooks(_user["sub"])
+    nb = next((n for n in nbs if n["id"] == notebook_id), None)
+    return nb or {"ok": True}
 
 
 @app.delete("/api/notebooks/{notebook_id}")
