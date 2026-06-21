@@ -716,6 +716,27 @@ details[open] .images-toggle::before {
   margin-bottom: 16px;
 }
 
+.welcome-card {
+  text-align: center;
+  padding: 48px 32px;
+  max-width: 480px;
+  margin: 64px auto;
+}
+.welcome-headline {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 16px;
+}
+.welcome-body {
+  color: var(--text-muted);
+  margin: 0 0 32px;
+  line-height: 1.6;
+}
+.welcome-cta {
+  min-width: 140px;
+}
+
 .notes-search {
   width: 100%;
   padding: 14px 14px;

@@ -144,6 +144,9 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `DELETE /api/notebooks/{notebook_id}` — delete a notebook (notes are unaffected, join rows removed) (auth'd)
 - `GET /api/settings` — fetch user settings (auth'd)
 - `PUT /api/settings` — upsert user settings; auto-generates `list_token` if absent (auth'd)
+- `GET /api/default-scan-prompt` — returns `{"prompt": SCAN_PROMPT_BASE + SCAN_PROMPT_JSON_SHAPE}`; used by the admin Advanced card to display the default prompt read-only (auth'd)
+- `GET /api/admin/scan-limits` — returns `{per_user_daily_limit, global_daily_limit}` from `global_settings` table (defaults: 30, 500); auth'd but admin-only in the UI
+- `PUT /api/admin/scan-limits` — update per-user and/or global daily scan limits; body: `{"per_user_daily_limit": N, "global_daily_limit": N}`; auth'd
 - `GET /api/share/{token}` — `token` may be a UUID share token or a slug; tries UUID lookup first, then slug fallback. Returns note JSON + owner settings; checks `visibility`; adds `is_owner: true`; adds `prev_token`/`next_token` for adjacent published notes when the list is public
 - `GET /api/share/{token}/images/{position}` — serve a published note image; enforces `visibility` (no auth required for `public`)
 - `GET /api/published/{list_token}` — return published notes list + settings; 403 if `list_public != true`; accepts optional `Authorization` header — if the bearer token matches the list owner, adds `isOwner: true` to settings and includes `visibility` on each note; **visibility filtering**: unauthenticated viewers see only `public` notes, authenticated non-owners see `public` + `logged_in`, owners see all
@@ -235,6 +238,21 @@ Slug helpers: `_slugify(title)` — lowercase, strip non-alnum to hyphens, trunc
 | `notebook_id` | String(36) PK | References `notebooks.id` |
 
 Composite primary key prevents duplicates. Notes not in any notebook simply have no rows here — `get_note_notebook_ids()` returns `[]` for them. Existing notes created before the feature are automatically treated as belonging to no notebooks, with no migration needed.
+
+**`global_settings` table** (admin key-value store; created via `create_all`):
+| Column | Type | Purpose |
+|---|---|---|
+| `key` | String(64) PK | Setting key (e.g. `per_user_daily_limit`, `global_daily_limit`) |
+| `value` | Text | String value |
+
+**`scan_counts` table** (daily rate-limit tracking; created via `create_all`):
+| Column | Type | Purpose |
+|---|---|---|
+| `user_id` | String(255) PK | Clerk user sub, or `__global__` for the cross-user total |
+| `scan_date` | String(10) PK | Date string `YYYY-MM-DD` |
+| `count` | Integer | Number of scans run |
+
+`get_scan_counts(user_id, today_str)` → `(user_count, global_count)`. `increment_scan_count(user_id, today_str)` increments both rows atomically. `get_global_setting(key, default)` / `set_global_setting(key, value)` manage `global_settings`. Defaults used when key is absent: per-user 30/day, global 500/day.
 
 Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get_settings_by_list_token(token)`, `list_published_notes(user_id)` — returns notes with `notebook_ids` per note (batch query), ordered by `scanned_at desc`. `update_note_files(user_id, note_id, files)`, `get_adjacent_published_notes(user_id, note_id)` — returns `{prev_token, next_token}` for prev/next navigation on share pages. `list_published_notebooks(user_id)` — notebooks that contain at least one published note; returns `{id, title, slug}` (used by published list API to populate the filter dropdown).
 

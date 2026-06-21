@@ -176,10 +176,32 @@ async function initIndex() {
     }
   }
 
-  function showSignIn() {
-    appEl.hidden = true;
+  const welcomeScreen = document.getElementById('welcome-screen');
+
+  function mountSignIn() {
     signInWall.hidden = false;
     window.Clerk.mountSignIn(document.getElementById('clerk-sign-in'));
+  }
+
+  function showSignIn() {
+    appEl.hidden = true;
+    if (welcomeScreen && !localStorage.getItem('rw_seen_welcome')) {
+      welcomeScreen.hidden = false;
+    } else {
+      if (welcomeScreen) welcomeScreen.hidden = true;
+      mountSignIn();
+    }
+  }
+
+  if (welcomeScreen) {
+    const ctaBtn = document.getElementById('welcome-cta');
+    if (ctaBtn) {
+      ctaBtn.addEventListener('click', () => {
+        localStorage.setItem('rw_seen_welcome', '1');
+        welcomeScreen.hidden = true;
+        mountSignIn();
+      });
+    }
   }
 
   // React to auth state changes (covers initial load, sign-in after sign-out, session expiry)
@@ -1900,7 +1922,7 @@ async function initSettings() {
     }
   } catch (_) {}
 
-  // Load default prompt into read-only display for admin
+  // Load default prompt and scan limits into admin UI
   if (isAdmin) {
     try {
       const dResp = await fetch('/api/default-scan-prompt', { headers });
@@ -1908,6 +1930,16 @@ async function initSettings() {
         const d = await dResp.json();
         const defaultPromptEl = document.getElementById('setting-default-prompt');
         if (defaultPromptEl) defaultPromptEl.value = d.prompt || '';
+      }
+    } catch (_) {}
+    try {
+      const lResp = await fetch('/api/admin/scan-limits', { headers });
+      if (lResp.ok) {
+        const limits = await lResp.json();
+        const puEl = document.getElementById('setting-per-user-limit');
+        const glEl = document.getElementById('setting-global-limit');
+        if (puEl) puEl.value = limits.per_user_daily_limit;
+        if (glEl) glEl.value = limits.global_daily_limit;
       }
     } catch (_) {}
   }
@@ -1981,16 +2013,28 @@ async function initSettings() {
 
   async function saveAdvancedSettings() {
     const promptEl = document.getElementById('setting-scan-prompt');
+    const puEl = document.getElementById('setting-per-user-limit');
+    const glEl = document.getElementById('setting-global-limit');
     const advStatusEl = document.getElementById('advanced-settings-status');
-    const payload = { scan_prompt: promptEl?.value || '' };
+    const authHeaders = { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) };
     try {
-      const resp = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
-        body: JSON.stringify(payload),
-      });
-      if (resp.ok) {
-        current = await resp.json();
+      const [promptResp, limitsResp] = await Promise.all([
+        fetch('/api/settings', {
+          method: 'PUT',
+          headers: authHeaders,
+          body: JSON.stringify({ scan_prompt: promptEl?.value || '' }),
+        }),
+        fetch('/api/admin/scan-limits', {
+          method: 'PUT',
+          headers: authHeaders,
+          body: JSON.stringify({
+            per_user_daily_limit: parseInt(puEl?.value || '30', 10),
+            global_daily_limit: parseInt(glEl?.value || '500', 10),
+          }),
+        }),
+      ]);
+      if (promptResp.ok) current = await promptResp.json();
+      if (promptResp.ok && limitsResp.ok) {
         if (advStatusEl) {
           advStatusEl.textContent = 'Saved';
           setTimeout(() => { advStatusEl.textContent = ''; }, 2000);
@@ -2478,7 +2522,17 @@ async function initNotebooks() {
         }, 800);
       });
 
-      slugRow.append(slugLink, slugInput, copyBtn);
+      const editSlugBtn = document.createElement('button');
+      editSlugBtn.className = 'btn-outline btn-sm btn-icon-sm';
+      editSlugBtn.title = 'Edit slug';
+      editSlugBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+      editSlugBtn.addEventListener('click', e => {
+        e.preventDefault();
+        slugInput.focus();
+        slugInput.select();
+      });
+
+      slugRow.append(slugLink, slugInput, copyBtn, editSlugBtn);
     }
 
     renderSlugRow();

@@ -5,7 +5,7 @@ import os
 import re
 import shutil
 import uuid
-from datetime import datetime, timezone
+from datetime import date as _date, datetime, timezone
 from io import BytesIO
 from pathlib import Path
 from typing import List
@@ -178,6 +178,16 @@ async def scan_notes(
     if len(files) > 10:
         raise HTTPException(status_code=400, detail="Maximum 10 files per scan")
 
+    user_id = _user["sub"]
+    today_str = _date.today().strftime("%Y-%m-%d")
+    per_user_limit = int(db.get_global_setting("per_user_daily_limit") or "30")
+    global_limit = int(db.get_global_setting("global_daily_limit") or "500")
+    user_count, global_count = db.get_scan_counts(user_id, today_str)
+    if global_count >= global_limit:
+        raise HTTPException(status_code=429, detail="ReadWrite has reached its scan limit for today. Please try again tomorrow.")
+    if user_count >= per_user_limit:
+        raise HTTPException(status_code=429, detail="You've reached your daily scan limit. Please try again tomorrow.")
+
     # Read all files upfront so EXIF can be extracted before encoding
     file_data = []
     file_exif_list = []
@@ -243,6 +253,7 @@ Also include an "additional_notes" key in your JSON response addressing the addi
     result = json.loads(match.group())
     result["scanned_at"] = datetime.now(timezone.utc).isoformat()
     result["file_exif"] = file_exif_list
+    db.increment_scan_count(user_id, today_str)
     return result
 
 
@@ -356,6 +367,25 @@ def unpublish_note_route(note_id: str, _user: dict = Depends(require_user)):
 @app.get("/api/default-scan-prompt")
 def get_default_scan_prompt(_user: dict = Depends(require_user)):
     return {"prompt": SCAN_PROMPT_BASE + SCAN_PROMPT_JSON_SHAPE}
+
+
+@app.get("/api/admin/scan-limits")
+def get_scan_limits(_user: dict = Depends(require_user)):
+    return {
+        "per_user_daily_limit": int(db.get_global_setting("per_user_daily_limit") or "30"),
+        "global_daily_limit": int(db.get_global_setting("global_daily_limit") or "500"),
+    }
+
+
+@app.put("/api/admin/scan-limits")
+def update_scan_limits(payload: dict = Body(...), _user: dict = Depends(require_user)):
+    per_user = payload.get("per_user_daily_limit")
+    global_v = payload.get("global_daily_limit")
+    if per_user is not None:
+        db.set_global_setting("per_user_daily_limit", str(int(per_user)))
+    if global_v is not None:
+        db.set_global_setting("global_daily_limit", str(int(global_v)))
+    return {"ok": True}
 
 
 @app.get("/api/settings")

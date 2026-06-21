@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
+    Integer,
     JSON,
     Column,
     DateTime,
@@ -111,6 +112,21 @@ note_notebooks = Table(
     metadata,
     Column("note_id", String(36), primary_key=True),
     Column("notebook_id", String(36), primary_key=True),
+)
+
+global_settings = Table(
+    "global_settings",
+    metadata,
+    Column("key", String(64), primary_key=True),
+    Column("value", Text, nullable=True),
+)
+
+scan_counts = Table(
+    "scan_counts",
+    metadata,
+    Column("user_id", String(255), primary_key=True),
+    Column("scan_date", String(10), primary_key=True),
+    Column("count", Integer, nullable=False, default=0),
 )
 
 
@@ -731,3 +747,69 @@ def get_adjacent_published_notes(user_id: str, note_id: str) -> dict:
     prev_token = items[idx - 1]["share_token"] if idx > 0 else None
     next_token = items[idx + 1]["share_token"] if idx + 1 < len(items) else None
     return {"prev_token": prev_token, "next_token": next_token}
+
+
+# ── Global settings & scan rate-limiting ─────────────────────────────────────
+
+def get_global_setting(key: str, default=None):
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                select(global_settings.c.value).where(global_settings.c.key == key)
+            ).first()
+            return row[0] if row else default
+    except Exception:
+        return default
+
+
+def set_global_setting(key: str, value: str) -> None:
+    with engine.begin() as conn:
+        existing = conn.execute(
+            select(global_settings.c.key).where(global_settings.c.key == key)
+        ).first()
+        if existing:
+            conn.execute(
+                sa_update(global_settings).where(global_settings.c.key == key).values(value=value)
+            )
+        else:
+            conn.execute(insert(global_settings).values(key=key, value=value))
+
+
+_GLOBAL_SCAN_KEY = "__global__"
+
+
+def get_scan_counts(user_id: str, today: str) -> tuple:
+    """Returns (user_count, global_count) for the given date string (YYYY-MM-DD)."""
+    with engine.connect() as conn:
+        user_row = conn.execute(
+            select(scan_counts.c.count).where(
+                and_(scan_counts.c.user_id == user_id, scan_counts.c.scan_date == today)
+            )
+        ).first()
+        global_row = conn.execute(
+            select(scan_counts.c.count).where(
+                and_(scan_counts.c.user_id == _GLOBAL_SCAN_KEY, scan_counts.c.scan_date == today)
+            )
+        ).first()
+        return (user_row[0] if user_row else 0, global_row[0] if global_row else 0)
+
+
+def increment_scan_count(user_id: str, today: str) -> None:
+    """Atomically increment per-user and global scan counts for today."""
+    with engine.begin() as conn:
+        for uid in (user_id, _GLOBAL_SCAN_KEY):
+            existing = conn.execute(
+                select(scan_counts.c.count).where(
+                    and_(scan_counts.c.user_id == uid, scan_counts.c.scan_date == today)
+                )
+            ).first()
+            if existing:
+                conn.execute(
+                    sa_update(scan_counts)
+                    .where(and_(scan_counts.c.user_id == uid, scan_counts.c.scan_date == today))
+                    .values(count=existing[0] + 1)
+                )
+            else:
+                conn.execute(
+                    insert(scan_counts).values(user_id=uid, scan_date=today, count=1)
+                )
