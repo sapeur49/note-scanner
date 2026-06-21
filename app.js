@@ -2064,7 +2064,7 @@ async function initPublished() {
           ${thumbsHtml}
         </div>`;
       function setImgSrc(imgId, position) {
-        const img = document.getElementById(imgId);
+        const img = card.querySelector(`[id="${imgId}"]`);
         if (!img) return;
         const url = `/api/share/${encodeURIComponent(n.share_token)}/images/${position}`;
         if (needsAuth(vis)) {
