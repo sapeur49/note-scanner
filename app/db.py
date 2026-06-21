@@ -499,7 +499,7 @@ def list_published_notes(user_id: str) -> list:
     ).where(
         notes.c.user_id == user_id,
         notes.c.is_published == True,
-    ).order_by(notes.c.created_at.desc())
+    ).order_by(notes.c.scanned_at.desc())
 
     with engine.connect() as conn:
         rows = conn.execute(stmt).mappings().all()
