@@ -1762,6 +1762,7 @@ body[data-template="magazine"] .sp-footer {
 
 .app-header {
   position: relative;
+  z-index: 500;
   display: flex;
   align-items: center;
   justify-content: center;
