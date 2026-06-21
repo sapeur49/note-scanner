@@ -2345,15 +2345,19 @@ async function initNotebooks() {
 
       // Globe toggle — enables / disables public URL for this notebook
       if (window._pubListToken) {
-        const globeBtn = document.createElement('button');
-        globeBtn.className = nb.slug ? 'btn-outline btn-sm btn-icon-sm nb-globe-active' : 'btn-outline btn-sm btn-icon-sm';
-        globeBtn.title = nb.slug ? 'Public URL enabled — click to disable' : 'Enable public URL for this notebook';
-        globeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`;
-        globeBtn.addEventListener('click', async e => {
+        const LINK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`;
+        const linkBtn = document.createElement('button');
+        linkBtn.className = nb.slug ? 'btn-outline btn-sm btn-icon-sm nb-globe-active' : 'btn-outline btn-sm btn-icon-sm';
+        linkBtn.title = nb.slug ? 'Public URL enabled — click to disable' : 'Enable public URL for this notebook';
+        linkBtn.innerHTML = LINK_SVG;
+        linkBtn.addEventListener('click', async e => {
           e.preventDefault();
+          linkBtn.disabled = true;
           if (nb.slug) {
-            if (!confirm(`Remove public URL for "${nb.title}"? The link will stop working.`)) return;
-            globeBtn.disabled = true;
+            if (!confirm(`Remove public URL for "${nb.title}"? The link will stop working.`)) {
+              linkBtn.disabled = false;
+              return;
+            }
             try {
               const resp = await fetch(`/api/notebooks/${nb.id}`, {
                 method: 'PUT',
@@ -2362,13 +2366,12 @@ async function initNotebooks() {
               });
               if (!resp.ok) throw new Error();
               const updated = await resp.json();
-              nb.slug = updated.slug || null;
+              nb.slug = updated.slug ?? null;
               renderSlugRow();
-              globeBtn.className = 'btn-outline btn-sm btn-icon-sm';
-              globeBtn.title = 'Enable public URL for this notebook';
-            } catch (_) { globeBtn.disabled = false; }
+              linkBtn.className = 'btn-outline btn-sm btn-icon-sm';
+              linkBtn.title = 'Enable public URL for this notebook';
+            } catch (_) {}
           } else {
-            globeBtn.disabled = true;
             try {
               const resp = await fetch(`/api/notebooks/${nb.id}`, {
                 method: 'PUT',
@@ -2377,15 +2380,15 @@ async function initNotebooks() {
               });
               if (!resp.ok) throw new Error();
               const updated = await resp.json();
-              nb.slug = updated.slug || null;
+              nb.slug = updated.slug ?? null;
               renderSlugRow();
-              globeBtn.className = 'btn-outline btn-sm btn-icon-sm nb-globe-active';
-              globeBtn.title = 'Public URL enabled — click to disable';
+              linkBtn.className = 'btn-outline btn-sm btn-icon-sm nb-globe-active';
+              linkBtn.title = 'Public URL enabled — click to disable';
             } catch (_) {}
-            globeBtn.disabled = false;
           }
+          linkBtn.disabled = false;
         });
-        actions.appendChild(globeBtn);
+        actions.appendChild(linkBtn);
       }
 
       const delBtn = document.createElement('button');
