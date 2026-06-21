@@ -218,25 +218,79 @@ async function initIndex() {
     addFiles(e.dataTransfer.files);
   });
 
-  function addFiles(files) {
-    for (const file of files) {
+  const MAX_FILES = 10;
+
+  function addFiles(fileList) {
+    let blocked = false;
+    for (const file of fileList) {
       if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+        if (selectedFiles.length >= MAX_FILES) { blocked = true; break; }
         selectedFiles.push(file);
       }
     }
+    if (blocked) showError(`Maximum ${MAX_FILES} files per scan — some files were not added.`);
+    else clearError();
     renderThumbs();
     updateScanBtn();
   }
 
   function renderThumbs() {
     const count = selectedFiles.length;
-    if (count === 0) { document.getElementById('file-count').textContent = ''; return; }
+    const countEl = document.getElementById('file-count');
+    const thumbsEl = document.getElementById('pre-scan-thumbs');
+    if (count === 0) {
+      if (countEl) countEl.textContent = '';
+      if (thumbsEl) thumbsEl.innerHTML = '';
+      return;
+    }
     const imgs = selectedFiles.filter(f => f.type.startsWith('image/')).length;
     const pdfs = selectedFiles.filter(f => f.type === 'application/pdf').length;
     const parts = [];
     if (imgs) parts.push(`${imgs} image${imgs > 1 ? 's' : ''}`);
     if (pdfs) parts.push(`${pdfs} PDF${pdfs > 1 ? 's' : ''}`);
-    document.getElementById('file-count').textContent = parts.join(', ') + ' selected';
+    if (countEl) countEl.textContent = parts.join(', ') + ' selected';
+
+    if (!thumbsEl) return;
+    thumbsEl.innerHTML = '';
+    selectedFiles.forEach(file => {
+      const item = document.createElement('div');
+      item.className = 'pre-scan-thumb';
+
+      if (file.type.startsWith('image/')) {
+        const img = document.createElement('img');
+        img.className = 'pre-scan-img';
+        img.alt = '';
+        const objUrl = URL.createObjectURL(file);
+        img.src = objUrl;
+        img.onload = () => URL.revokeObjectURL(objUrl);
+        item.appendChild(img);
+      } else {
+        const ph = document.createElement('div');
+        ph.className = 'pre-scan-pdf';
+        ph.textContent = 'PDF';
+        item.appendChild(ph);
+      }
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'pre-scan-name';
+      nameEl.textContent = file.name.length > 18 ? file.name.slice(0, 16) + '…' : file.name;
+      item.appendChild(nameEl);
+
+      const rmBtn = document.createElement('button');
+      rmBtn.className = 'pre-scan-remove';
+      rmBtn.type = 'button';
+      rmBtn.title = 'Remove';
+      rmBtn.textContent = '\xd7';
+      rmBtn.addEventListener('click', () => {
+        selectedFiles = selectedFiles.filter(f => f !== file);
+        clearError();
+        renderThumbs();
+        updateScanBtn();
+      });
+      item.appendChild(rmBtn);
+
+      thumbsEl.appendChild(item);
+    });
   }
 
   function updateScanBtn() {
@@ -1293,54 +1347,72 @@ async function initNotes() {
 
   let notes = [];
   let activeVis = '';
+  let notesObserver = null;
+
+  function createNoteCard(n) {
+    const hasThumb = n.first_image_position !== null && n.first_image_position !== undefined;
+    const card = document.createElement('div');
+    card.className = 'pub-card';
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', () => {
+      window.location.href = `results.html?id=${encodeURIComponent(n.id)}`;
+    });
+    if (hasThumb) {
+      const hero = document.createElement('img');
+      hero.className = 'pub-card-hero';
+      hero.alt = '';
+      card.appendChild(hero);
+      loadNoteThumbnail(hero, n.id, n.first_image_position, token);
+    }
+    const body = document.createElement('div');
+    body.className = 'pub-card-body';
+    const vis = n.share_token ? (n.visibility || 'public') : null;
+    const visHtml = vis ? `<span class="pub-card-vis" title="${visLabels[vis] || 'Public'}">${visSvgs[vis] || unlockSvg}</span>` : '';
+    body.innerHTML = `
+      <div class="pub-card-title-row">
+        <div class="pub-card-title">${escapeHtml(n.title || 'Untitled')}</div>
+        ${visHtml}
+      </div>
+      <div class="pub-card-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
+      <div class="pub-card-snippet">${renderMarkdown(n.summary_snippet || '')}</div>
+    `;
+    const actions = document.createElement('div');
+    actions.className = 'note-card-actions';
+    actions.innerHTML = `
+      <a href="results.html?id=${encodeURIComponent(n.id)}" class="note-card-action" onclick="event.stopPropagation()">${editSvg} Edit</a>
+      ${n.share_token ? `<a href="/share/${encodeURIComponent(n.share_token)}" class="note-card-action note-card-action-pub" onclick="event.stopPropagation()">Published ↗</a>` : ''}
+    `;
+    body.appendChild(actions);
+    card.appendChild(body);
+    return card;
+  }
+
+  function appendNoteCards(items, fromIdx) {
+    const PAGE = 20;
+    const end = Math.min(fromIdx + PAGE, items.length);
+    for (let i = fromIdx; i < end; i++) listEl.appendChild(createNoteCard(items[i]));
+    const oldSentinel = listEl.querySelector('.load-sentinel');
+    if (oldSentinel) oldSentinel.remove();
+    if (notesObserver) { notesObserver.disconnect(); notesObserver = null; }
+    if (end < items.length) {
+      const sentinel = document.createElement('div');
+      sentinel.className = 'load-sentinel';
+      listEl.appendChild(sentinel);
+      notesObserver = new IntersectionObserver(entries => {
+        if (entries[0].isIntersecting) {
+          notesObserver.disconnect(); notesObserver = null;
+          appendNoteCards(items, end);
+        }
+      }, { rootMargin: '300px' });
+      notesObserver.observe(sentinel);
+    }
+  }
 
   function renderNotes(items) {
     listEl.innerHTML = '';
     emptyEl.hidden = items.length > 0;
-    items.forEach(n => {
-      const hasThumb = n.first_image_position !== null && n.first_image_position !== undefined;
-
-      const card = document.createElement('div');
-      card.className = 'pub-card';
-      card.style.cursor = 'pointer';
-      card.addEventListener('click', () => {
-        window.location.href = `results.html?id=${encodeURIComponent(n.id)}`;
-      });
-
-      if (hasThumb) {
-        const hero = document.createElement('img');
-        hero.className = 'pub-card-hero';
-        hero.alt = '';
-        card.appendChild(hero);
-      }
-
-      const body = document.createElement('div');
-      body.className = 'pub-card-body';
-      const vis = n.share_token ? (n.visibility || 'public') : null;
-      const visHtml = vis ? `<span class="pub-card-vis" title="${visLabels[vis] || 'Public'}">${visSvgs[vis] || unlockSvg}</span>` : '';
-      body.innerHTML = `
-        <div class="pub-card-title-row">
-          <div class="pub-card-title">${escapeHtml(n.title || 'Untitled')}</div>
-          ${visHtml}
-        </div>
-        <div class="pub-card-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
-        <div class="pub-card-snippet">${renderMarkdown(n.summary_snippet || '')}</div>
-      `;
-
-      const actions = document.createElement('div');
-      actions.className = 'note-card-actions';
-      actions.innerHTML = `
-        <a href="results.html?id=${encodeURIComponent(n.id)}" class="note-card-action" onclick="event.stopPropagation()">${editSvg} Edit</a>
-        ${n.share_token ? `<a href="/share/${encodeURIComponent(n.share_token)}" class="note-card-action note-card-action-pub" onclick="event.stopPropagation()">Published ↗</a>` : ''}
-      `;
-      body.appendChild(actions);
-      card.appendChild(body);
-      listEl.appendChild(card);
-
-      if (hasThumb) {
-        loadNoteThumbnail(card.querySelector('.pub-card-hero'), n.id, n.first_image_position, token);
-      }
-    });
+    if (notesObserver) { notesObserver.disconnect(); notesObserver = null; }
+    appendNoteCards(items, 0);
   }
 
   function filteredNotes() {
@@ -1959,65 +2031,84 @@ async function initPublished() {
 
     const needsAuth = vis => pubClerkToken && (vis === 'logged_in' || vis === 'me');
 
+    function createPubCard(n) {
+      const positions = n.image_positions || [];
+      const heroPos = positions.length > 0 ? positions[0] : null;
+      const extraPositions = positions.slice(1);
+      const vis = n.visibility || 'public';
+      const card = document.createElement('a');
+      card.className = 'pub-card';
+      card.href = `/share/${n.share_token}`;
+      const visIconHtml = settings.isOwner
+        ? `<span class="pub-card-vis" title="${VIS_LABEL[vis] || 'Public'}">${VIS_SVG[vis] || VIS_SVG.public}</span>`
+        : '';
+      const heroId   = heroPos !== null ? `pub-hero-${n.id}` : null;
+      const heroHtml = heroPos !== null
+        ? `<img id="${heroId}" class="pub-card-hero" src="" alt="" loading="lazy">`
+        : '';
+      const thumbIds   = extraPositions.map((p, i) => `pub-thumb-${n.id}-${i}`);
+      const thumbsHtml = extraPositions.length
+        ? `<div class="pub-card-thumbs">${extraPositions.map((p, i) =>
+            `<img id="${thumbIds[i]}" class="pub-card-thumb" src="" alt="" loading="lazy">`
+          ).join('')}</div>`
+        : '';
+      card.innerHTML = `
+        ${heroHtml}
+        <div class="pub-card-body">
+          <div class="pub-card-title-row">
+            <div class="pub-card-title">${escapeHtml(n.title || 'Untitled')}</div>
+            ${visIconHtml}
+          </div>
+          <div class="pub-card-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
+          <div class="pub-card-snippet">${renderMarkdown(n.summary_snippet || '')}</div>
+          ${thumbsHtml}
+        </div>`;
+      function setImgSrc(imgId, position) {
+        const img = document.getElementById(imgId);
+        if (!img) return;
+        const url = `/api/share/${encodeURIComponent(n.share_token)}/images/${position}`;
+        if (needsAuth(vis)) {
+          fetch(url, { headers: { 'Authorization': `Bearer ${pubClerkToken}` } })
+            .then(r => r.ok ? r.blob() : null)
+            .then(blob => { if (blob && img) img.src = URL.createObjectURL(blob); })
+            .catch(() => {});
+        } else {
+          img.src = url;
+        }
+      }
+      if (heroId !== null) setImgSrc(heroId, heroPos);
+      extraPositions.forEach((p, i) => setImgSrc(thumbIds[i], p));
+      return card;
+    }
+
+    let pubObserver = null;
+    function appendPubCards(items, fromIdx) {
+      const PAGE = 20;
+      const end = Math.min(fromIdx + PAGE, items.length);
+      for (let i = fromIdx; i < end; i++) listEl.appendChild(createPubCard(items[i]));
+      const oldSentinel = listEl.querySelector('.load-sentinel');
+      if (oldSentinel) oldSentinel.remove();
+      if (pubObserver) { pubObserver.disconnect(); pubObserver = null; }
+      if (end < items.length) {
+        const sentinel = document.createElement('div');
+        sentinel.className = 'load-sentinel';
+        listEl.appendChild(sentinel);
+        pubObserver = new IntersectionObserver(entries => {
+          if (entries[0].isIntersecting) {
+            pubObserver.disconnect(); pubObserver = null;
+            appendPubCards(items, end);
+          }
+        }, { rootMargin: '300px' });
+        pubObserver.observe(sentinel);
+      }
+    }
+
     function renderNotes(items) {
       if (!listEl) return;
       listEl.innerHTML = '';
       if (emptyEl) emptyEl.hidden = items.length > 0;
-      items.forEach(n => {
-        const positions = n.image_positions || [];
-        const heroPos = positions.length > 0 ? positions[0] : null;
-        const extraPositions = positions.slice(1);
-        const vis = n.visibility || 'public';
-        const card = document.createElement('a');
-        card.className = 'pub-card';
-        card.href = `/share/${n.share_token}`;
-
-        const visIconHtml = settings.isOwner
-          ? `<span class="pub-card-vis" title="${VIS_LABEL[vis] || 'Public'}">${VIS_SVG[vis] || VIS_SVG.public}</span>`
-          : '';
-
-        // Placeholder img elements (src set below, possibly via auth fetch)
-        const heroId    = heroPos !== null ? `pub-hero-${n.id}` : null;
-        const heroHtml  = heroPos !== null
-          ? `<img id="${heroId}" class="pub-card-hero" src="" alt="" loading="lazy">`
-          : '';
-        const thumbIds  = extraPositions.map((p, i) => `pub-thumb-${n.id}-${i}`);
-        const thumbsHtml = extraPositions.length
-          ? `<div class="pub-card-thumbs">${extraPositions.map((p, i) =>
-              `<img id="${thumbIds[i]}" class="pub-card-thumb" src="" alt="" loading="lazy">`
-            ).join('')}</div>`
-          : '';
-
-        card.innerHTML = `
-          ${heroHtml}
-          <div class="pub-card-body">
-            <div class="pub-card-title-row">
-              <div class="pub-card-title">${escapeHtml(n.title || 'Untitled')}</div>
-              ${visIconHtml}
-            </div>
-            <div class="pub-card-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
-            <div class="pub-card-snippet">${renderMarkdown(n.summary_snippet || '')}</div>
-            ${thumbsHtml}
-          </div>`;
-        listEl.appendChild(card);
-
-        // Populate image srcs — auth-fetch for restricted notes, direct URL for public
-        function setImgSrc(imgId, position) {
-          const img = document.getElementById(imgId);
-          if (!img) return;
-          const url = `/api/share/${encodeURIComponent(n.share_token)}/images/${position}`;
-          if (needsAuth(vis)) {
-            fetch(url, { headers: { 'Authorization': `Bearer ${pubClerkToken}` } })
-              .then(r => r.ok ? r.blob() : null)
-              .then(blob => { if (blob && img) img.src = URL.createObjectURL(blob); })
-              .catch(() => {});
-          } else {
-            img.src = url;
-          }
-        }
-        if (heroId !== null) setImgSrc(heroId, heroPos);
-        extraPositions.forEach((p, i) => setImgSrc(thumbIds[i], p));
-      });
+      if (pubObserver) { pubObserver.disconnect(); pubObserver = null; }
+      appendPubCards(items, 0);
     }
 
     let activeVis = '';
@@ -2106,74 +2197,96 @@ async function initNotebooks() {
 
   let allNotes = null; // lazy-loaded on first panel open
 
+  let nbObserver = null;
+
+  function createNbCard(nb) {
+    const card = document.createElement('div');
+    card.className = 'nb-card';
+
+    const mainRow = document.createElement('div');
+    mainRow.className = 'nb-card-main';
+
+    const info = document.createElement('a');
+    info.href = `notes.html?notebook=${encodeURIComponent(nb.id)}`;
+    info.className = 'nb-card-info';
+    const countEl = document.createElement('span');
+    countEl.className = 'nb-card-count';
+    countEl.textContent = `${nb.note_count} note${nb.note_count !== 1 ? 's' : ''}`;
+    info.innerHTML = `<span class="nb-card-title">${escapeHtml(nb.title)}</span>`;
+    info.appendChild(countEl);
+    mainRow.appendChild(info);
+
+    const actions = document.createElement('div');
+    actions.className = 'nb-card-actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn-outline btn-sm btn-icon-sm';
+    editBtn.title = 'Rename';
+    editBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+    editBtn.addEventListener('click', e => {
+      e.preventDefault();
+      startEditNotebook(nb, mainRow, info, editBtn);
+    });
+    actions.appendChild(editBtn);
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-outline btn-sm btn-icon-sm';
+    addBtn.title = 'Add / remove notes';
+    addBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`;
+    addBtn.addEventListener('click', e => {
+      e.preventDefault();
+      toggleNotesPanel(nb, card, countEl, addBtn);
+    });
+    actions.appendChild(addBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn-danger btn-sm btn-icon-sm';
+    delBtn.title = 'Delete notebook';
+    delBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
+    delBtn.addEventListener('click', async e => {
+      e.preventDefault();
+      if (!confirm(`Delete notebook "${nb.title}"? Notes will not be deleted.`)) return;
+      delBtn.disabled = true;
+      try {
+        const resp = await fetch(`/api/notebooks/${nb.id}`, { method: 'DELETE', headers });
+        if (!resp.ok) throw new Error();
+        notebooks = notebooks.filter(n => n.id !== nb.id);
+        renderNotebooks();
+      } catch (_) { delBtn.disabled = false; }
+    });
+    actions.appendChild(delBtn);
+
+    mainRow.appendChild(actions);
+    card.appendChild(mainRow);
+    return card;
+  }
+
+  function appendNbCards(items, fromIdx) {
+    const PAGE = 20;
+    const end = Math.min(fromIdx + PAGE, items.length);
+    for (let i = fromIdx; i < end; i++) listEl.appendChild(createNbCard(items[i]));
+    const oldSentinel = listEl.querySelector('.load-sentinel');
+    if (oldSentinel) oldSentinel.remove();
+    if (nbObserver) { nbObserver.disconnect(); nbObserver = null; }
+    if (end < items.length) {
+      const sentinel = document.createElement('div');
+      sentinel.className = 'load-sentinel';
+      listEl.appendChild(sentinel);
+      nbObserver = new IntersectionObserver(entries => {
+        if (entries[0].isIntersecting) {
+          nbObserver.disconnect(); nbObserver = null;
+          appendNbCards(items, end);
+        }
+      }, { rootMargin: '300px' });
+      nbObserver.observe(sentinel);
+    }
+  }
+
   function renderNotebooks() {
     listEl.innerHTML = '';
     emptyEl.hidden = notebooks.length > 0;
-    notebooks.forEach(nb => {
-      const card = document.createElement('div');
-      card.className = 'nb-card';
-
-      // Main row
-      const mainRow = document.createElement('div');
-      mainRow.className = 'nb-card-main';
-
-      const info = document.createElement('a');
-      info.href = `notes.html?notebook=${encodeURIComponent(nb.id)}`;
-      info.className = 'nb-card-info';
-      const countEl = document.createElement('span');
-      countEl.className = 'nb-card-count';
-      countEl.textContent = `${nb.note_count} note${nb.note_count !== 1 ? 's' : ''}`;
-      info.innerHTML = `<span class="nb-card-title">${escapeHtml(nb.title)}</span>`;
-      info.appendChild(countEl);
-      mainRow.appendChild(info);
-
-      const actions = document.createElement('div');
-      actions.className = 'nb-card-actions';
-
-      // Rename button
-      const editBtn = document.createElement('button');
-      editBtn.className = 'btn-outline btn-sm btn-icon-sm';
-      editBtn.title = 'Rename';
-      editBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
-      editBtn.addEventListener('click', e => {
-        e.preventDefault();
-        startEditNotebook(nb, mainRow, info, editBtn);
-      });
-      actions.appendChild(editBtn);
-
-      // Add notes button
-      const addBtn = document.createElement('button');
-      addBtn.className = 'btn-outline btn-sm btn-icon-sm';
-      addBtn.title = 'Add / remove notes';
-      addBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`;
-      addBtn.addEventListener('click', e => {
-        e.preventDefault();
-        toggleNotesPanel(nb, card, countEl, addBtn);
-      });
-      actions.appendChild(addBtn);
-
-      // Delete button
-      const delBtn = document.createElement('button');
-      delBtn.className = 'btn-danger btn-sm btn-icon-sm';
-      delBtn.title = 'Delete notebook';
-      delBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
-      delBtn.addEventListener('click', async e => {
-        e.preventDefault();
-        if (!confirm(`Delete notebook "${nb.title}"? Notes will not be deleted.`)) return;
-        delBtn.disabled = true;
-        try {
-          const resp = await fetch(`/api/notebooks/${nb.id}`, { method: 'DELETE', headers });
-          if (!resp.ok) throw new Error();
-          notebooks = notebooks.filter(n => n.id !== nb.id);
-          renderNotebooks();
-        } catch (_) { delBtn.disabled = false; }
-      });
-      actions.appendChild(delBtn);
-
-      mainRow.appendChild(actions);
-      card.appendChild(mainRow);
-      listEl.appendChild(card);
-    });
+    if (nbObserver) { nbObserver.disconnect(); nbObserver = null; }
+    appendNbCards(notebooks, 0);
   }
 
   function startEditNotebook(nb, mainRow, infoEl, editBtn) {

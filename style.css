@@ -2174,3 +2174,78 @@ body[data-template="magazine"] .sp-footer {
 /* Reduce top padding for published list page (pub-body) vs share page */
 body[data-template="bold"] .pub-body { padding-top: 16px; }
 body[data-template="magazine"] .pub-body { padding-top: 20px; }
+
+/* ── Pre-scan thumbnail preview ── */
+.pre-scan-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  justify-content: center;
+}
+.pre-scan-thumb {
+  position: relative;
+  width: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.pre-scan-img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  display: block;
+}
+.pre-scan-pdf {
+  width: 72px;
+  height: 72px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+.pre-scan-name {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.2;
+  word-break: break-all;
+  max-width: 72px;
+}
+.pre-scan-remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: var(--text-muted);
+  color: var(--bg);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0.85;
+}
+.pre-scan-remove:hover { opacity: 1; background: var(--error); }
+
+/* ── Infinite scroll sentinel ── */
+.load-sentinel {
+  height: 1px;
+  width: 100%;
+  visibility: hidden;
+  pointer-events: none;
+}

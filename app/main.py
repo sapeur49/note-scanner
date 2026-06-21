@@ -171,6 +171,8 @@ async def scan_notes(
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured")
     if not files:
         raise HTTPException(status_code=400, detail="No images provided")
+    if len(files) > 10:
+        raise HTTPException(status_code=400, detail="Maximum 10 files per scan")
 
     # Read all files upfront so EXIF can be extracted before encoding
     file_data = []

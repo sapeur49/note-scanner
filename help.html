@@ -6,7 +6,7 @@
   <title>ReadWrite — Help</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#2563eb">
-  <link rel="stylesheet" href="style.css?v=50">
+  <link rel="stylesheet" href="style.css?v=51">
 </head>
 <body>
   <div class="container">
@@ -60,7 +60,7 @@
       <!-- Scanning -->
       <div class="card">
         <div class="card-label">Scanning notes</div>
-        <p class="help-p">From the home screen, add one or more images or PDFs using drag-and-drop, the <strong>Choose Files</strong> button, or <strong>Camera</strong> for a live photo.</p>
+        <p class="help-p">From the home screen, add up to <strong>10</strong> images or PDFs using drag-and-drop, the <strong>Choose Files</strong> button, or <strong>Camera</strong> for a live photo. Thumbnails appear below the file count so you can review your selection and remove individual files with ×.</p>
         <p class="help-p">Optionally type instructions in the text box — for example: <em>translate to English</em>, <em>total all dollar amounts</em>, or <em>list action items</em>.</p>
         <p class="help-p">Tap <strong>Scan Files</strong>. The AI reads your files and returns a title, summary, and full transcription. Review the results, then tap <strong>Save Note</strong> to keep them.</p>
       </div>
@@ -84,6 +84,7 @@
         <ul class="help-list">
           <li>Tap the <strong>book icon</strong> in the header to open the Notebooks page.</li>
           <li>Tap <strong>+ New Notebook</strong> to create one. Tap a notebook's title to see its notes in My Notes.</li>
+          <li>On the Notebooks page, tap the <strong>checkmark button</strong> on a notebook to open its notes panel — search and check or uncheck notes to add or remove them from that notebook.</li>
           <li>On a saved note's page, the <strong>Notebooks</strong> card shows checkboxes for all your notebooks — check or uncheck to add or remove the note. Changes save immediately.</li>
         </ul>
       </div>
@@ -102,7 +103,7 @@
           </li>
           <li>Tap <strong>Publish</strong> to generate a shareable link (e.g. <code>/share/my-note-title</code>).</li>
           <li>On the share page, the <strong>share button</strong> (upload arrow icon) opens a native share sheet on mobile, or copies the link on desktop.</li>
-          <li>Your <strong>published list</strong> (globe icon) collects all published notes on one page — enable it in Settings.</li>
+          <li>Your <strong>published list</strong> (globe icon) collects all published notes on one page — enable it in Settings. Visitors can filter by notebook if you turn on the notebook filter in Settings.</li>
         </ul>
       </div>
 
@@ -114,6 +115,7 @@
           <li><strong>Logo</strong> — show or hide the ReadWrite logo on share pages.</li>
           <li><strong>Story list title</strong> — the heading shown at the top of your published list page.</li>
           <li><strong>Published list</strong> — enable to make your published list page publicly accessible via the globe link.</li>
+          <li><strong>Notebook filter</strong> — show a notebook filter dropdown to all visitors on your published list page (you always see it as the owner).</li>
         </ul>
       </div>
 
@@ -223,6 +225,6 @@
     src="https://glad-clam-42.clerk.accounts.dev/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
     type="text/javascript"
   ></script>
-  <script src="app.js?v=56"></script>
+  <script src="app.js?v=57"></script>
 </body>
 </html>
