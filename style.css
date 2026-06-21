@@ -2140,3 +2140,7 @@ body[data-template="magazine"] .sp-footer {
 .icon-legend-icon { flex-shrink: 0; color: var(--text-muted); display: flex; align-items: center; width: 24px; }
 .icon-legend-name { font-size: 0.875rem; font-weight: 600; min-width: 90px; color: var(--text); }
 .icon-legend-desc { font-size: 0.875rem; color: var(--text-muted); }
+
+/* Reduce top padding for published list page (pub-body) vs share page */
+body[data-template="bold"] .pub-body { padding-top: 16px; }
+body[data-template="magazine"] .pub-body { padding-top: 20px; }

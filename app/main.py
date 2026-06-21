@@ -374,6 +374,7 @@ def get_published_list(list_token: str, authorization: str = Header(default=""))
     if not is_owner:
         allowed = {"public", "logged_in"} if is_authenticated else {"public"}
         notes_list = [n for n in notes_list if (n.get("visibility") or "public") in allowed]
+    pub_notebooks = db.list_published_notebooks(settings["user_id"])
     return {
         "settings": {
             "storyListTitle": settings.get("story_list_title") or "",
@@ -381,8 +382,10 @@ def get_published_list(list_token: str, authorization: str = Header(default=""))
             "logoOn": settings.get("logo_on") == "true",
             "listToken": list_token,
             "isOwner": is_owner,
+            "showNotebookFilter": settings.get("show_notebook_filter") == "true",
         },
         "notes": notes_list,
+        "notebooks": pub_notebooks,
     }
 
 

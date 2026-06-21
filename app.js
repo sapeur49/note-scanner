@@ -1810,9 +1810,11 @@ async function initSettings() {
     const titleEl  = document.getElementById('setting-list-title');
     const logoEl   = document.getElementById('setting-logo-on');
     const pubEl    = document.getElementById('setting-list-public');
+    const nbFiltEl = document.getElementById('setting-notebook-filter');
     if (titleEl)  titleEl.value   = s.story_list_title || '';
     if (logoEl)   logoEl.checked  = s.logo_on === 'true';
     if (pubEl)    pubEl.checked   = s.list_public === 'true';
+    if (nbFiltEl) nbFiltEl.checked = s.show_notebook_filter === 'true';
     const tplEl = document.querySelector(`input[name="setting-template"][value="${s.template || 'minimal'}"]`);
     if (tplEl) tplEl.checked = true;
     if (s.list_token && s.list_public === 'true') {
@@ -1828,15 +1830,17 @@ async function initSettings() {
 
   let saveTimer;
   async function saveSettings() {
-    const titleEl = document.getElementById('setting-list-title');
-    const logoEl  = document.getElementById('setting-logo-on');
-    const pubEl   = document.getElementById('setting-list-public');
-    const tplEl   = document.querySelector('input[name="setting-template"]:checked');
+    const titleEl  = document.getElementById('setting-list-title');
+    const logoEl   = document.getElementById('setting-logo-on');
+    const pubEl    = document.getElementById('setting-list-public');
+    const nbFiltEl = document.getElementById('setting-notebook-filter');
+    const tplEl    = document.querySelector('input[name="setting-template"]:checked');
     const payload = {
-      story_list_title: titleEl?.value || '',
-      template:         tplEl?.value || 'minimal',
-      logo_on:          logoEl?.checked ? 'true' : 'false',
-      list_public:      pubEl?.checked  ? 'true' : 'false',
+      story_list_title:      titleEl?.value || '',
+      template:              tplEl?.value || 'minimal',
+      logo_on:               logoEl?.checked  ? 'true' : 'false',
+      list_public:           pubEl?.checked   ? 'true' : 'false',
+      show_notebook_filter:  nbFiltEl?.checked ? 'true' : 'false',
     };
     try {
       const resp = await fetch('/api/settings', {
@@ -1890,7 +1894,8 @@ async function initPublished() {
   try {
     const resp = await fetch(`/api/published/${encodeURIComponent(listToken)}`);
     if (!resp.ok) throw new Error('not found or private');
-    let { settings, notes } = await resp.json();
+    let { settings, notes, notebooks: pubNbs } = await resp.json();
+    let data = { settings, notes, notebooks: pubNbs || [] };
 
     // Owner detection — non-blocking; Clerk may or may not be present
     let pubClerkToken = null;
@@ -1906,7 +1911,11 @@ async function initPublished() {
         });
         if (ownerResp.ok) {
           const ownerData = await ownerResp.json();
-          if (ownerData.settings.isOwner) { settings = ownerData.settings; notes = ownerData.notes; }
+          if (ownerData.settings.isOwner) {
+            settings = ownerData.settings;
+            notes = ownerData.notes;
+            data = { settings, notes, notebooks: ownerData.notebooks || data.notebooks };
+          }
         }
       }
     } catch (_) {}
@@ -1930,10 +1939,23 @@ async function initPublished() {
       if (logoTopEl)   logoTopEl.hidden = false;
     }
 
-    const listEl   = document.getElementById('pub-notes-list');
-    const emptyEl  = document.getElementById('pub-notes-empty');
-    const searchEl = document.getElementById('pub-search');
-    const filterEl = document.getElementById('pub-vis-filter');
+    const listEl    = document.getElementById('pub-notes-list');
+    const emptyEl   = document.getElementById('pub-notes-empty');
+    const searchEl  = document.getElementById('pub-search');
+    const filterEl  = document.getElementById('pub-vis-filter');
+    const nbFiltEl  = document.getElementById('pub-notebook-filter');
+
+    // Populate notebook dropdown and show if owner or setting enabled
+    const pubNotebooks = data.notebooks || [];
+    if (nbFiltEl && pubNotebooks.length > 0 && (settings.isOwner || settings.showNotebookFilter)) {
+      pubNotebooks.forEach(nb => {
+        const opt = document.createElement('option');
+        opt.value = nb.id;
+        opt.textContent = nb.title;
+        nbFiltEl.appendChild(opt);
+      });
+      nbFiltEl.hidden = false;
+    }
 
     const needsAuth = vis => pubClerkToken && (vis === 'logged_in' || vis === 'me');
 
@@ -1999,10 +2021,12 @@ async function initPublished() {
     }
 
     let activeVis = '';
+    let activeNotebook = '';
     function filteredNotes() {
       const q = searchEl ? searchEl.value.trim().toLowerCase() : '';
       return notes.filter(n =>
         (activeVis === '' || (n.visibility || 'public') === activeVis) &&
+        (activeNotebook === '' || (n.notebook_ids || []).includes(activeNotebook)) &&
         (!q || (n.title || '').toLowerCase().includes(q) || (n.summary_snippet || '').toLowerCase().includes(q))
       );
     }
@@ -2011,6 +2035,13 @@ async function initPublished() {
 
     if (searchEl) {
       searchEl.addEventListener('input', () => renderNotes(filteredNotes()));
+    }
+
+    if (nbFiltEl) {
+      nbFiltEl.addEventListener('change', () => {
+        activeNotebook = nbFiltEl.value;
+        renderNotes(filteredNotes());
+      });
     }
 
     // Visibility filter — owner only

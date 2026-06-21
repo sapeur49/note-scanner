@@ -87,10 +87,11 @@ user_settings = Table(
     metadata,
     Column("user_id", String(255), primary_key=True),
     Column("story_list_title", String(512), nullable=True),
-    Column("template", String(32), nullable=True),    # minimal|bold|magazine
-    Column("logo_on", String(8), nullable=True),      # "true"|"false"
-    Column("list_public", String(8), nullable=True),  # "true"|"false"
-    Column("list_token", String(36), nullable=True),  # stable public UUID
+    Column("template", String(32), nullable=True),             # minimal|bold|magazine
+    Column("logo_on", String(8), nullable=True),               # "true"|"false"
+    Column("list_public", String(8), nullable=True),           # "true"|"false"
+    Column("list_token", String(36), nullable=True),           # stable public UUID
+    Column("show_notebook_filter", String(8), nullable=True),  # "true"|"false"
 )
 
 notebooks = Table(
@@ -135,6 +136,11 @@ def _migrate_schema() -> None:
                 conn.execute(text("ALTER TABLE notes ADD COLUMN visibility VARCHAR(32) DEFAULT 'public'"))
             if "slug" not in existing:
                 conn.execute(text("ALTER TABLE notes ADD COLUMN slug VARCHAR(255) NULL"))
+        if "user_settings" in inspector.get_table_names():
+            us_existing = {c["name"] for c in inspector.get_columns("user_settings")}
+            with engine.begin() as conn:
+                if "show_notebook_filter" not in us_existing:
+                    conn.execute(text("ALTER TABLE user_settings ADD COLUMN show_notebook_filter VARCHAR(8) NULL"))
     except Exception as e:
         print(f"[db] migration warning: {e}")
 
@@ -405,7 +411,7 @@ def get_note_by_share_token(token: str):
 
 # ── User settings ─────────────────────────────────────────────────────────────
 
-_SETTINGS_FIELDS = ("story_list_title", "template", "logo_on", "list_public")
+_SETTINGS_FIELDS = ("story_list_title", "template", "logo_on", "list_public", "show_notebook_filter")
 
 
 def get_settings(user_id: str) -> dict:
@@ -414,7 +420,8 @@ def get_settings(user_id: str) -> dict:
         row = conn.execute(stmt).mappings().first()
     if not row:
         return {"user_id": user_id, "story_list_title": None, "template": None,
-                "logo_on": None, "list_public": None, "list_token": None}
+                "logo_on": None, "list_public": None, "list_token": None,
+                "show_notebook_filter": None}
     return dict(row)
 
 
@@ -487,8 +494,42 @@ def list_published_notes(user_id: str) -> list:
             "share_token": r["share_token"],
             "image_positions": image_positions,
             "visibility": r["visibility"] or "public",
+            "notebook_ids": [],
         })
+
+    # Attach notebook memberships in one query
+    if out:
+        note_ids = [n["id"] for n in out]
+        nn_stmt = select(note_notebooks.c.note_id, note_notebooks.c.notebook_id).where(
+            note_notebooks.c.note_id.in_(note_ids)
+        )
+        with engine.connect() as conn2:
+            nn_rows = conn2.execute(nn_stmt).fetchall()
+        note_nb_map: dict = {}
+        for note_id, notebook_id in nn_rows:
+            note_nb_map.setdefault(note_id, []).append(notebook_id)
+        for n in out:
+            n["notebook_ids"] = note_nb_map.get(n["id"], [])
+
     return out
+
+
+def list_published_notebooks(user_id: str) -> list:
+    """Notebooks that contain at least one published note for the given user."""
+    stmt = (
+        select(notebooks.c.id, notebooks.c.title)
+        .select_from(
+            notebooks
+            .join(note_notebooks, notebooks.c.id == note_notebooks.c.notebook_id)
+            .join(notes, note_notebooks.c.note_id == notes.c.id)
+        )
+        .where(notebooks.c.user_id == user_id, notes.c.is_published == True)
+        .distinct()
+        .order_by(notebooks.c.title)
+    )
+    with engine.connect() as conn:
+        rows = conn.execute(stmt).mappings().all()
+    return [{"id": r["id"], "title": r["title"]} for r in rows]
 
 
 # ── Notebooks ─────────────────────────────────────────────────────────────────
