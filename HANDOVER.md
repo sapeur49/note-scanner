@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-busters: **`style.css?v=51`**, **`app.js?v=57`** across eight HTML files.
+Cache-busters: **`style.css?v=51`**, **`app.js?v=60`** across eight HTML files.
 
 `landing.html` is live at `/landing` — static marketing page, no auth required, self-contained CSS.
 
@@ -19,7 +19,8 @@ Cache-busters: **`style.css?v=51`**, **`app.js?v=57`** across eight HTML files.
 
 | # | Feature | Version | Key files |
 |---|---|---|---|
-| 0 | **Infinite scroll** — My Notes, Notebooks page, and Published list now render 20 items at a time and append the next 20 as the user scrolls near the bottom, via an IntersectionObserver sentinel div (`.load-sentinel`). All note data is fetched in one request; client-side search/filter/visibility still works across the full dataset. `createNoteCard` / `appendNoteCards` pattern in `initNotes`; `createNbCard` / `appendNbCards` in `initNotebooks`; `createPubCard` / `appendPubCards` in `initPublished`. | v51 / v57 | `app.js`, `style.css` (`.load-sentinel`) |
+| 0 | **Admin scan prompt editor** — Settings page shows an "Advanced" card (hidden for all users except `opti66@gmail.com`, gated client-side by Clerk email). Contains a resizable monospace textarea pre-populated with the user's saved prompt, plus a "Reset to default" button that clears it. Saved via a separate "Save Advanced Settings" button. Backend stores the value in `user_settings.scan_prompt` (new TEXT column + migration); `POST /api/scan` uses it instead of the hardcoded `SCAN_PROMPT` constant when non-empty. | v60 | `settings.html`, `app.js` (`initSettings`), `app/db.py` (`scan_prompt` col + migration), `app/main.py` (`scan_notes`) |
+| 1 | **Infinite scroll** — My Notes, Notebooks page, and Published list now render 20 items at a time and append the next 20 as the user scrolls near the bottom, via an IntersectionObserver sentinel div (`.load-sentinel`). All note data is fetched in one request; client-side search/filter/visibility still works across the full dataset. `createNoteCard` / `appendNoteCards` pattern in `initNotes`; `createNbCard` / `appendNbCards` in `initNotebooks`; `createPubCard` / `appendPubCards` in `initPublished`. | v51 / v57 | `app.js`, `style.css` (`.load-sentinel`) |
 | 1 | **Pre-scan thumbnails** — after selecting files on the home screen, 72×72 image thumbnails (object URLs) and PDF placeholder tiles appear below the file count. Each tile has an × remove button. Removing clears the slot from `selectedFiles` and re-renders. | v51 / v57 | `app.js` (`renderThumbs`), `index.html` (`#pre-scan-thumbs`), `style.css` (`.pre-scan-*`) |
 | 2 | **10-file scan limit** — `POST /api/scan` returns HTTP 400 if more than 10 files are submitted. Frontend enforces the same cap in `addFiles()` and shows an inline error. | v51 / v57 | `app/main.py` (`scan_notes`), `app.js` (`addFiles`, `MAX_FILES`) |
 | 3 | **Notes assignment panel on Notebooks page** — each notebook card has a checkmark button that toggles an inline panel. The panel lazy-loads all notes (stored in `allNotes`; loaded once per page visit), shows a search input, and renders a scrollable checklist with notes-in-notebook listed first. Toggling a checkbox immediately calls `PUT /api/notes/{id}/notebooks` and updates the live note count. | v50 / v56 | `app.js` (`toggleNotesPanel` inside `initNotebooks`), `style.css` (`.nb-notes-panel`, `.nb-notes-checklist`, `.nb-btn-active`) |
@@ -159,3 +160,5 @@ Sends text fields (`title`, `summary`, etc.) + `publish_options` + `visibility` 
 46. Published list (visitor, notebook filter setting ON): notebook filter dropdown visible; selecting narrows the list.
 47. Published list (visitor, notebook filter setting OFF): notebook filter dropdown hidden.
 48. Settings page: "Notebook filter" checkbox present; save → published list reflects the change for visitors.
+49. Sign in as `opti66@gmail.com` → Settings page shows an "Advanced" card below Publishing; textarea shows current scan prompt (empty = default). Edit text → Save Advanced Settings → next scan uses the custom prompt. Click "Reset to default" → textarea cleared → next scan reverts to default `SCAN_PROMPT`.
+50. Sign in as any other user → Settings page shows no Advanced card.
