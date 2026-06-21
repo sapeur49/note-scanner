@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=51`, `app.js?v=60`). Update all eight HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=52`, `app.js?v=61`). Update all nine HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution. `landing.html` uses self-contained inline CSS — no version bump needed.
 
 ---
 
@@ -54,7 +54,7 @@ landing.html       Public marketing landing page — hero, how-it-works, before/
 index.html         Upload UI (sign-in wall + app div + Notebooks + My Notes + Settings links)
 results.html       Scan results: image strip, summary, transcription, additional notes, notebooks card, share panel, save/update/delete/publish
 notes.html         My Notes list — visibility filter, search, notebook filter dropdown, browse, open saved notes (thumbnails + published badge)
-notebooks.html     Notebooks management page — list notebooks, create/rename/delete, click through to filtered notes list; globe icon in header
+notebooks.html     Notebooks management page — list notebooks (user + system), create/rename/delete, search, sort (A–Z / date), click through to filtered notes list; globe icon in header
 help.html          User help guide — icon reference table, scanning, My Notes, Notebooks, Publishing, Settings sections; accessible without auth; served at /help
 share.html         Public share page — route is server-side rendered (OG/Twitter Card meta tags injected for social previews); Clerk loaded async for owner detection; template/logo from owner settings; share button (all visitors) + owner visibility icon + edit button (top-right corner)
 settings.html      Settings page — story list title, template, logo, published list visibility (auth'd)
@@ -103,7 +103,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 ## Backend: app/main.py
 
 - `MODEL` constant selects the Claude model — currently `claude-sonnet-4-6`; `max_tokens=4096`
-- `SCAN_PROMPT` controls the Claude prompt. Claude's reply is parsed by extracting the first `{...}` block via regex — the JSON-only output constraint is load-bearing. Prose before/after the JSON breaks parsing silently (returns 502). The prompt is **adaptive**: text-dominant images get full transcription + summary; primarily visual images (photos, objects, scenes) get an analytical description in `summary` and any visible labels/text in `transcription`.
+- The scan prompt is split into `SCAN_PROMPT_BASE` (the instructions) and `SCAN_PROMPT_JSON_SHAPE` (the JSON output requirement). Both are always concatenated before sending to Claude — this prevents custom prompts from accidentally omitting the JSON shape and causing a 502. `SCAN_PROMPT = SCAN_PROMPT_BASE + SCAN_PROMPT_JSON_SHAPE` for reference. The prompt is **adaptive**: text-dominant images get full transcription + summary; primarily visual images (photos, objects, scenes) get an analytical description in `summary` and any visible labels/text in `transcription`.
 - `scanned_at` (ISO-8601 UTC) is added server-side; Claude never generates timestamps.
 
 **EXIF extraction** (`_extract_exif` in `app/main.py`):
@@ -217,7 +217,7 @@ Slug helpers: `_slugify(title)` — lowercase, strip non-alnum to hyphens, trunc
 | `list_public` | String(8) | `"true"`\|`"false"` — controls public access to published list |
 | `list_token` | String(36) | Stable UUID; auto-generated on first `upsert_settings()` call |
 | `show_notebook_filter` | String(8) | `"true"`\|`"false"` — show notebook dropdown to all visitors on published list |
-| `scan_prompt` | Text | Custom scan prompt; when non-empty, replaces `SCAN_PROMPT` in `app/main.py` for that user's scans. Only editable by `opti66@gmail.com` via the Advanced card in Settings. |
+| `scan_prompt` | Text | Custom scan prompt; when non-empty, replaces `SCAN_PROMPT_BASE` in `app/main.py` for that user's scans (`SCAN_PROMPT_JSON_SHAPE` is always appended regardless). Only editable by `opti66@gmail.com` via the Advanced card in Settings (which also shows the read-only default prompt fetched from `GET /api/default-scan-prompt`). |
 
 **`notebooks` table** (created via `create_all`, no migration needed):
 | Column | Type | Purpose |
@@ -237,7 +237,7 @@ Composite primary key prevents duplicates. Notes not in any notebook simply have
 
 Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get_settings_by_list_token(token)`, `list_published_notes(user_id)` — returns notes with `notebook_ids` per note (batch query), `update_note_files(user_id, note_id, files)`, `get_adjacent_published_notes(user_id, note_id)` — returns `{prev_token, next_token}` for prev/next navigation on share pages. `list_published_notebooks(user_id)` — notebooks that contain at least one published note (used by published list API to populate the filter dropdown).
 
-Notebook functions: `list_notebooks(user_id)` — LEFT JOIN with `note_notebooks`, GROUP BY, returns `[{id, title, note_count}]`; `create_notebook(user_id, title)`; `update_notebook(user_id, notebook_id, title)`; `delete_notebook(user_id, notebook_id)` — removes join rows then notebook; `get_note_notebook_ids(note_id)` — returns list of notebook IDs; `set_note_notebooks(user_id, note_id, notebook_ids)` — verifies ownership, replaces all join rows.
+Notebook functions: `list_notebooks(user_id)` — returns user notebooks (LEFT JOIN `note_notebooks`) followed by four virtual system notebooks (`_SYSTEM_NOTEBOOKS` constant) with live note counts; each entry has `is_system: bool`. `list_notes()` handles `system:public`, `system:login_restricted`, `system:me`, `system:unpublished` as special `notebook_id` values. `set_note_notebooks()` strips system IDs before writing. `create_notebook(user_id, title)`; `update_notebook(user_id, notebook_id, title)`; `delete_notebook(user_id, notebook_id)` — removes join rows then notebook; `get_note_notebook_ids(note_id)` — returns list of notebook IDs.
 
 **`notes` table notable columns** (besides the obvious text/JSON fields):
 | Column | Type | Notes |
@@ -280,7 +280,7 @@ Notebook functions: `list_notebooks(user_id)` — LEFT JOIN with `note_notebooks
 
 ## Making Changes
 
-- **Claude prompt / model**: edit `SCAN_PROMPT` / `MODEL` constant in `app/main.py`. Users with a non-empty `scan_prompt` in their `user_settings` row override the default for their own scans; the Advanced card in `settings.html` exposes this editor for `opti66@gmail.com` only (gated in `initSettings()` by `window.Clerk.user.primaryEmailAddress.emailAddress`).
+- **Claude prompt / model**: edit `SCAN_PROMPT_BASE` / `MODEL` constant in `app/main.py`. `SCAN_PROMPT_JSON_SHAPE` is always appended and must not be removed — it keeps Claude's output parseable. Users with a non-empty `scan_prompt` in their `user_settings` row override `SCAN_PROMPT_BASE` for their own scans; the Advanced card in `settings.html` exposes this editor for `opti66@gmail.com` only (gated in `initSettings()` by `window.Clerk.user.primaryEmailAddress.emailAddress`). The default prompt is exposed via `GET /api/default-scan-prompt` (auth'd) so the settings page can display it read-only.
 - **EXIF fields extracted**: edit `_extract_exif()` in `app/main.py`
 - **Styling**: CSS variables at top of `style.css`
 - **Markdown rendering**: edit `renderMarkdown()` in `app.js`
@@ -297,13 +297,14 @@ Notebook functions: `list_notebooks(user_id)` — LEFT JOIN with `note_notebooks
 - **Published list owner features** (visibility icons on cards, filter bar): `initPublished()` in `app.js`; filter bar is `#pub-vis-filter` in `published.html` (hidden until owner confirmed); `renderNotes()` adds `.pub-card-vis` badge when `settings.isOwner`
 - **My Notes visibility filter**: `#notes-vis-filter` in `notes.html`; `initNotes()` in `app.js` uses client-side filtering (`filteredNotes()`) — notes loaded once, filtered in memory by `activeVis` + search query. Filter works on `n.visibility` field; non-published notes hidden when a visibility filter is active.
 - **My Notes notebook filter**: `#notes-notebook-filter` select in `notes.html` (below the search bar); `initNotes()` populates it from `GET /api/notebooks` on load; change triggers `loadAll()` which passes `?notebook_id=` to the server — notes are server-filtered by notebook, then client-filtered by search + visibility. Pre-selects from `?notebook` URL param so notebook links from `notebooks.html` work.
-- **Notebooks management page**: `notebooks.html` + `initNotebooks()` in `app.js`; lists notebooks with note count; inline rename; delete with confirm; "New Notebook" form; clicking a notebook info link navigates to `notes.html?notebook=<id>`.
+- **Notebooks management page**: `notebooks.html` + `initNotebooks()` in `app.js`; lists user notebooks then system notebooks; inline rename/delete/add-notes panel for user notebooks only; search (`#nb-search`) and sort (`#nb-sort`: `alpha`|`date`) controls above the list; `filteredNotebooks()` applies sort+search client-side, always placing system notebooks at the end; clicking a notebook navigates to `notes.html?notebook=<id>`.
+- **System notebooks**: four read-only virtual notebooks (Public, Login restricted, Only me, Unpublished) appended by `list_notebooks()`. Identified by `id.startsWith('system:')` or `is_system: true`. No edit/delete/add-notes UI rendered for them. `loadNotebooksCard` on results page filters them out (`userNotebooks = notebooks.filter(nb => !nb.is_system)`). Cannot be assigned manually — backend strips them in `set_note_notebooks()`.
 - **Notebooks card on results page**: `#notebooks-card` in `results.html` (hidden until note is saved); `loadNotebooksCard(noteId, initialNotebookIds)` in `app.js` — fetches notebook list, renders checkboxes, each toggle immediately calls `PUT /api/notes/{noteId}/notebooks`. Called in saved mode with `data.notebook_ids` from `GET /api/notes/{id}`; called with `[]` immediately after a fresh save. Existing notes have `notebook_ids: []` by default (no migration needed).
 - **Help page**: `help.html` served at `/help`; `initHelp()` in `app.js` loads Clerk, shows `#site-nav`, calls `initHamburger()` — no auth wall (page is informational). Hamburger on the help page links to Help (self), Settings, Sign out. Header-right: Notebooks, My Notes, Home.
 - **Hamburger menu**: Contains Help → Settings → Sign out on all app pages. Help link uses question-mark circle icon.
 - **HTML caching fix**: FastAPI middleware `no_cache_html` in `app/main.py` sets `Cache-Control: no-cache` on all `text/html` responses, preventing stale pages on mobile PWA installs where there is no visible browser refresh.
 - **Publish visibility default**: `<option value="me" selected>` in `#pub-visibility` select in `results.html`. Change the `selected` attribute to change the default.
-- **Scan prompt for visual images**: `SCAN_PROMPT` in `app/main.py` — edit the "If primarily VISUAL" branch to change how non-text images are described.
+- **Scan prompt for visual images**: `SCAN_PROMPT_BASE` in `app/main.py` — edit the "If primarily VISUAL" branch to change how non-text images are described.
 - **DB schema changes on `notes`**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`. New tables: just add to `metadata` — `create_all()` handles them automatically.
 - **Tests**: add blocks inside `runTests()` in `test.html`
 - **PWA icons**: replace `icons/icon-192.png` and `icons/icon-512.png` with real branded art (192×192 and 512×512 PNG). Colors in `manifest.json` (`background_color`, `theme_color`) and the `<meta name="theme-color">` in all six HTML files should match the `--bg` and `--accent` CSS variables in `style.css`.
