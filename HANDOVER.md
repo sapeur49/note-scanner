@@ -1,7 +1,7 @@
 # HANDOVER — ReadWrite continuity snapshot
 
 Live state for picking up work in a fresh thread. Durable project docs live in `CLAUDE.md`; this file is the "where we are right now" snapshot.
-**Date of this snapshot:** 2026-06-20.
+**Date of this snapshot:** 2026-06-21.
 
 ---
 
@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-busters: **`style.css?v=48`**, **`app.js?v=54`** across eight HTML files (`help.html` added).
+Cache-busters: **`style.css?v=51`**, **`app.js?v=57`** across eight HTML files.
 
 `landing.html` is live at `/landing` — static marketing page, no auth required, self-contained CSS.
 
@@ -19,9 +19,14 @@ Cache-busters: **`style.css?v=48`**, **`app.js?v=54`** across eight HTML files (
 
 | # | Feature | Version | Key files |
 |---|---|---|---|
-| 0 | **Help page + icon guide** — `/help` route serves `help.html`, a full user guide covering scanning, My Notes, notebooks, publishing, settings, and an icon reference table. Help link (question-circle icon) added as the first item in the hamburger nav-menu on all five app pages. `initHelp()` in `app.js` loads Clerk so the sign-out button works without enforcing an auth wall on the guide. | v48 / v54 | `help.html` (new), `app/main.py` (`GET /help` route), `app.js` (`initHelp`, router branch), `style.css` (`.help-*`, `.icon-legend*` classes), `index.html`, `results.html`, `notes.html`, `notebooks.html`, `settings.html` (hamburger Help link) |
-| 1 | **No-cache HTML middleware** — FastAPI `StaticFiles` and `FileResponse` apply heuristic HTTP caching to HTML without an explicit `Cache-Control` header; iOS PWA installs were serving stale HTML after deploys. One middleware added after `app = FastAPI()` sets `Cache-Control: no-cache` on all `text/html` responses. Browser still revalidates via ETags (304 when unchanged). | — | `app/main.py` (`no_cache_html` middleware) |
-| 2 | **Globe icon on Notebooks page** — `#pub-list-btn` added to `notebooks.html` header-right (hidden by default); `initNotebooks()` fetches `/api/settings` after auth to get `list_token` and reveals the button. | v48 / v54 | `notebooks.html`, `app.js` (`initNotebooks`) |
+| 0 | **Infinite scroll** — My Notes, Notebooks page, and Published list now render 20 items at a time and append the next 20 as the user scrolls near the bottom, via an IntersectionObserver sentinel div (`.load-sentinel`). All note data is fetched in one request; client-side search/filter/visibility still works across the full dataset. `createNoteCard` / `appendNoteCards` pattern in `initNotes`; `createNbCard` / `appendNbCards` in `initNotebooks`; `createPubCard` / `appendPubCards` in `initPublished`. | v51 / v57 | `app.js`, `style.css` (`.load-sentinel`) |
+| 1 | **Pre-scan thumbnails** — after selecting files on the home screen, 72×72 image thumbnails (object URLs) and PDF placeholder tiles appear below the file count. Each tile has an × remove button. Removing clears the slot from `selectedFiles` and re-renders. | v51 / v57 | `app.js` (`renderThumbs`), `index.html` (`#pre-scan-thumbs`), `style.css` (`.pre-scan-*`) |
+| 2 | **10-file scan limit** — `POST /api/scan` returns HTTP 400 if more than 10 files are submitted. Frontend enforces the same cap in `addFiles()` and shows an inline error. | v51 / v57 | `app/main.py` (`scan_notes`), `app.js` (`addFiles`, `MAX_FILES`) |
+| 3 | **Notes assignment panel on Notebooks page** — each notebook card has a checkmark button that toggles an inline panel. The panel lazy-loads all notes (stored in `allNotes`; loaded once per page visit), shows a search input, and renders a scrollable checklist with notes-in-notebook listed first. Toggling a checkbox immediately calls `PUT /api/notes/{id}/notebooks` and updates the live note count. | v50 / v56 | `app.js` (`toggleNotesPanel` inside `initNotebooks`), `style.css` (`.nb-notes-panel`, `.nb-notes-checklist`, `.nb-btn-active`) |
+| 4 | **Notebook filter on published list** — a notebook dropdown appears below the search bar on the published list page. Always visible to the owner; optionally visible to all visitors via a new Settings toggle ("Show notebook filter to all visitors"). The API includes `notebooks` (published notebooks only) and `notebook_ids` per note. Client-side filtering in `initPublished`. | v50 / v56 | `published.html` (`#pub-notebook-filter`), `settings.html` (`#setting-notebook-filter`), `app.js` (`initPublished`, `initSettings`), `app/main.py` (`get_published_list`), `app/db.py` (`list_published_notebooks`, `show_notebook_filter` column + migration) |
+| 5 | **Help page + icon guide** — `/help` route serves `help.html`, a full user guide covering scanning, My Notes, notebooks, publishing, settings, and an icon reference table. Help link (question-circle icon) added as the first item in the hamburger nav-menu on all five app pages. `initHelp()` in `app.js` loads Clerk so the sign-out button works without enforcing an auth wall on the guide. | v48 / v54 | `help.html` (new), `app/main.py` (`GET /help` route), `app.js` (`initHelp`, router branch), `style.css` (`.help-*`, `.icon-legend*` classes), all app HTML files (hamburger Help link) |
+| 6 | **No-cache HTML middleware** — FastAPI `StaticFiles` and `FileResponse` apply heuristic HTTP caching to HTML without an explicit `Cache-Control` header; iOS PWA installs were serving stale HTML after deploys. One middleware added after `app = FastAPI()` sets `Cache-Control: no-cache` on all `text/html` responses. Browser still revalidates via ETags (304 when unchanged). | — | `app/main.py` (`no_cache_html` middleware) |
+| 7 | **Globe icon on Notebooks page** — `#pub-list-btn` added to `notebooks.html` header-right (hidden by default); `initNotebooks()` fetches `/api/settings` after auth to get `list_token` and reveals the button. | v48 / v54 | `notebooks.html`, `app.js` (`initNotebooks`) |
 | 3 | **Notebook categorization** — notes can belong to multiple notebooks (many-to-many). Notebooks page (`/notebooks`) lists all notebooks with note counts; create/rename/delete inline. Notebook book icon added to all app page headers. My Notes page gains a notebook filter dropdown below the search bar (server-filtered via `?notebook_id=`). Results page shows a Notebooks card after saving — checkboxes for all notebooks, toggled immediately via `PUT /api/notes/{id}/notebooks`. Existing notes default to no notebooks with no migration required (join-table design). | v47 / v53 | `notebooks.html` (new), `app/db.py` (`notebooks` + `note_notebooks` tables, 6 new functions), `app/main.py` (6 new routes), `app.js` (`initNotebooks`, `loadNotebooksCard`, `initNotes` notebook filter), `notes.html`, `results.html`, `index.html`, `settings.html`, `published.html`, `style.css` (notebook styles) |
 | 1 | **Landing page** — public marketing page at `/landing`; hero with app mockup, how-it-works steps, before/after example, 6-feature grid, testimonials, CTA. Self-contained inline CSS matching design tokens. No explicit route needed — served by the `StaticFiles` mount (`html=True`). | — | `landing.html` |
 | 1 | **Adaptive scan prompt** — non-text images (photos, objects, scenes) now get analytical description in `summary` + any visible labels in `transcription` instead of refusal | — | `app/main.py` (`SCAN_PROMPT`) |
@@ -144,3 +149,13 @@ Sends text fields (`title`, `summary`, etc.) + `publish_options` + `visibility` 
 36. `/help` icon reference table shows all icons (menu, notebooks, my notes, home, globe, unlock, person, eye, pencil, share, help) with names and descriptions.
 37. `/notebooks` header-right: globe icon appears (linked to published list) after sign-in when user has a list_token; hidden before auth or if no list_token.
 38. After a deploy, reload any page on the iOS PWA → browser revalidates HTML; no stale cached version served. Network tab shows `Cache-Control: no-cache` on HTML responses.
+39. Home page: select 11 images → error "Maximum 10 files per scan" appears; only 10 files accepted. Select 5 → thumbnails appear below file count, each with × remove. Remove one → count updates, thumbnail gone.
+40. Home page: select a mix of images and a PDF → PDF tile shows "PDF" placeholder; image tiles show actual thumbnail previews.
+41. My Notes: if >20 notes exist, first 20 cards render immediately; scrolling to the bottom appends the next 20 (and so on). Search and filter still work across the full dataset.
+42. Notebooks page: if >20 notebooks exist, same progressive render applies.
+43. Published list: same progressive render; notebook + search + visibility filters apply to the full in-memory dataset.
+44. Notebooks page: click the checkmark button on a notebook → notes panel opens with search input and scrollable checklist; notes already in the notebook appear first (checked). Toggle a checkbox → note count on the card updates immediately. Click the checkmark button again → panel collapses.
+45. Published list (owner): notebook filter dropdown visible; selecting a notebook narrows the list client-side.
+46. Published list (visitor, notebook filter setting ON): notebook filter dropdown visible; selecting narrows the list.
+47. Published list (visitor, notebook filter setting OFF): notebook filter dropdown hidden.
+48. Settings page: "Notebook filter" checkbox present; save → published list reflects the change for visitors.

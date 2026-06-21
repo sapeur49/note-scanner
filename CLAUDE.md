@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=48`, `app.js?v=54`). Update all eight HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=51`, `app.js?v=57`). Update all eight HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
 
 ---
 
@@ -207,7 +207,7 @@ SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()
 
 Slug helpers: `_slugify(title)` — lowercase, strip non-alnum to hyphens, truncate to 60 chars. `_make_slug(base, user_id, exclude_note_id)` — queries existing slugs for the user and appends `-2`/`-3` suffix on collision. `get_note_by_slug(slug)` — published-note lookup by slug (no auth).
 
-**`user_settings` table** (created via `create_all`, no migration needed):
+**`user_settings` table** (`create_all` creates it; `show_notebook_filter` added via `_migrate_schema`):
 | Column | Type | Purpose |
 |---|---|---|
 | `user_id` | String(255) PK | Clerk user sub |
@@ -216,6 +216,7 @@ Slug helpers: `_slugify(title)` — lowercase, strip non-alnum to hyphens, trunc
 | `logo_on` | String(8) | `"true"`\|`"false"` — show ReadWrite logo on published pages |
 | `list_public` | String(8) | `"true"`\|`"false"` — controls public access to published list |
 | `list_token` | String(36) | Stable UUID; auto-generated on first `upsert_settings()` call |
+| `show_notebook_filter` | String(8) | `"true"`\|`"false"` — show notebook dropdown to all visitors on published list |
 
 **`notebooks` table** (created via `create_all`, no migration needed):
 | Column | Type | Purpose |
@@ -233,7 +234,7 @@ Slug helpers: `_slugify(title)` — lowercase, strip non-alnum to hyphens, trunc
 
 Composite primary key prevents duplicates. Notes not in any notebook simply have no rows here — `get_note_notebook_ids()` returns `[]` for them. Existing notes created before the feature are automatically treated as belonging to no notebooks, with no migration needed.
 
-Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get_settings_by_list_token(token)`, `list_published_notes(user_id)`, `update_note_files(user_id, note_id, files)`, `get_adjacent_published_notes(user_id, note_id)` — returns `{prev_token, next_token}` for prev/next navigation on share pages.
+Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get_settings_by_list_token(token)`, `list_published_notes(user_id)` — returns notes with `notebook_ids` per note (batch query), `update_note_files(user_id, note_id, files)`, `get_adjacent_published_notes(user_id, note_id)` — returns `{prev_token, next_token}` for prev/next navigation on share pages. `list_published_notebooks(user_id)` — notebooks that contain at least one published note (used by published list API to populate the filter dropdown).
 
 Notebook functions: `list_notebooks(user_id)` — LEFT JOIN with `note_notebooks`, GROUP BY, returns `[{id, title, note_count}]`; `create_notebook(user_id, title)`; `update_notebook(user_id, notebook_id, title)`; `delete_notebook(user_id, notebook_id)` — removes join rows then notebook; `get_note_notebook_ids(note_id)` — returns list of notebook IDs; `set_note_notebooks(user_id, note_id, notebook_ids)` — verifies ownership, replaces all join rows.
 
@@ -305,6 +306,11 @@ Notebook functions: `list_notebooks(user_id)` — LEFT JOIN with `note_notebooks
 - **DB schema changes on `notes`**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`. New tables: just add to `metadata` — `create_all()` handles them automatically.
 - **Tests**: add blocks inside `runTests()` in `test.html`
 - **PWA icons**: replace `icons/icon-192.png` and `icons/icon-512.png` with real branded art (192×192 and 512×512 PNG). Colors in `manifest.json` (`background_color`, `theme_color`) and the `<meta name="theme-color">` in all six HTML files should match the `--bg` and `--accent` CSS variables in `style.css`.
+- **Scan file limit**: `MAX_FILES = 10` constant in `addFiles()` in `app.js` (inside `initIndex()`); enforced server-side in `scan_notes()` in `app/main.py` with a 400 error. Change both values in sync.
+- **Pre-scan thumbnails**: `renderThumbs()` in `app.js` builds `#pre-scan-thumbs` (`index.html`) using `URL.createObjectURL()` for instant previews; revoked in `img.onload`. `.pre-scan-*` styles in `style.css`. × remove button filters `selectedFiles` by reference identity.
+- **Infinite scroll / progressive rendering**: `appendNoteCards(items, fromIdx)` in `initNotes()`, `appendPubCards(items, fromIdx)` in `initPublished()`, `appendNbCards(items, fromIdx)` in `initNotebooks()` — all use the same IntersectionObserver sentinel pattern (PAGE = 20, rootMargin 300px). `.load-sentinel` style in `style.css`. Data is loaded in one fetch; only rendering is batched.
+- **Notebook filter on published list**: `#pub-notebook-filter` select in `published.html`; populated in `initPublished()` via `list_published_notebooks()` in `app/db.py`; visible only to list owner; controlled by `show_notebook_filter` in `user_settings` (toggle in `settings.html`). Filter sends `?notebook_id=` to `GET /api/published/{list_token}`.
+- **Notes assignment panel on Notebooks page**: `toggleNotesPanel(nb, card)` inside `initNotebooks()` in `app.js` — clicking the ✓ icon on a notebook card opens an inline panel below the card showing all user notes with checkboxes; checking/unchecking calls `PUT /api/notes/{id}/notebooks` for that note.
 
 ---
 
