@@ -1631,7 +1631,10 @@ async function initShare() {
     const template  = data.template || 'minimal';
     const logoOn    = data.logo_on === true;
     const listToken = data.list_token || null;
-    const listUrl   = listToken ? `/published/${listToken}` : null;
+    const fromParam = new URLSearchParams(location.search).get('from');
+    const listUrl   = fromParam
+      ? `/published/${encodeURIComponent(fromParam)}`
+      : (listToken ? `/published/${listToken}` : null);
 
     document.body.dataset.template = template;
 
@@ -2123,7 +2126,7 @@ async function initPublished() {
       const vis = n.visibility || 'public';
       const card = document.createElement('a');
       card.className = 'pub-card';
-      card.href = `/share/${n.share_token}`;
+      card.href = `/share/${n.share_token}` + (data.activeNotebook?.slug ? `?from=${encodeURIComponent(data.activeNotebook.slug)}` : '');
       const visIconHtml = settings.isOwner
         ? `<span class="pub-card-vis" title="${VIS_LABEL[vis] || 'Public'}">${VIS_SVG[vis] || VIS_SVG.public}</span>`
         : '';
