@@ -1,7 +1,7 @@
 # HANDOVER — ReadWrite continuity snapshot
 
 Live state for picking up work in a fresh thread. Durable project docs live in `CLAUDE.md`; this file is the "where we are right now" snapshot.
-**Date of this snapshot:** 2026-06-21.
+**Date of this snapshot:** 2026-06-21 (updated same session).
 
 ---
 
@@ -9,7 +9,7 @@ Live state for picking up work in a fresh thread. Durable project docs live in `
 
 Everything is merged to **`main`**. Railway auto-deploys from main. No open feature branches.
 
-Cache-busters: **`style.css?v=52`**, **`app.js?v=61`** across nine HTML files (relative paths: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html`; absolute paths `/style.css?vN`, `/app.js?vN`: `share.html`, `published.html`). `landing.html` uses self-contained inline CSS — no version bump needed.
+Cache-busters: **`style.css?v=53`**, **`app.js?v=62`** across nine HTML files (relative paths: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html`; absolute paths `/style.css?vN`, `/app.js?vN`: `share.html`, `published.html`). `landing.html` uses self-contained inline CSS — no version bump needed.
 
 `landing.html` is live at `/landing` — static marketing page, no auth required, self-contained CSS.
 
@@ -19,6 +19,8 @@ Cache-busters: **`style.css?v=52`**, **`app.js?v=61`** across nine HTML files (r
 
 | # | Feature | Version | Key files |
 |---|---|---|---|
+| 0 | **Notebook URL slugs + notebook-filtered published list header** — Each notebook gets an auto-generated URL slug (editable inline). Notebook cards on `/notebooks` show a shareable `/published/{list_token}?nb={slug}` URL with a copy button and an "Edit slug" inline action. `GET /published/{list_token}?nb={slug}` filters the list to that notebook and replaces the page `<h1>` / `document.title` with the notebook's title. Changing the notebook dropdown on the published list updates the title and URL live via `history.replaceState`. Backend: `slug` column on `notebooks` + migration; `_make_notebook_slug()` dedup helper; `get_notebook_by_slug()`; `GET /api/published/{list_token}?nb=` returns `activeNotebook: {id, title, slug}`. Published list sort order uses `scanned_at desc` — editing a note's date reorders it in the list. | v62 / v53 | `app/db.py` (`slug` col, `_make_notebook_slug`, `get_notebook_by_slug`, `list_notebooks`, `list_published_notebooks`, `create_notebook`, `update_notebook`), `app/main.py` (`update_notebook_route` + `get_published_list` `?nb=` param), `app.js` (`initPublished` URL-param/title logic, `createNbCard` slug row, `initNotebooks` `window._pubListToken`), `style.css` (`.nb-slug-row`, `.nb-slug-link`) |
+| 0 | **Published list sort order** — Notes ordered by `scanned_at desc` instead of `created_at`; editing a note's date now changes its position in the list. | v61 | `app/db.py` (`list_published_notes`) |
 | 0 | **Nav icons in settings + help menus; expanded header-right on settings** — Hamburger nav-menu on `settings.html` and `help.html` now shows Home, My Notes, Notebooks, Published list (globe, hidden until `list_token` confirmed) above a divider, then Help / Settings / Sign out. `settings.html` header-right gains My Notes and Globe icons (previously only had Notebooks + Home). `help.html` header-right gains Globe. | v61 / v52 | `settings.html`, `help.html`, `app.js` (`initSettings`, `initHelp`), `style.css` (`.nav-menu-divider`) |
 | 0 | **Custom scan prompt fix + default prompt display** — `SCAN_PROMPT` split into `SCAN_PROMPT_BASE` + `SCAN_PROMPT_JSON_SHAPE`; JSON shape always appended to any prompt so custom prompts can never break Claude's output. New `GET /api/default-scan-prompt` endpoint (auth'd). Advanced settings card now shows a read-only "Default prompt" textarea (populated from API) and a separate optional "Custom prompt" textarea; button relabelled "Clear custom prompt". | v61 | `app/main.py` (`SCAN_PROMPT_BASE`, `SCAN_PROMPT_JSON_SHAPE`, `scan_notes`, new route), `settings.html`, `app.js` (`initSettings`) |
 | 0 | **System notebooks** — Four virtual notebooks (Public, Login restricted, Only me, Unpublished) appended to every `GET /api/notebooks` response with live counts. `list_notes()` handles `system:*` notebook IDs for server-side filtering. `set_note_notebooks()` strips system IDs. Frontend renders them as dashed-border cards at the bottom with no edit/delete/add-notes actions; excluded from `loadNotebooksCard` checkboxes on results page. | v61 | `app/db.py` (`_SYSTEM_NOTEBOOKS`, `list_notebooks`, `list_notes`, `set_note_notebooks`), `app.js` (`createNbCard`, `filteredNotebooks`, `loadNotebooksCard`), `style.css` (`.nb-card-system`) |
@@ -166,3 +168,7 @@ Sends text fields (`title`, `summary`, etc.) + `publish_options` + `visibility` 
 48. Settings page: "Notebook filter" checkbox present; save → published list reflects the change for visitors.
 49. Sign in as `opti66@gmail.com` → Settings page shows an "Advanced" card below Publishing; textarea shows current scan prompt (empty = default). Edit text → Save Advanced Settings → next scan uses the custom prompt. Click "Reset to default" → textarea cleared → next scan reverts to default `SCAN_PROMPT`.
 50. Sign in as any other user → Settings page shows no Advanced card.
+51. `/notebooks` → each user notebook card shows a shareable URL row below the title (e.g. `/published/{list_token}?nb={slug}`); copy button copies to clipboard; "Edit slug" opens inline input; save updates the slug and the displayed URL.
+52. Navigate to `/published/{list_token}?nb={slug}` → page `<h1>` and browser tab title show the notebook's title, not the user's global story list title; notes list is filtered to that notebook.
+53. On the published list page, change the notebook dropdown to a different notebook → page title and URL (`?nb=`) update live without a full page reload; change to "All" → title reverts to global story list title and `?nb=` param removed from URL.
+54. Edit a note's scan date to an older value → after save, note moves down in the published list when refreshed; edit to a newer date → note moves up.
