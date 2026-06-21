@@ -92,6 +92,7 @@ user_settings = Table(
     Column("list_public", String(8), nullable=True),           # "true"|"false"
     Column("list_token", String(36), nullable=True),           # stable public UUID
     Column("show_notebook_filter", String(8), nullable=True),  # "true"|"false"
+    Column("scan_prompt", _LongText, nullable=True),           # custom scan prompt; None = use default
 )
 
 notebooks = Table(
@@ -141,6 +142,8 @@ def _migrate_schema() -> None:
             with engine.begin() as conn:
                 if "show_notebook_filter" not in us_existing:
                     conn.execute(text("ALTER TABLE user_settings ADD COLUMN show_notebook_filter VARCHAR(8) NULL"))
+                if "scan_prompt" not in us_existing:
+                    conn.execute(text("ALTER TABLE user_settings ADD COLUMN scan_prompt TEXT NULL"))
     except Exception as e:
         print(f"[db] migration warning: {e}")
 
@@ -427,7 +430,7 @@ def get_note_by_share_token(token: str):
 
 # ── User settings ─────────────────────────────────────────────────────────────
 
-_SETTINGS_FIELDS = ("story_list_title", "template", "logo_on", "list_public", "show_notebook_filter")
+_SETTINGS_FIELDS = ("story_list_title", "template", "logo_on", "list_public", "show_notebook_filter", "scan_prompt")
 
 
 def get_settings(user_id: str) -> dict:

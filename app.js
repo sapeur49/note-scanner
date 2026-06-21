@@ -1867,6 +1867,12 @@ async function initSettings() {
 
   initHamburger();
 
+  const userEmail = window.Clerk.user?.primaryEmailAddress?.emailAddress;
+  const isAdmin = userEmail === 'opti66@gmail.com';
+
+  const advancedCard = document.getElementById('advanced-settings-card');
+  if (isAdmin && advancedCard) advancedCard.hidden = false;
+
   const token = await getToken();
   const statusEl = document.getElementById('settings-status');
   const listUrlRow = document.getElementById('setting-list-url-row');
@@ -1896,9 +1902,23 @@ async function initSettings() {
     } else {
       if (listUrlRow) listUrlRow.hidden = true;
     }
+    if (isAdmin) {
+      const promptEl = document.getElementById('setting-scan-prompt');
+      if (promptEl) promptEl.value = s.scan_prompt || '';
+    }
   }
 
   applySettings(current);
+
+  if (isAdmin) {
+    const resetBtn = document.getElementById('setting-prompt-reset');
+    if (resetBtn) {
+      resetBtn.addEventListener('click', () => {
+        const promptEl = document.getElementById('setting-scan-prompt');
+        if (promptEl) promptEl.value = '';
+      });
+    }
+  }
 
   let saveTimer;
   async function saveSettings() {
@@ -1931,12 +1951,41 @@ async function initSettings() {
     } catch (_) {}
   }
 
+  async function saveAdvancedSettings() {
+    const promptEl = document.getElementById('setting-scan-prompt');
+    const advStatusEl = document.getElementById('advanced-settings-status');
+    const payload = { scan_prompt: promptEl?.value || '' };
+    try {
+      const resp = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        body: JSON.stringify(payload),
+      });
+      if (resp.ok) {
+        current = await resp.json();
+        if (advStatusEl) {
+          advStatusEl.textContent = 'Saved';
+          setTimeout(() => { advStatusEl.textContent = ''; }, 2000);
+        }
+      }
+    } catch (_) {}
+  }
+
   const saveBtn = document.getElementById('settings-save-btn');
   if (saveBtn) {
     saveBtn.addEventListener('click', async () => {
       saveBtn.disabled = true;
       await saveSettings();
       saveBtn.disabled = false;
+    });
+  }
+
+  const advSaveBtn = document.getElementById('advanced-settings-save-btn');
+  if (isAdmin && advSaveBtn) {
+    advSaveBtn.addEventListener('click', async () => {
+      advSaveBtn.disabled = true;
+      await saveAdvancedSettings();
+      advSaveBtn.disabled = false;
     });
   }
 }

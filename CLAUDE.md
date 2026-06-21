@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=51`, `app.js?v=57`). Update all eight HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=51`, `app.js?v=60`). Update all eight HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution.
 
 ---
 
@@ -217,6 +217,7 @@ Slug helpers: `_slugify(title)` — lowercase, strip non-alnum to hyphens, trunc
 | `list_public` | String(8) | `"true"`\|`"false"` — controls public access to published list |
 | `list_token` | String(36) | Stable UUID; auto-generated on first `upsert_settings()` call |
 | `show_notebook_filter` | String(8) | `"true"`\|`"false"` — show notebook dropdown to all visitors on published list |
+| `scan_prompt` | Text | Custom scan prompt; when non-empty, replaces `SCAN_PROMPT` in `app/main.py` for that user's scans. Only editable by `opti66@gmail.com` via the Advanced card in Settings. |
 
 **`notebooks` table** (created via `create_all`, no migration needed):
 | Column | Type | Purpose |
@@ -279,7 +280,7 @@ Notebook functions: `list_notebooks(user_id)` — LEFT JOIN with `note_notebooks
 
 ## Making Changes
 
-- **Claude prompt / model**: edit `SCAN_PROMPT` / `MODEL` constant in `app/main.py`
+- **Claude prompt / model**: edit `SCAN_PROMPT` / `MODEL` constant in `app/main.py`. Users with a non-empty `scan_prompt` in their `user_settings` row override the default for their own scans; the Advanced card in `settings.html` exposes this editor for `opti66@gmail.com` only (gated in `initSettings()` by `window.Clerk.user.primaryEmailAddress.emailAddress`).
 - **EXIF fields extracted**: edit `_extract_exif()` in `app/main.py`
 - **Styling**: CSS variables at top of `style.css`
 - **Markdown rendering**: edit `renderMarkdown()` in `app.js`

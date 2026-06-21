@@ -197,7 +197,9 @@ async def scan_notes(
                 "source": {"type": "base64", "media_type": media_type, "data": b64},
             })
 
-    prompt = SCAN_PROMPT
+    user_settings_row = db.get_settings(_user["sub"])
+    custom_prompt = (user_settings_row.get("scan_prompt") or "").strip()
+    prompt = custom_prompt if custom_prompt else SCAN_PROMPT
     if instructions and instructions.strip():
         prompt += f"""\n\nAdditional instructions: {instructions.strip()}
 
