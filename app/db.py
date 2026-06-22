@@ -107,6 +107,7 @@ notebooks = Table(
     Column("created_at", DateTime, nullable=False),
     Column("slug", String(255), nullable=True),
     Column("access_code_hash", String(255), nullable=True),
+    Column("access_code_plain", String(255), nullable=True),
     Column("visibility", String(32), nullable=True),
 )
 
@@ -172,6 +173,8 @@ def _migrate_schema() -> None:
                     conn.execute(text("ALTER TABLE notebooks ADD COLUMN slug VARCHAR(255) NULL"))
                 if "access_code_hash" not in nb_existing:
                     conn.execute(text("ALTER TABLE notebooks ADD COLUMN access_code_hash VARCHAR(255) NULL"))
+                if "access_code_plain" not in nb_existing:
+                    conn.execute(text("ALTER TABLE notebooks ADD COLUMN access_code_plain VARCHAR(255) NULL"))
                 if "visibility" not in nb_existing:
                     conn.execute(text("ALTER TABLE notebooks ADD COLUMN visibility VARCHAR(32) DEFAULT 'public'"))
     except Exception as e:
@@ -678,7 +681,7 @@ def list_notebooks(user_id: str) -> list:
     )
     with engine.connect() as conn:
         rows = conn.execute(stmt).mappings().all()
-        result = [{"id": r["id"], "title": r["title"], "note_count": r["note_count"], "slug": r["slug"], "has_access_code": bool(r["access_code_hash"]), "visibility": r["visibility"] or "public", "is_system": False} for r in rows]
+        result = [{"id": r["id"], "title": r["title"], "note_count": r["note_count"], "slug": r["slug"], "has_access_code": bool(r["access_code_hash"]), "access_code_plain": r["access_code_plain"] or "", "visibility": r["visibility"] or "public", "is_system": False} for r in rows]
 
         # Append virtual system notebooks with live counts
         base = notes.c.user_id == user_id
@@ -742,12 +745,12 @@ def delete_notebook(user_id: str, notebook_id: str) -> bool:
     return True
 
 
-def set_notebook_access_code(user_id: str, notebook_id: str, code_hash) -> bool:
-    """Store or clear an access code hash for a notebook. Returns True if found."""
+def set_notebook_access_code(user_id: str, notebook_id: str, code_hash, code_plain=None) -> bool:
+    """Store or clear an access code (hash + plaintext) for a notebook. Returns True if found."""
     stmt = (
         sa_update(notebooks)
         .where(notebooks.c.id == notebook_id, notebooks.c.user_id == user_id)
-        .values(access_code_hash=code_hash)
+        .values(access_code_hash=code_hash, access_code_plain=code_plain)
     )
     with engine.begin() as conn:
         result = conn.execute(stmt)

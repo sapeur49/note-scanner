@@ -2687,13 +2687,11 @@ async function initNotebooks() {
           const row = document.createElement('div');
           row.className = 'nb-access-form-row';
 
-          const storedCode = localStorage.getItem(`nb_code_${nb.id}`) || '';
-
           const inp = document.createElement('input');
           inp.type = 'password';
-          inp.value = hasCode ? storedCode : '';
+          inp.value = hasCode ? (nb.access_code_plain || '') : '';
           inp.className = 'nb-access-input';
-          inp.placeholder = hasCode && !storedCode ? 'New code (set on another device)' : hasCode ? 'Current code — edit or clear' : 'New access code';
+          inp.placeholder = hasCode && !nb.access_code_plain ? 'Hash only — enter new code to update' : hasCode ? 'Current code — edit or clear' : 'New access code';
           inp.maxLength = 128;
           inp.autocomplete = 'off';
 
@@ -2734,8 +2732,7 @@ async function initNotebooks() {
               if (!resp.ok) throw new Error();
               const updated = await resp.json();
               nb.has_access_code = updated.has_access_code ?? (code.trim().length > 0);
-              if (code.trim()) localStorage.setItem(`nb_code_${nb.id}`, code);
-              else localStorage.removeItem(`nb_code_${nb.id}`);
+              nb.access_code_plain = updated.access_code_plain ?? (code.trim() || '');
               row.remove();
               renderAccessRow();
             } catch (_) { saveBtn.disabled = false; }

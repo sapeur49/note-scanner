@@ -524,7 +524,7 @@ def update_notebook_route(notebook_id: str, payload: dict = Body(...), _user: di
     if "access_code" in payload:
         code = (payload.get("access_code") or "").strip()
         code_hash = _hash_access_code(code) if code else None
-        db.set_notebook_access_code(_user["sub"], notebook_id, code_hash)
+        db.set_notebook_access_code(_user["sub"], notebook_id, code_hash, code_plain=code or None)
     nbs = db.list_notebooks(_user["sub"])
     nb = next((n for n in nbs if n["id"] == notebook_id), None)
     return nb or {"ok": True}
