@@ -49,7 +49,9 @@ SCAN_PROMPT_BASE = """You are processing images submitted for scanning and analy
 **If primarily VISUAL (photo, object, scene, diagram):**
 1. In "transcription": include any visible text, labels, numbers, or markings present in the image (empty string if none).
 2. In "summary": provide a detailed analytical description — identify the subject, describe what is depicted, note relevant details, context, and any meaningful observations.
-3. Create a short descriptive title (max ~8 words) capturing the subject — plain text, no markdown."""
+3. Create a short descriptive title (max ~8 words) capturing the subject — plain text, no markdown.
+
+**Web search:** If the scanned content references information that may be time-sensitive or could have changed since your training — such as current events, news, prices, scores, currently-serving officials, recent research, upcoming events, or anything where giving an outdated answer would be misleading or unhelpful — use web search to verify or supplement your response before finalising it. If the content is purely personal notes, creative writing, historical context, or anything not time-sensitive, transcribe and analyse normally without searching."""
 
 SCAN_PROMPT_JSON_SHAPE = """
 
@@ -261,10 +263,14 @@ Also include an "additional_notes" key in your JSON response addressing the addi
     response = client.messages.create(
         model=MODEL,
         max_tokens=4096,
+        tools=[{"type": "web_search_20260209", "name": "web_search"}],
         messages=[{"role": "user", "content": image_blocks}],
     )
 
-    raw = response.content[0].text
+    # Web search responses may include non-text blocks (tool_use, tool_result);
+    # extract the last text block which contains the final JSON output.
+    text_blocks = [b for b in response.content if getattr(b, "type", None) == "text"]
+    raw = text_blocks[-1].text if text_blocks else ""
     match = re.search(r'\{[\s\S]*\}', raw)
     if not match:
         raise HTTPException(status_code=502, detail="Unexpected response from Claude")
