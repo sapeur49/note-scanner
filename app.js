@@ -1548,10 +1548,15 @@ function renderMarkdown(text) {
   let listType = null;
   function closeList() { if (listType) { out.push(`</${listType}>`); listType = null; } }
   function inlineFormat(s) {
-    // Split on URLs so they can be linked without double-escaping
-    return s.split(/(https?:\/\/[^\s]+)/g).map((part, idx) => {
+    // Split on markdown links [Name](url) and bare URLs, in that order
+    return s.split(/(\[[^\]]+\]\(https?:\/\/[^)]+\)|https?:\/\/[^\s]+)/g).map((part, idx) => {
       if (idx % 2 === 1) {
-        // URL — trim trailing punctuation that's likely not part of it
+        const mdLink = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/);
+        if (mdLink) {
+          const escUrl = escapeHtml(mdLink[2]);
+          return `<a href="${escUrl}" target="_blank" rel="noopener">${escapeHtml(mdLink[1])}</a>`;
+        }
+        // Bare URL — trim trailing punctuation that's likely not part of it
         const url = part.replace(/[.,;:!?)'"\]]+$/, '');
         const tail = part.slice(url.length);
         const esc = escapeHtml(url);
