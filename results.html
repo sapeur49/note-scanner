@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#2563eb">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
-  <link rel="stylesheet" href="style.css?v=59">
+  <link rel="stylesheet" href="style.css?v=60">
 </head>
 <body>
   <div class="container">
@@ -70,7 +70,7 @@
         <summary class="images-toggle">Images</summary>
         <div id="image-strip" class="image-strip"></div>
         <div id="add-images-row" hidden>
-          <label class="btn-add-images" for="add-images-input">+ Add images</label>
+          <button type="button" class="btn-add-images" id="add-images-btn">+ Add images</button>
           <input type="file" id="add-images-input" accept="image/*,application/pdf" multiple style="display:none">
           <span id="add-images-status" class="add-images-status"></span>
         </div>
@@ -282,6 +282,6 @@
     type="text/javascript"
   ></script>
   <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
-  <script src="app.js?v=73"></script>
+  <script src="app.js?v=74"></script>
 </body>
 </html>

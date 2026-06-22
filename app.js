@@ -352,10 +352,12 @@ async function initIndex() {
       // Stash the to-be-saved artifacts in IndexedDB: 1500px JPEGs for images,
       // original files for PDFs. Read back by the Save button on results.html.
       const scanId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now());
+      // When resize fails (e.g. HEIC on mobile, canvas memory limits), fall back
+      // to the original File so the image is still saved to the note.
       const persistFiles = selectedFiles.map((f, i) => f.type === 'application/pdf'
         ? { kind: 'pdf', position: i, blob: f, original_name: f.name }
-        : { kind: 'image', position: i, blob: lightboxImgs[i] ? dataURLtoBlob(lightboxImgs[i]) : null, original_name: null }
-      ).filter(e => e.blob);
+        : { kind: 'image', position: i, blob: lightboxImgs[i] ? dataURLtoBlob(lightboxImgs[i]) : f, original_name: f.name }
+      );
       try {
         await idbPut(scanId, persistFiles);
         sessionStorage.setItem(SCAN_ID_KEY, scanId);
@@ -1182,10 +1184,17 @@ async function initResults() {
   function enableAddImages(noteId) {
     const addImagesRow    = document.getElementById('add-images-row');
     const addImagesInput  = document.getElementById('add-images-input');
+    const addImagesBtn    = document.getElementById('add-images-btn');
     const addImagesStatus = document.getElementById('add-images-status');
     if (addImagesRow) {
       addImagesRow.hidden = false;
       document.getElementById('images-section').hidden = false;
+    }
+    // Wire button → input.click() so iOS Safari opens the file picker reliably.
+    // Using label[for] on a display:none input does not trigger the picker on iOS.
+    if (addImagesBtn && !addImagesBtn.dataset.wired) {
+      addImagesBtn.dataset.wired = '1';
+      addImagesBtn.addEventListener('click', () => addImagesInput && addImagesInput.click());
     }
     if (addImagesInput && !addImagesInput.dataset.wired) {
       addImagesInput.dataset.wired = '1';

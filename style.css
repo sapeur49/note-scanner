@@ -457,6 +457,8 @@ details[open] .images-toggle::before {
   display: inline-block;
   padding: 5px 12px;
   font-size: 0.8rem;
+  background: none;
+  font-family: inherit;
   border: 1px dashed var(--border);
   border-radius: 6px;
   color: var(--text-muted);
