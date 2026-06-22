@@ -2214,9 +2214,9 @@ async function initPublished() {
     const filterEl  = document.getElementById('pub-vis-filter');
     const nbFiltEl  = document.getElementById('pub-notebook-filter');
 
-    // Populate notebook dropdown and show if owner or setting enabled
+    // Populate notebook dropdown and show if owner or setting enabled — but not inside a notebook view
     const pubNotebooks = data.notebooks || [];
-    if (nbFiltEl && pubNotebooks.length > 0 && (settings.isOwner || settings.showNotebookFilter)) {
+    if (nbFiltEl && pubNotebooks.length > 0 && !data.activeNotebook && (settings.isOwner || settings.showNotebookFilter)) {
       pubNotebooks.forEach(nb => {
         const opt = document.createElement('option');
         opt.value = nb.id;
