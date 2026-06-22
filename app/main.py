@@ -51,7 +51,9 @@ SCAN_PROMPT_BASE = """You are processing images submitted for scanning and analy
 2. In "summary": provide a detailed analytical description — identify the subject, describe what is depicted, note relevant details, context, and any meaningful observations.
 3. Create a short descriptive title (max ~8 words) capturing the subject — plain text, no markdown.
 
-**Web search:** If the scanned content references information that may be time-sensitive or could have changed since your training — such as current events, news, prices, scores, currently-serving officials, recent research, upcoming events, or anything where giving an outdated answer would be misleading or unhelpful — use web search to verify or supplement your response before finalising it. If the content is purely personal notes, creative writing, historical context, or anything not time-sensitive, transcribe and analyse normally without searching."""
+**Web search:** If the scanned content references information that may be time-sensitive or could have changed since your training — such as current events, news, prices, scores, currently-serving officials, recent research, upcoming events, or anything where giving an outdated answer would be misleading or unhelpful — use web search to verify or supplement your response before finalising it. If the content is purely personal notes, creative writing, historical context, or anything not time-sensitive, transcribe and analyse normally without searching.
+
+**Citation format:** Never use `<cite>` tags, XML markup, or any structured citation syntax in your output. If you draw on web search results, attribute sources in plain natural prose woven into the sentence — for example "according to BBC News" or "(Source: Reuters)" — or appended cleanly at the end of the relevant point. Your entire response must be clean text and markdown only, with no XML or HTML tags of any kind."""
 
 SCAN_PROMPT_JSON_SHAPE = """
 
