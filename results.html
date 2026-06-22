@@ -153,10 +153,12 @@
           </select>
         </div>
         <div class="pub-opt-group">
-          <div class="pub-opt-label">URL slug</div>
+          <div class="pub-opt-label">Custom URL</div>
           <div class="pub-slug-row">
             <input type="text" id="pub-slug" class="pub-slug-input" placeholder="random (auto-generated)" autocomplete="off" spellcheck="false">
-            <button type="button" id="pub-slug-use-title" class="btn-outline btn-sm">Use title</button>
+            <button type="button" id="pub-slug-use-title" class="btn-outline btn-sm btn-icon-sm" title="Fill from title">
+              <svg class="icon"><use href="#icon-pencil"/></svg>
+            </button>
           </div>
           <div id="pub-slug-preview" class="pub-slug-preview"></div>
         </div>
@@ -256,6 +258,9 @@
     <symbol id="icon-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+    </symbol>
+    <symbol id="icon-pencil" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
     </symbol>
     <symbol id="icon-link-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
       <path d="M9 17H7a5 5 0 0 1 0-10h2"/>
