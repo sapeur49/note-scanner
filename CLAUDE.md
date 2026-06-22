@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=58`, `app.js?v=69`). Update all nine HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution. `landing.html` uses self-contained inline CSS — no version bump needed.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=59`, `app.js?v=74`). Update all nine HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution. `landing.html` uses self-contained inline CSS — no version bump needed.
 
 ---
 
@@ -276,7 +276,7 @@ Notebook functions: `list_notebooks(user_id)` — returns user notebooks (LEFT J
 `app.js` functions (defined just before the router):
 
 - `escapeHtml(s)` — XSS-safe HTML entity escaping
-- `renderMarkdown(text)` — converts `## h2`, `### h3`, `- `/ `* ` lists, `1. ` ordered lists, `**bold**` to HTML; bare `http`/`https` URLs become `<a>` links (via `inlineFormat`); all other content becomes `<p>` wrapped. No external library.
+- `renderMarkdown(text)` — converts `## h2`, `### h3`, `- `/ `* ` lists, `1. ` ordered lists, `**bold**` to HTML; `[text](url)` markdown links become `<a>` anchors with URL hidden (handled first in `inlineFormat` before bare-URL auto-linking); bare `http`/`https` URLs auto-linked after; all other content becomes `<p>` wrapped. No external library.
 - `setMd(el, text)` — sets `el.innerHTML = renderMarkdown(text)` and stores `el.dataset.rawMd = text`
 
 **Edit mode uses EasyMDE** (loaded from CDN in `results.html`): clicking Edit on Summary/Transcription/Additional Notes opens an EasyMDE instance (toolbar + preview toggle) instead of a plain textarea. Active instances are tracked in the `editors` Map keyed by section name. `getText(section)` queries the live EasyMDE instance if one exists, falling back to `el.dataset.rawMd ?? el.textContent`. Done destroys the EasyMDE instance and re-renders with `setMd()`. Note-title keeps a plain `<input>` (no EasyMDE).
