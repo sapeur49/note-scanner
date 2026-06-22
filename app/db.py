@@ -7,6 +7,7 @@ SQLite file during development (when neither env var is set).
 
 import os
 import re
+import secrets
 import uuid
 from datetime import datetime, timezone
 
@@ -204,6 +205,11 @@ def _slugify(title: str) -> str:
     s = re.sub(r"-+", "-", s)
     s = s.strip("-")
     return s[:60] or "note"
+
+
+def _random_slug() -> str:
+    """Return a short URL-safe random slug (8 chars)."""
+    return secrets.token_urlsafe(6)
 
 
 def _make_slug(base_slug: str, user_id: str, exclude_note_id: str = None) -> str:
@@ -422,8 +428,7 @@ def publish_note(user_id: str, note_id: str):
     token = row["share_token"] or str(uuid.uuid4())
     slug = row["slug"]
     if not slug:
-        base = _slugify(row["title"] or "note")
-        slug = _make_slug(base, user_id, exclude_note_id=note_id)
+        slug = _random_slug()
     with engine.begin() as conn:
         conn.execute(
             sa_update(notes)

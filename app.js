@@ -903,6 +903,7 @@ async function initResults() {
   function lockPublishOptions() {
     if (pubOptionsEl) pubOptionsEl.classList.add('pub-options-locked');
     pubOptionsEl?.querySelectorAll('input, select').forEach(el => { el.disabled = true; });
+    if (useTitleBtn) useTitleBtn.disabled = true;
     if (pubEditBtn) pubEditBtn.hidden = false;
     if (pubSaveOptsBtn) pubSaveOptsBtn.hidden = true;
     if (republishBtn) republishBtn.hidden = true;
@@ -911,6 +912,7 @@ async function initResults() {
   function unlockPublishOptions() {
     if (pubOptionsEl) pubOptionsEl.classList.remove('pub-options-locked');
     pubOptionsEl?.querySelectorAll('input, select').forEach(el => { el.disabled = false; });
+    if (useTitleBtn) useTitleBtn.disabled = false;
     if (pubEditBtn) pubEditBtn.hidden = true;
     if (pubSaveOptsBtn) pubSaveOptsBtn.hidden = false;
     if (republishBtn) republishBtn.hidden = false;
@@ -927,10 +929,25 @@ async function initResults() {
   if (slugInput) {
     slugInput.addEventListener('input', () => {
       const val = slugInput.value.trim();
-      const derived = val ? slugify(val) : slugify(document.getElementById('note-title')?.value?.trim() || 'note');
-      updateSlugPreview(derived);
+      updateSlugPreview(val ? slugify(val) : '');
       clearTimeout(optionsSaveTimer);
       optionsSaveTimer = setTimeout(savePublishOptions, 800);
+    });
+  }
+
+  // "Use title" button fills slug from current note title
+  const useTitleBtn = document.getElementById('pub-slug-use-title');
+  if (useTitleBtn) {
+    useTitleBtn.addEventListener('click', () => {
+      const title = document.getElementById('note-title')?.value?.trim() || '';
+      if (!title) return;
+      const derived = slugify(title);
+      if (slugInput) {
+        slugInput.value = derived;
+        updateSlugPreview(derived);
+        clearTimeout(optionsSaveTimer);
+        optionsSaveTimer = setTimeout(savePublishOptions, 800);
+      }
     });
   }
 
@@ -2625,6 +2642,19 @@ async function initNotebooks() {
           inp.maxLength = 128;
           inp.autocomplete = 'off';
 
+          const EYE_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+          const EYE_OFF_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+          const eyeBtn = document.createElement('button');
+          eyeBtn.type = 'button';
+          eyeBtn.className = 'btn-outline btn-sm btn-icon-sm';
+          eyeBtn.title = 'Show/hide code';
+          eyeBtn.innerHTML = EYE_SVG;
+          eyeBtn.addEventListener('click', () => {
+            const show = inp.type === 'password';
+            inp.type = show ? 'text' : 'password';
+            eyeBtn.innerHTML = show ? EYE_OFF_SVG : EYE_SVG;
+          });
+
           const saveBtn = document.createElement('button');
           saveBtn.className = 'btn-save btn-sm';
           saveBtn.textContent = 'Save';
@@ -2633,7 +2663,7 @@ async function initNotebooks() {
           cancelBtn.className = 'btn-outline btn-sm';
           cancelBtn.textContent = 'Cancel';
 
-          row.append(inp, saveBtn, cancelBtn);
+          row.append(inp, eyeBtn, saveBtn, cancelBtn);
           accessRow.appendChild(row);
           inp.focus();
 

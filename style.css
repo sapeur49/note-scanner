@@ -1030,6 +1030,12 @@ details[open] .images-toggle::before {
   max-width: 320px;
 }
 
+.pub-slug-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  max-width: 320px;
+}
 .pub-slug-input {
   font-size: 0.85rem;
   padding: 5px 8px;
@@ -1037,8 +1043,8 @@ details[open] .images-toggle::before {
   border-radius: 6px;
   background: var(--bg);
   color: var(--text);
-  width: 100%;
-  max-width: 320px;
+  flex: 1;
+  min-width: 0;
   font-family: monospace;
 }
 .pub-slug-preview {
@@ -1047,7 +1053,8 @@ details[open] .images-toggle::before {
   margin-top: 3px;
   word-break: break-all;
 }
-.pub-options-locked .pub-slug-input {
+.pub-options-locked .pub-slug-input,
+.pub-options-locked #pub-slug-use-title {
   opacity: 0.45;
   pointer-events: none;
 }

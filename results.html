@@ -7,7 +7,7 @@
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#2563eb">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
-  <link rel="stylesheet" href="style.css?v=57">
+  <link rel="stylesheet" href="style.css?v=58">
 </head>
 <body>
   <div class="container">
@@ -154,7 +154,10 @@
         </div>
         <div class="pub-opt-group">
           <div class="pub-opt-label">URL slug</div>
-          <input type="text" id="pub-slug" class="pub-slug-input" placeholder="auto-generated from title" autocomplete="off" spellcheck="false">
+          <div class="pub-slug-row">
+            <input type="text" id="pub-slug" class="pub-slug-input" placeholder="random (auto-generated)" autocomplete="off" spellcheck="false">
+            <button type="button" id="pub-slug-use-title" class="btn-outline btn-sm">Use title</button>
+          </div>
           <div id="pub-slug-preview" class="pub-slug-preview"></div>
         </div>
       </div>
@@ -274,6 +277,6 @@
     type="text/javascript"
   ></script>
   <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
-  <script src="app.js?v=68"></script>
+  <script src="app.js?v=69"></script>
 </body>
 </html>
