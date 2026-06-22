@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=56`, `app.js?v=67`). Update all nine HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution. `landing.html` uses self-contained inline CSS — no version bump needed.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=57`, `app.js?v=68`). Update all nine HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution. `landing.html` uses self-contained inline CSS — no version bump needed.
 
 ---
 
@@ -138,9 +138,9 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `PUT /api/notes/{note_id}/notebooks` — set notebook memberships for a note; body: `{"notebook_ids": [...]}`. Replaces all existing memberships. Verifies note ownership and that all notebook IDs belong to the user (auth'd)
 - `POST /api/notes/{id}/publish` — generate/return share token + slug (idempotent, auth'd); returns `{"share_token": "...", "slug": "..."}`
 - `DELETE /api/notes/{id}/publish` — revoke share token (auth'd)
-- `GET /api/notebooks` — list all notebooks for the signed-in user; returns `[{id, title, note_count}]` (auth'd)
+- `GET /api/notebooks` — list all notebooks for the signed-in user; returns `[{id, title, note_count, slug, has_access_code}]` (auth'd)
 - `POST /api/notebooks` — create a notebook; body: `{"title": "..."}` (auth'd)
-- `PUT /api/notebooks/{notebook_id}` — rename a notebook; body: `{"title": "..."}` (auth'd)
+- `PUT /api/notebooks/{notebook_id}` — rename a notebook; body: `{"title": "..."}` (auth'd); also accepts optional `slug` (see notebook URL slugs) and optional `access_code` (non-empty string sets/replaces the PBKDF2 hash; empty string clears it — gate is removed)
 - `DELETE /api/notebooks/{notebook_id}` — delete a notebook (notes are unaffected, join rows removed) (auth'd)
 - `GET /api/settings` — fetch user settings (auth'd)
 - `PUT /api/settings` — upsert user settings; auto-generates `list_token` if absent (auth'd)
@@ -149,7 +149,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `PUT /api/admin/scan-limits` — update per-user and/or global daily scan limits; body: `{"per_user_daily_limit": N, "global_daily_limit": N}`; auth'd
 - `GET /api/share/{token}` — `token` may be a UUID share token or a slug; tries UUID lookup first, then slug fallback. Returns note JSON + owner settings; checks `visibility`; adds `is_owner: true`; adds `prev_token`/`next_token` for adjacent published notes when the list is public
 - `GET /api/share/{token}/images/{position}` — serve a published note image; enforces `visibility` (no auth required for `public`)
-- `GET /api/published/{list_token}` — return published notes list + settings; 403 if `list_public != true`; accepts optional `Authorization` header — if the bearer token matches the list owner, adds `isOwner: true` to settings and includes `visibility` on each note; **visibility filtering**: unauthenticated viewers see only `public` notes, authenticated non-owners see `public` + `logged_in`, owners see all
+- `GET /api/published/{identifier}` — identifier may be a UUID `list_token` or a notebook slug; return published notes list + settings; 403 if `list_public != true`; accepts optional `Authorization` header (owner detection) and optional `X-Notebook-Access-Code` header (for notebook slug URLs with an access code — returns `403 {"detail":"access_code_required"}` when missing or wrong); **note filtering**: main feed uses `includeInList`, notebook view uses `includeInNotebooks`; **visibility filtering**: unauthenticated viewers see only `public` notes, authenticated non-owners see `public` + `logged_in`, owners see all
 - `GET /share/{token}` — server-side render `share.html` with OG/Twitter Card meta tags injected; public notes get real title, summary excerpt, and hero image URL; restricted/not-found notes get generic ReadWrite branding (no content leaked)
 - `GET /settings` — serve `settings.html`
 - `GET /published/{list_token}` — serve `published.html` (no auth)
@@ -164,7 +164,7 @@ A saved note can be published: `POST /api/notes/{id}/publish` generates a stable
 
 `GET /share/{token}` serves `share.html`, which has **absolute** asset paths (`/style.css?v=N`, `/app.js?v=N`) — critical because the URL path `/share/{token}` would make relative paths resolve to `/share/style.css` (404). Same applies to `published.html` and `settings.html`.
 
-`initShare()` in `app.js` fetches `/api/share/{token}`, which now includes the owner's `template`, `logo_on`, and `list_token` (if their published list is public). Template and logo are **global** (from `user_settings`), not per-note. Per-note `publish_options` controls: `showImages`, `showSectionTitles`, `showSummary`, `showTranscription`, `showAdditional`, `imagePosition`, `includeInList`, `excludedImages` (array of positions excluded from the share page).
+`initShare()` in `app.js` fetches `/api/share/{token}`, which now includes the owner's `template`, `logo_on`, and `list_token` (if their published list is public). Template and logo are **global** (from `user_settings`), not per-note. Per-note `publish_options` controls: `showImages`, `showSectionTitles`, `showSummary`, `showTranscription`, `showAdditional`, `imagePosition`, `includeInList` (main published feed), `includeInNotebooks` (notebook pages — independent of `includeInList`), `excludedImages` (array of positions excluded from the share page).
 
 **Image auth on share/published pages**: `<img>` tags cannot send `Authorization` headers. For notes with `visibility = logged_in` or `me`, `initShare()` and `initPublished()` pre-fetch each image via `fetch()` with `Authorization: Bearer <token>`, convert the response blob to an object URL via `URL.createObjectURL()`, and set that as `img.src`. Public notes use plain `/api/share/{token}/images/{position}` URLs directly.
 
@@ -202,7 +202,7 @@ Each tile also renders:
 
 ## Database: app/db.py
 
-SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()` runs after `create_all()` and adds new columns via `ALTER TABLE` only if absent — works for both engines. Currently migrates: `share_token`, `publish_options`, `is_published`, `visibility`, `slug` on `notes`.
+SQLAlchemy Core, same code for MySQL (prod) and SQLite (dev). `_migrate_schema()` runs after `create_all()` and adds new columns via `ALTER TABLE` only if absent — works for both engines. Currently migrates: `share_token`, `publish_options`, `is_published`, `visibility`, `slug` on `notes`; `show_notebook_filter`, `scan_prompt` on `user_settings`; `slug`, `access_code_hash` on `notebooks`.
 
 `files` JSON column stores per-file metadata including `exif` (if available) — no separate EXIF column needed.
 
@@ -222,7 +222,7 @@ Slug helpers: `_slugify(title)` — lowercase, strip non-alnum to hyphens, trunc
 | `show_notebook_filter` | String(8) | `"true"`\|`"false"` — show notebook dropdown to all visitors on published list |
 | `scan_prompt` | Text | Custom scan prompt; when non-empty, replaces `SCAN_PROMPT_BASE` in `app/main.py` for that user's scans (`SCAN_PROMPT_JSON_SHAPE` is always appended regardless). Only editable by `opti66@gmail.com` via the Advanced card in Settings (which also shows the read-only default prompt fetched from `GET /api/default-scan-prompt`). |
 
-**`notebooks` table** (created via `create_all`, no migration needed):
+**`notebooks` table** (`create_all` creates it; `slug` and `access_code_hash` added via `_migrate_schema`):
 | Column | Type | Purpose |
 |---|---|---|
 | `id` | String(36) PK | UUID |
@@ -230,6 +230,7 @@ Slug helpers: `_slugify(title)` — lowercase, strip non-alnum to hyphens, trunc
 | `title` | String(512) | Notebook name |
 | `slug` | String(255) | URL slug; auto-generated on create; editable via `PUT /api/notebooks/{id}`; used in `?nb={slug}` published list URLs |
 | `created_at` | DateTime | UTC creation time |
+| `access_code_hash` | String(255) | PBKDF2-SHA256 hash of the optional access code (`pbkdf2:{salt}:{hex}`); NULL = no gate |
 
 **`note_notebooks` table** — many-to-many join (created via `create_all`, no migration needed):
 | Column | Type | Purpose |
@@ -254,9 +255,9 @@ Composite primary key prevents duplicates. Notes not in any notebook simply have
 
 `get_scan_counts(user_id, today_str)` → `(user_count, global_count)`. `increment_scan_count(user_id, today_str)` increments both rows atomically. `get_global_setting(key, default)` / `set_global_setting(key, value)` manage `global_settings`. Defaults used when key is absent: per-user 30/day, global 500/day.
 
-Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get_settings_by_list_token(token)`, `list_published_notes(user_id)` — returns notes with `notebook_ids` per note (batch query), ordered by `scanned_at desc`. `update_note_files(user_id, note_id, files)`, `get_adjacent_published_notes(user_id, note_id)` — returns `{prev_token, next_token}` for prev/next navigation on share pages. `list_published_notebooks(user_id)` — notebooks that contain at least one published note; returns `{id, title, slug}` (used by published list API to populate the filter dropdown).
+Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get_settings_by_list_token(token)`, `list_published_notes(user_id, for_notebook=False)` — `for_notebook=False` (default, main feed) skips notes with `includeInList=false`; `for_notebook=True` (notebook view) skips notes with `includeInNotebooks=false`; returns notes with `notebook_ids` per note (batch query), ordered by `scanned_at desc`. `update_note_files(user_id, note_id, files)`, `get_adjacent_published_notes(user_id, note_id)` — returns `{prev_token, next_token}` for prev/next navigation on share pages (always uses main-feed variant). `list_published_notebooks(user_id)` — notebooks that contain at least one published note; returns `{id, title, slug}` (used by published list API to populate the filter dropdown).
 
-Notebook functions: `list_notebooks(user_id)` — returns user notebooks (LEFT JOIN `note_notebooks`) followed by four virtual system notebooks (`_SYSTEM_NOTEBOOKS` constant) with live note counts; each entry has `is_system: bool` and `slug` (user notebooks only). `list_notes()` handles `system:public`, `system:login_restricted`, `system:me`, `system:unpublished` as special `notebook_id` values. `set_note_notebooks()` strips system IDs before writing. `create_notebook(user_id, title)` — creates notebook with `slug=NULL` (no public URL by default); `update_notebook(user_id, notebook_id, title, slug=None)` — `slug=None` auto-derives from title; `slug=""` clears to NULL (disables public URL); `slug=str` slugifies + deduplicates; `delete_notebook(user_id, notebook_id)` — removes join rows then notebook; `get_note_notebook_ids(note_id)` — returns list of notebook IDs. `get_notebook_by_slug(user_id, slug)` — looks up a user's notebook by slug.
+Notebook functions: `list_notebooks(user_id)` — returns user notebooks (LEFT JOIN `note_notebooks`) followed by four virtual system notebooks (`_SYSTEM_NOTEBOOKS` constant) with live note counts; each entry has `is_system: bool`, `slug`, and `has_access_code: bool` (user notebooks only). `list_notes()` handles `system:public`, `system:login_restricted`, `system:me`, `system:unpublished` as special `notebook_id` values. `set_note_notebooks()` strips system IDs before writing. `create_notebook(user_id, title)` — creates notebook with `slug=NULL` (no public URL by default); `update_notebook(user_id, notebook_id, title, slug=None)` — `slug=None` auto-derives from title; `slug=""` clears to NULL (disables public URL); `slug=str` slugifies + deduplicates; `delete_notebook(user_id, notebook_id)` — removes join rows then notebook; `get_note_notebook_ids(note_id)` — returns list of notebook IDs. `get_notebook_by_slug(user_id, slug)` — looks up a user's notebook by slug. `set_notebook_access_code(user_id, notebook_id, code_hash_or_none)` — stores or clears the PBKDF2 hash. `get_notebook_by_global_slug(slug)` — global slug lookup; returns `{id, title, slug, user_id, access_code_hash}`.
 
 **`notes` table notable columns** (besides the obvious text/JSON fields):
 | Column | Type | Notes |
@@ -336,6 +337,8 @@ Notebook functions: `list_notebooks(user_id)` — returns user notebooks (LEFT J
 - **Notebook filter on published list**: `#pub-notebook-filter` select in `published.html`; populated in `initPublished()` via `list_published_notebooks()` in `app/db.py`; visible only to list owner; controlled by `show_notebook_filter` in `user_settings` (toggle in `settings.html`). Filter sends `?notebook_id=` to `GET /api/published/{list_token}`.
 - **Notebook URL slugs**: `slug` column on `notebooks` table (added via `_migrate_schema`). Notebooks start with `slug=NULL` (no public URL). `PUT /api/notebooks/{id}` accepts optional `slug` in payload; `slug=""` clears to NULL. `GET /api/published/{identifier}` tries UUID list_token first, then tries global notebook slug via `get_notebook_by_global_slug(slug)` in `app/db.py`; when resolved via slug, notes are server-filtered to that notebook. Friendly URLs: `/published/coffee` resolves directly (no UUID in path). `initPublished()` passes the path segment as-is to the API; uses `data.activeNotebook.title` as page header when present; dropdown change navigates to `/published/{slug}` via `history.replaceState`. Notebook cards on `/notebooks` have a chain-link toggle button (grey = no URL, accent = active); clicking grey enables (sends `PUT` with title only → auto-slug); clicking active disables with confirm (sends `slug: ""`). URL row (shown when slug set) has `/published/{slug}` link, inline editable slug input (auto-saves 800ms debounce), and copy button. `window._pubListToken` set from `/api/settings` at page load; URL row hidden if absent.
 - **Notes assignment panel on Notebooks page**: `toggleNotesPanel(nb, card)` inside `initNotebooks()` in `app.js` — clicking the ✓ icon on a notebook card opens an inline panel below the card showing all user notes with checkboxes; checking/unchecking calls `PUT /api/notes/{id}/notebooks` for that note.
+- **Publish list vs. notebook inclusion**: two independent `publish_options` booleans — `includeInList` (appears in main published feed) and `includeInNotebooks` (appears in notebook-filtered views). Both exposed as checkboxes in the `#pub-options` "Include" group in `results.html`; read by `getPublishOptions()` and restored by `restorePublishOptions()` in `app.js`. Backend enforces the distinction in `list_published_notes(for_notebook=False/True)` called from `get_published_list` in `app/main.py`.
+- **Notebook access code**: set/clear via `PUT /api/notebooks/{id}` with `access_code` field. Hash stored in `notebooks.access_code_hash` via `set_notebook_access_code()` in `app/db.py`. Enforcement in `GET /api/published/{identifier}` when identifier is a notebook slug — use `_verify_access_code()` in `app/main.py` against the `X-Notebook-Access-Code` header. Frontend gate: `renderAccessGate()` inside `initPublished()` in `app.js`; verified code stored in `sessionStorage` under key `nb_access_{listToken}`. Notebook card UI: `renderAccessRow()` inside `createNbCard()` in `initNotebooks()` — shows lock button + "Access code: none/set" label; inline password form on click.
 
 ---
 
