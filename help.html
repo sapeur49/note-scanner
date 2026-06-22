@@ -86,7 +86,8 @@
         <div class="card-label">Scanning notes</div>
         <p class="help-p">From the home screen, add up to <strong>10</strong> images or PDFs using drag-and-drop, the <strong>Choose Files</strong> button, or <strong>Camera</strong> for a live photo. Thumbnails appear below the file count so you can review your selection and remove individual files with ×.</p>
         <p class="help-p">Optionally type instructions in the text box — for example: <em>translate to English</em>, <em>total all dollar amounts</em>, or <em>list action items</em>.</p>
-        <p class="help-p">Tap <strong>Scan Files</strong>. The AI reads your files and returns a title, summary, and full transcription. Review the results, then tap <strong>Save Note</strong> to keep them.</p>
+        <p class="help-p">Tap <strong>Scan Files</strong>. The AI reads your files and returns a title, summary, and full transcription. When the content appears time-sensitive — current events, prices, scores, officials, recent research — the AI may automatically search the web to verify or supplement its response. Review the results, then tap <strong>Save Note</strong> to keep them.</p>
+        <p class="help-p">There is a daily scan limit per account. If you reach it you'll see an error message; it resets at midnight UTC.</p>
       </div>
 
       <!-- My Notes -->
@@ -113,6 +114,7 @@
           <li><strong>Search and sort</strong> — use the search input and A–Z / Date sort at the top of the Notebooks page to filter and order your notebooks.</li>
           <li><strong>System notebooks</strong> — four read-only notebooks always appear at the bottom of the list: <em>Public</em>, <em>Login restricted</em>, <em>Only me</em>, and <em>Unpublished</em>. They group your notes by visibility automatically and cannot be assigned manually.</li>
           <li><strong>Public notebook URL</strong> — tap the <strong>chain-link button</strong> on a notebook card to enable a friendly public URL (e.g. <code>/published/my-notebook</code>). When active, a URL row appears with a link, an editable slug, and a copy button. Tap the chain-link again to remove the URL. Visitors who click through to a note from a notebook's published list see the ReadWrite logo link back to that notebook, not the main list.</li>
+          <li><strong>Access code</strong> — protect a notebook's public URL with a password. Tap the lock icon on a notebook card (visible when a public URL is active) to set or clear an access code. Visitors are prompted to enter it before the list loads; your browser remembers it for the session.</li>
         </ul>
       </div>
 
@@ -128,8 +130,9 @@
               <li><strong>Private</strong> — only you can see it (default)</li>
             </ul>
           </li>
-          <li>Tap <strong>Publish</strong> to generate a shareable link (e.g. <code>/share/my-note-title</code>).</li>
+          <li>Tap <strong>Publish</strong> to generate a shareable link. The URL slug is random by default (e.g. <code>/share/aB3xKq</code>); tap <strong>Use title</strong> in the Publish card to derive it from the note title instead, or type a custom slug.</li>
           <li>On the share page, the <strong>share button</strong> (upload arrow icon) opens a native share sheet on mobile, or copies the link on desktop.</li>
+          <li>Two independent <strong>include</strong> options control where a published note appears: <strong>Include in feed</strong> adds it to your main published list; <strong>Include in notebooks</strong> adds it to notebook-filtered views. You can turn these on or off independently.</li>
           <li>Your <strong>published list</strong> (globe icon) collects all published notes on one page — enable it in Settings. Visitors can filter by notebook if you turn on the notebook filter in Settings.</li>
           <li><strong>Notebook context</strong> — when browsing a notebook's published list and clicking through to a note, the ReadWrite logo on the share page links back to that notebook's list, not the main published list.</li>
         </ul>
