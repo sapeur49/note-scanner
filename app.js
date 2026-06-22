@@ -1520,16 +1520,28 @@ function renderMarkdown(text) {
   let listType = null;
   function closeList() { if (listType) { out.push(`</${listType}>`); listType = null; } }
   function inlineFormat(s) {
-    // Split on URLs so they can be linked without double-escaping
-    return s.split(/(https?:\/\/[^\s]+)/g).map((part, idx) => {
-      if (idx % 2 === 1) {
-        // URL — trim trailing punctuation that's likely not part of it
-        const url = part.replace(/[.,;:!?)'"\]]+$/, '');
-        const tail = part.slice(url.length);
-        const esc = escapeHtml(url);
-        return `<a href="${esc}" target="_blank" rel="noopener">${esc}</a>${escapeHtml(tail)}`;
-      }
-      return escapeHtml(part).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Process markdown links [text](url) first, then auto-link bare URLs
+    const segments = [];
+    let last = 0;
+    const mdLink = /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g;
+    let m;
+    while ((m = mdLink.exec(s)) !== null) {
+      segments.push({ raw: s.slice(last, m.index) });
+      segments.push({ html: `<a href="${escapeHtml(m[2])}" target="_blank" rel="noopener">${escapeHtml(m[1])}</a>` });
+      last = m.index + m[0].length;
+    }
+    segments.push({ raw: s.slice(last) });
+    return segments.map(seg => {
+      if ('html' in seg) return seg.html;
+      return seg.raw.split(/(https?:\/\/[^\s]+)/g).map((part, idx) => {
+        if (idx % 2 === 1) {
+          const url = part.replace(/[.,;:!?)'"\]]+$/, '');
+          const tail = part.slice(url.length);
+          const esc = escapeHtml(url);
+          return `<a href="${esc}" target="_blank" rel="noopener">${esc}</a>${escapeHtml(tail)}`;
+        }
+        return escapeHtml(part).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      }).join('');
     }).join('');
   }
   for (const line of lines) {
