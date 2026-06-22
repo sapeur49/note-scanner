@@ -1543,7 +1543,8 @@ function markdownToPlainText(text) {
 
 function renderMarkdown(text) {
   if (!text) return '';
-  const lines = text.split('\n');
+  // Claude sometimes wraps [Name]\n(url) across lines — rejoin before splitting
+  const lines = text.replace(/\]\n\(http/g, '](http').split('\n');
   const out = [];
   let listType = null;
   function closeList() { if (listType) { out.push(`</${listType}>`); listType = null; } }
