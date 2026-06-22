@@ -1249,7 +1249,26 @@ async function initResults() {
       copiedMsg.textContent = 'Saving…';
       try {
         const scanId = sessionStorage.getItem(SCAN_ID_KEY);
-        const persist = scanId ? (await idbGet(scanId)) || [] : [];
+        let persist = [];
+        try { persist = scanId ? (await idbGet(scanId)) || [] : []; } catch (_) {}
+
+        // IDB fallback: iOS Safari can evict IDB data between page navigations.
+        // If IDB came back empty but sessionStorage has lightbox data, reconstruct
+        // persist from the 1500px data URLs we already computed during the scan.
+        if (persist.length === 0) {
+          const lightboxRaw = sessionStorage.getItem(LIGHTBOX_KEY);
+          const imagesRaw   = sessionStorage.getItem(IMAGES_KEY);
+          if (lightboxRaw && imagesRaw) {
+            const fullImages = JSON.parse(lightboxRaw);
+            const stripMeta  = JSON.parse(imagesRaw);
+            fullImages.forEach((dataUrl, i) => {
+              const meta = stripMeta[i];
+              if (meta && meta.pdf) return; // PDFs have no data URL — can't recover
+              if (dataUrl) persist.push({ kind: 'image', position: i, blob: dataURLtoBlob(dataUrl), original_name: null });
+            });
+          }
+        }
+
         const exifList = data.file_exif || [];
         const fd = new FormData();
         fd.append('note', JSON.stringify(currentTextFields()));
