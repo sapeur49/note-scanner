@@ -2221,7 +2221,9 @@ async function initPublished() {
     if (loadingEl) loadingEl.hidden = true;
 
     document.body.dataset.template = settings.template || 'minimal';
-    const pageTitle = data.activeNotebook ? data.activeNotebook.title : (settings.storyListTitle || 'Published Notes');
+    // Only use notebook title when the URL itself is a notebook slug (not the main list with a filter)
+    const notebookSlugView = data.activeNotebook && settings.listToken !== listToken;
+    const pageTitle = notebookSlugView ? data.activeNotebook.title : (settings.storyListTitle || 'Published Notes');
     document.title = pageTitle + ' — ReadWrite';
 
     const titleEl = document.getElementById('pub-list-title');
@@ -2365,8 +2367,6 @@ async function initPublished() {
         activeNotebook = nbFiltEl.value;
         const selectedNb = pubNotebooks.find(nb => nb.id === activeNotebook);
         if (selectedNb && selectedNb.slug) {
-          if (titleEl) titleEl.textContent = selectedNb.title;
-          document.title = selectedNb.title + ' — ReadWrite';
           history.replaceState(null, '', `/published/${encodeURIComponent(selectedNb.slug)}`);
         } else if (!activeNotebook) {
           if (titleEl) titleEl.textContent = settings.storyListTitle || 'Published Notes';
