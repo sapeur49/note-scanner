@@ -669,6 +669,7 @@ def list_notebooks(user_id: str) -> list:
             notebooks.c.created_at,
             notebooks.c.slug,
             notebooks.c.access_code_hash,
+            notebooks.c.access_code_plain,
             notebooks.c.visibility,
             func.count(note_notebooks.c.note_id).label("note_count"),
         )
@@ -676,7 +677,7 @@ def list_notebooks(user_id: str) -> list:
             notebooks.outerjoin(note_notebooks, notebooks.c.id == note_notebooks.c.notebook_id)
         )
         .where(notebooks.c.user_id == user_id)
-        .group_by(notebooks.c.id, notebooks.c.title, notebooks.c.created_at, notebooks.c.slug, notebooks.c.access_code_hash, notebooks.c.visibility)
+        .group_by(notebooks.c.id, notebooks.c.title, notebooks.c.created_at, notebooks.c.slug, notebooks.c.access_code_hash, notebooks.c.access_code_plain, notebooks.c.visibility)
         .order_by(notebooks.c.created_at)
     )
     with engine.connect() as conn:
