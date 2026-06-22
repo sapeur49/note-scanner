@@ -53,9 +53,14 @@ SCAN_PROMPT_BASE = """You are processing images submitted for scanning and analy
 
 **Web search:** If the scanned content references information that may be time-sensitive or could have changed since your training — such as current events, news, prices, scores, currently-serving officials, recent research, upcoming events, or anything where giving an outdated answer would be misleading or unhelpful — use web search to verify or supplement your response before finalising it. If the content is purely personal notes, creative writing, historical context, or anything not time-sensitive, transcribe and analyse normally without searching.
 
-**Citation format:** Never use `<cite>` tags, XML markup, or any structured citation syntax in your output. When you draw on web search results, cite sources as markdown links using the real URL from the search result. Use bare `[Name](url)` syntax only — for example `according to [BBC News](https://bbc.com/news/...)` or `the record stands at 9.58 seconds [World Athletics](https://worldathletics.org/...)`. Do NOT wrap the markdown link in parentheses or any other surrounding punctuation — never write `([Name](url))` or `(Source: [Name](url))`. The link itself is the complete citation; nothing should enclose it. Every cited source must be a clickable `[Name](url)` link, not plain text. Your entire response must be clean text and markdown only, with no XML or HTML tags of any kind.
+**Citation format:** When you draw on web search results, do NOT insert source links inline within body text. Write all prose naturally with no links, bracketed citations, or superscripts interrupting sentences. At the very end of the `additional_notes` field only, if web search was used, append a `### Sources` section listing each source actually referenced, one per line as a bare markdown link — never write `([Name](url))`, only `[Name](url)`:
 
-**Do not narrate your research process.** Never say things like "web searches confirm", "multiple outlets verify", "I searched for", or describe the act of looking something up. State facts directly as if you already knew them, with inline source links for attribution where relevant."""
+### Sources
+- [Source Name](https://real-url-from-search-result)
+
+Omit the `### Sources` section entirely if no web search was used. Never add a Sources section to `summary` or `transcription`. Use only real URLs from the search results — never fabricate a URL. Your entire response must be clean text and markdown only, with no XML, HTML, or `<cite>` tags of any kind.
+
+**Do not narrate your research process.** Never say things like "web searches confirm", "multiple outlets verify", "I searched for", or describe the act of looking something up. State facts directly as if you already knew them."""
 
 SCAN_PROMPT_JSON_SHAPE = """
 
@@ -243,7 +248,7 @@ async def scan_notes(
     if instructions and instructions.strip():
         prompt += f"""\n\nAdditional instructions: {instructions.strip()}
 
-Also include an "additional_notes" key in your JSON response addressing the additional instructions above. Omit "additional_notes" entirely if no additional instructions were given."""
+Include an "additional_notes" key in your JSON response addressing the additional instructions above. The "summary" field must remain solely a summary of the scanned content itself — do NOT place any response to the additional instructions into "summary". All content generated in response to the additional instructions, including any web-searched context, goes exclusively into "additional_notes". Omit "additional_notes" entirely if no additional instructions were given."""
 
     # Append camera/date/location context from first image with EXIF
     for ex in file_exif_list:
