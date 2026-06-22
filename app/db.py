@@ -662,7 +662,8 @@ _SYSTEM_NOTEBOOKS = [
 
 
 def list_notebooks(user_id: str) -> list:
-    stmt = (
+    # Fetch notebooks without a JOIN to avoid GROUP BY on long hash/plain columns
+    nb_stmt = (
         select(
             notebooks.c.id,
             notebooks.c.title,
@@ -671,31 +672,51 @@ def list_notebooks(user_id: str) -> list:
             notebooks.c.access_code_hash,
             notebooks.c.access_code_plain,
             notebooks.c.visibility,
-            func.count(note_notebooks.c.note_id).label("note_count"),
-        )
-        .select_from(
-            notebooks.outerjoin(note_notebooks, notebooks.c.id == note_notebooks.c.notebook_id)
         )
         .where(notebooks.c.user_id == user_id)
-        .group_by(notebooks.c.id, notebooks.c.title, notebooks.c.created_at, notebooks.c.slug, notebooks.c.access_code_hash, notebooks.c.access_code_plain, notebooks.c.visibility)
         .order_by(notebooks.c.created_at)
     )
     with engine.connect() as conn:
-        rows = conn.execute(stmt).mappings().all()
-        result = [{"id": r["id"], "title": r["title"], "note_count": r["note_count"], "slug": r["slug"], "has_access_code": bool(r["access_code_hash"]), "access_code_plain": r["access_code_plain"] or "", "visibility": r["visibility"] or "public", "is_system": False} for r in rows]
+        nb_rows = conn.execute(nb_stmt).mappings().all()
+
+        # Get per-notebook note counts in one query
+        nb_ids = [r["id"] for r in nb_rows]
+        count_map: dict = {}
+        if nb_ids:
+            cnt_stmt = (
+                select(note_notebooks.c.notebook_id, func.count().label("cnt"))
+                .where(note_notebooks.c.notebook_id.in_(nb_ids))
+                .group_by(note_notebooks.c.notebook_id)
+            )
+            for cr in conn.execute(cnt_stmt).mappings().all():
+                count_map[cr["notebook_id"]] = cr["cnt"]
+
+        result = [
+            {
+                "id": r["id"],
+                "title": r["title"],
+                "note_count": count_map.get(r["id"], 0),
+                "slug": r["slug"],
+                "has_access_code": bool(r["access_code_hash"]),
+                "access_code_plain": r["access_code_plain"] or "",
+                "visibility": r["visibility"] or "public",
+                "is_system": False,
+            }
+            for r in nb_rows
+        ]
 
         # Append virtual system notebooks with live counts
         base = notes.c.user_id == user_id
         for sys_nb in _SYSTEM_NOTEBOOKS:
             if sys_nb["published"]:
-                count_stmt = select(func.count()).select_from(notes).where(
+                sys_cnt_stmt = select(func.count()).select_from(notes).where(
                     and_(base, notes.c.is_published == True, notes.c.visibility == sys_nb["visibility"])
                 )
             else:
-                count_stmt = select(func.count()).select_from(notes).where(
+                sys_cnt_stmt = select(func.count()).select_from(notes).where(
                     and_(base, or_(notes.c.is_published == None, notes.c.is_published == False))
                 )
-            count = conn.execute(count_stmt).scalar() or 0
+            count = conn.execute(sys_cnt_stmt).scalar() or 0
             result.append({"id": sys_nb["id"], "title": sys_nb["title"], "note_count": count, "is_system": True})
 
     return result
