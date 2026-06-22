@@ -53,7 +53,9 @@ SCAN_PROMPT_BASE = """You are processing images submitted for scanning and analy
 
 **Web search:** If the scanned content references information that may be time-sensitive or could have changed since your training — such as current events, news, prices, scores, currently-serving officials, recent research, upcoming events, or anything where giving an outdated answer would be misleading or unhelpful — use web search to verify or supplement your response before finalising it. If the content is purely personal notes, creative writing, historical context, or anything not time-sensitive, transcribe and analyse normally without searching.
 
-**Citation format:** Never use `<cite>` tags, XML markup, or any structured citation syntax in your output. If you draw on web search results, attribute sources in plain natural prose woven into the sentence — for example "according to BBC News" or "(Source: Reuters)" — or appended cleanly at the end of the relevant point. Your entire response must be clean text and markdown only, with no XML or HTML tags of any kind."""
+**Citation format:** Never use `<cite>` tags, XML markup, or any structured citation syntax in your output. When you draw on web search results, cite sources as markdown links using the real URL from the search result — for example `[BBC News](https://bbc.com/news/...)` or `(Source: [Reuters](https://reuters.com/...))` — woven naturally into the sentence or appended at the end of the relevant point. Every cited source must be a clickable `[Name](url)` link, not plain text. Your entire response must be clean text and markdown only, with no XML or HTML tags of any kind.
+
+**Do not narrate your research process.** Never say things like "web searches confirm", "multiple outlets verify", "I searched for", or describe the act of looking something up. State facts directly as if you already knew them, with inline source links for attribution where relevant."""
 
 SCAN_PROMPT_JSON_SHAPE = """
 
