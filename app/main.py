@@ -436,7 +436,7 @@ def get_published_list(
         settings = db.get_settings(nb_row["user_id"])
         if not settings or settings.get("list_public") != "true":
             raise HTTPException(status_code=404, detail="Not found")
-        active_notebook = {"id": nb_row["id"], "title": nb_row["title"], "slug": nb_row["slug"]}
+        active_notebook = {"id": nb_row["id"], "title": nb_row["title"], "slug": nb_row["slug"], "visibility": nb_row.get("visibility") or "public"}
         notebook_via_slug = True
         # Enforce access code when set on this notebook
         nb_code_hash = nb_row.get("access_code_hash")
@@ -456,6 +456,14 @@ def get_published_list(
             is_authenticated = True
         except Exception:
             pass
+
+    # Enforce notebook visibility for slug-resolved notebooks
+    if notebook_via_slug and active_notebook:
+        nb_vis = active_notebook.get("visibility") or "public"
+        if nb_vis == "me" and not is_owner:
+            raise HTTPException(status_code=403, detail="private")
+        if nb_vis == "logged_in" and not is_authenticated:
+            raise HTTPException(status_code=403, detail="login_required")
 
     # Resolve optional ?nb= slug filter (when using UUID list_token URL)
     if nb and not active_notebook:
@@ -509,7 +517,8 @@ def update_notebook_route(notebook_id: str, payload: dict = Body(...), _user: di
     if not title:
         raise HTTPException(status_code=400, detail="Title required")
     slug = payload.get("slug")  # None = auto-derive from title
-    if not db.update_notebook(_user["sub"], notebook_id, title, slug=slug):
+    visibility = payload.get("visibility")  # None = leave unchanged
+    if not db.update_notebook(_user["sub"], notebook_id, title, slug=slug, visibility=visibility):
         raise HTTPException(status_code=404, detail="Notebook not found")
     # Handle access code — only present in payload when user is actively setting/clearing it
     if "access_code" in payload:

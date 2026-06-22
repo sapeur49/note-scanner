@@ -2152,7 +2152,9 @@ async function initPublished() {
   try {
     const apiUrl = `/api/published/${encodeURIComponent(listToken)}` + (nbSlugParam ? `?nb=${encodeURIComponent(nbSlugParam)}` : '');
     const fetchOpts = savedCode ? { headers: { 'X-Notebook-Access-Code': savedCode } } : {};
-    const resp = await fetch(apiUrl, fetchOpts);
+    const authApiUrl = `/api/published/${encodeURIComponent(listToken)}` + (nbSlugParam ? `?nb=${encodeURIComponent(nbSlugParam)}` : '');
+    let resp = await fetch(apiUrl, fetchOpts);
+    let visibilityBlocked = false;
     if (resp.status === 403) {
       const errBody = await resp.json().catch(() => ({}));
       if (errBody.detail === 'access_code_required') {
@@ -2160,12 +2162,17 @@ async function initPublished() {
         renderAccessGate(apiUrl);
         return;
       }
+      visibilityBlocked = true; // login_required or private — try auth retry below
     }
-    if (!resp.ok) throw new Error('not found or private');
-    let { settings, notes, notebooks: pubNbs, activeNotebook: activeNb } = await resp.json();
-    let data = { settings, notes, notebooks: pubNbs || [], activeNotebook: activeNb || null };
+    if (!resp.ok && !visibilityBlocked) throw new Error('not found or private');
 
-    // Owner detection — non-blocking; Clerk may or may not be present
+    let settings, notes, pubNbs, activeNb;
+    if (!visibilityBlocked) {
+      ({ settings, notes, notebooks: pubNbs, activeNotebook: activeNb } = await resp.json());
+    }
+    let data = { settings, notes: notes || [], notebooks: pubNbs || [], activeNotebook: activeNb || null };
+
+    // Owner/auth detection — always runs; also resolves visibility-gated notebooks for auth'd users
     let pubClerkToken = null;
     try {
       await waitForClerk();
@@ -2174,19 +2181,42 @@ async function initPublished() {
         const navBtns = document.getElementById('pub-nav-btns');
         if (navBtns) navBtns.hidden = false;
         pubClerkToken = await window.Clerk.session.getToken();
-        const ownerApiUrl = `/api/published/${encodeURIComponent(listToken)}` + (nbSlugParam ? `?nb=${encodeURIComponent(nbSlugParam)}` : '');
         const ownerHeaders = { 'Authorization': `Bearer ${pubClerkToken}`, ...(savedCode ? { 'X-Notebook-Access-Code': savedCode } : {}) };
-        const ownerResp = await fetch(ownerApiUrl, { headers: ownerHeaders });
+        const ownerResp = await fetch(authApiUrl, { headers: ownerHeaders });
         if (ownerResp.ok) {
           const ownerData = await ownerResp.json();
-          if (ownerData.settings.isOwner) {
+          // Always use auth'd response when it unlocks a visibility-gated notebook, or when owner
+          if (visibilityBlocked || ownerData.settings.isOwner) {
             settings = ownerData.settings;
             notes = ownerData.notes;
             data = { settings, notes, notebooks: ownerData.notebooks || data.notebooks, activeNotebook: ownerData.activeNotebook || data.activeNotebook };
+            visibilityBlocked = false;
           }
+        } else if (visibilityBlocked) {
+          // Authenticated but still blocked → private
+          if (loadingEl) loadingEl.hidden = true;
+          if (errorEl) { errorEl.textContent = 'This notebook is private.'; errorEl.hidden = false; }
+          return;
         }
+      } else if (visibilityBlocked) {
+        // Not logged in and visibility-gated
+        if (loadingEl) loadingEl.hidden = true;
+        if (errorEl) { errorEl.textContent = 'Sign in to view this notebook.'; errorEl.hidden = false; }
+        return;
       }
-    } catch (_) {}
+    } catch (_) {
+      if (visibilityBlocked) {
+        if (loadingEl) loadingEl.hidden = true;
+        if (errorEl) errorEl.hidden = false;
+        return;
+      }
+    }
+
+    if (visibilityBlocked) {
+      if (loadingEl) loadingEl.hidden = true;
+      if (errorEl) errorEl.hidden = false;
+      return;
+    }
 
     if (loadingEl) loadingEl.hidden = true;
 
@@ -2539,70 +2569,92 @@ async function initNotebooks() {
       slugRow.innerHTML = '';
       if (!nb.slug) return;
 
-      const slugUrl = `${location.origin}/published/${encodeURIComponent(nb.slug)}`;
+      const COPY_SVG   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+      const PENCIL_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`;
 
-      const slugLink = document.createElement('a');
-      slugLink.href = slugUrl;
-      slugLink.className = 'nb-slug-link';
-      slugLink.target = '_blank';
-      slugLink.textContent = `/published/${nb.slug}`;
-      slugLink.title = slugUrl;
+      // Display mode
+      function showDisplay() {
+        slugRow.innerHTML = '';
+        const slugUrl = `${location.origin}/published/${encodeURIComponent(nb.slug)}`;
+        const slugLink = document.createElement('a');
+        slugLink.href = slugUrl;
+        slugLink.className = 'nb-slug-link';
+        slugLink.target = '_blank';
+        slugLink.textContent = `/published/${nb.slug}`;
+        slugLink.title = slugUrl;
 
-      const slugInput = document.createElement('input');
-      slugInput.type = 'text';
-      slugInput.value = nb.slug;
-      slugInput.className = 'nb-slug-input';
-      slugInput.maxLength = 120;
-      slugInput.title = 'Edit URL slug';
-
-      const copyBtn = document.createElement('button');
-      copyBtn.className = 'btn-outline btn-sm btn-icon-sm';
-      copyBtn.title = 'Copy link';
-      copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
-      copyBtn.addEventListener('click', e => {
-        e.preventDefault();
-        navigator.clipboard.writeText(slugUrl).then(() => {
-          const orig = copyBtn.innerHTML;
-          copyBtn.textContent = '✓';
-          setTimeout(() => { copyBtn.innerHTML = orig; }, 1500);
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn-outline btn-sm btn-icon-sm';
+        copyBtn.title = 'Copy link';
+        copyBtn.innerHTML = COPY_SVG;
+        copyBtn.addEventListener('click', e => {
+          e.preventDefault();
+          navigator.clipboard.writeText(slugUrl).then(() => {
+            const orig = copyBtn.innerHTML;
+            copyBtn.textContent = '✓';
+            setTimeout(() => { copyBtn.innerHTML = orig; }, 1500);
+          });
         });
-      });
 
-      let slugSaveTimer = null;
-      slugInput.addEventListener('input', () => {
-        clearTimeout(slugSaveTimer);
-        slugSaveTimer = setTimeout(async () => {
-          const newSlug = slugInput.value.trim();
-          if (!newSlug || newSlug === nb.slug) return;
-          try {
-            const resp = await fetch(`/api/notebooks/${nb.id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json', ...headers },
-              body: JSON.stringify({ title: nb.title, slug: newSlug }),
-            });
-            if (!resp.ok) throw new Error();
-            const updated = await resp.json();
-            nb.slug = updated.slug;
-            slugInput.value = nb.slug;
-            const newUrl = `${location.origin}/published/${encodeURIComponent(nb.slug)}`;
-            slugLink.href = newUrl;
-            slugLink.textContent = `/published/${nb.slug}`;
-            slugLink.title = newUrl;
-          } catch (_) {}
-        }, 800);
-      });
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn-outline btn-sm btn-icon-sm';
+        editBtn.title = 'Edit slug';
+        editBtn.innerHTML = PENCIL_SVG;
+        editBtn.addEventListener('click', e => { e.preventDefault(); showEdit(); });
 
-      const editSlugBtn = document.createElement('button');
-      editSlugBtn.className = 'btn-outline btn-sm btn-icon-sm';
-      editSlugBtn.title = 'Edit slug';
-      editSlugBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
-      editSlugBtn.addEventListener('click', e => {
-        e.preventDefault();
-        slugInput.focus();
-        slugInput.select();
-      });
+        slugRow.append(slugLink, copyBtn, editBtn);
+      }
 
-      slugRow.append(slugLink, slugInput, copyBtn, editSlugBtn);
+      // Edit mode
+      async function doSlugSave(inp, done) {
+        const newSlug = inp.value.trim();
+        if (!newSlug || newSlug === nb.slug) { done(); return; }
+        try {
+          const resp = await fetch(`/api/notebooks/${nb.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...headers },
+            body: JSON.stringify({ title: nb.title, slug: newSlug }),
+          });
+          if (!resp.ok) throw new Error();
+          const updated = await resp.json();
+          nb.slug = updated.slug;
+        } catch (_) {}
+        done();
+      }
+
+      function showEdit() {
+        slugRow.innerHTML = '';
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.value = nb.slug;
+        inp.className = 'nb-slug-input';
+        inp.maxLength = 120;
+
+        const doneAndRedraw = () => showDisplay();
+
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'btn-save btn-sm btn-icon-sm';
+        saveBtn.title = 'Save';
+        saveBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><polyline points="20 6 9 17 4 12"/></svg>`;
+        saveBtn.addEventListener('click', e => { e.preventDefault(); doSlugSave(inp, doneAndRedraw); });
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'btn-outline btn-sm btn-icon-sm';
+        cancelBtn.title = 'Cancel';
+        cancelBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+        cancelBtn.addEventListener('click', e => { e.preventDefault(); showDisplay(); });
+
+        inp.addEventListener('keydown', e => {
+          if (e.key === 'Enter') doSlugSave(inp, doneAndRedraw);
+          else if (e.key === 'Escape') showDisplay();
+        });
+
+        slugRow.append(inp, saveBtn, cancelBtn);
+        inp.focus();
+        inp.select();
+      }
+
+      showDisplay();
     }
 
     renderSlugRow();
@@ -2693,6 +2745,36 @@ async function initNotebooks() {
       }
 
       renderAccessRow();
+    }
+
+    // Notebook visibility selector (only shown when public URL is active)
+    if (!nb.is_system && nb.slug) {
+      const visRow = document.createElement('div');
+      visRow.className = 'nb-vis-row';
+      const visLabel = document.createElement('span');
+      visLabel.className = 'nb-vis-label';
+      visLabel.textContent = 'Visibility:';
+      const visSel = document.createElement('select');
+      visSel.className = 'nb-vis-select';
+      [['public', 'Public — anyone'], ['logged_in', 'Members only'], ['me', 'Me only']].forEach(([val, text]) => {
+        const opt = document.createElement('option');
+        opt.value = val;
+        opt.textContent = text;
+        if ((nb.visibility || 'public') === val) opt.selected = true;
+        visSel.appendChild(opt);
+      });
+      visSel.addEventListener('change', async () => {
+        nb.visibility = visSel.value;
+        try {
+          await fetch(`/api/notebooks/${nb.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', ...headers },
+            body: JSON.stringify({ title: nb.title, visibility: nb.visibility }),
+          });
+        } catch (_) {}
+      });
+      visRow.append(visLabel, visSel);
+      card.appendChild(visRow);
     }
 
     return card;

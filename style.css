@@ -2337,6 +2337,26 @@ body[data-template="magazine"] .pub-body { padding-top: 20px; }
 }
 
 /* ── Notebook access code row ── */
+.nb-vis-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 8px;
+}
+.nb-vis-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.nb-vis-select {
+  font-size: 0.78rem;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+}
 .nb-access-row {
   display: flex;
   align-items: center;

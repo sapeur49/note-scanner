@@ -107,6 +107,7 @@ notebooks = Table(
     Column("created_at", DateTime, nullable=False),
     Column("slug", String(255), nullable=True),
     Column("access_code_hash", String(255), nullable=True),
+    Column("visibility", String(32), nullable=True),
 )
 
 note_notebooks = Table(
@@ -171,6 +172,8 @@ def _migrate_schema() -> None:
                     conn.execute(text("ALTER TABLE notebooks ADD COLUMN slug VARCHAR(255) NULL"))
                 if "access_code_hash" not in nb_existing:
                     conn.execute(text("ALTER TABLE notebooks ADD COLUMN access_code_hash VARCHAR(255) NULL"))
+                if "visibility" not in nb_existing:
+                    conn.execute(text("ALTER TABLE notebooks ADD COLUMN visibility VARCHAR(32) DEFAULT 'public'"))
     except Exception as e:
         print(f"[db] migration warning: {e}")
 
@@ -629,9 +632,10 @@ def get_notebook_by_slug(user_id: str, slug: str):
 
 
 def get_notebook_by_global_slug(slug: str):
-    """Look up a notebook by slug globally (any user). Returns {id, title, slug, user_id, access_code_hash} or None."""
+    """Look up a notebook by slug globally (any user). Returns {id, title, slug, user_id, access_code_hash, visibility} or None."""
     stmt = select(
-        notebooks.c.id, notebooks.c.title, notebooks.c.slug, notebooks.c.user_id, notebooks.c.access_code_hash
+        notebooks.c.id, notebooks.c.title, notebooks.c.slug, notebooks.c.user_id,
+        notebooks.c.access_code_hash, notebooks.c.visibility,
     ).where(notebooks.c.slug == slug).limit(1)
     with engine.connect() as conn:
         row = conn.execute(stmt).mappings().first()
@@ -662,18 +666,19 @@ def list_notebooks(user_id: str) -> list:
             notebooks.c.created_at,
             notebooks.c.slug,
             notebooks.c.access_code_hash,
+            notebooks.c.visibility,
             func.count(note_notebooks.c.note_id).label("note_count"),
         )
         .select_from(
             notebooks.outerjoin(note_notebooks, notebooks.c.id == note_notebooks.c.notebook_id)
         )
         .where(notebooks.c.user_id == user_id)
-        .group_by(notebooks.c.id, notebooks.c.title, notebooks.c.created_at, notebooks.c.slug, notebooks.c.access_code_hash)
+        .group_by(notebooks.c.id, notebooks.c.title, notebooks.c.created_at, notebooks.c.slug, notebooks.c.access_code_hash, notebooks.c.visibility)
         .order_by(notebooks.c.created_at)
     )
     with engine.connect() as conn:
         rows = conn.execute(stmt).mappings().all()
-        result = [{"id": r["id"], "title": r["title"], "note_count": r["note_count"], "slug": r["slug"], "has_access_code": bool(r["access_code_hash"]), "is_system": False} for r in rows]
+        result = [{"id": r["id"], "title": r["title"], "note_count": r["note_count"], "slug": r["slug"], "has_access_code": bool(r["access_code_hash"]), "visibility": r["visibility"] or "public", "is_system": False} for r in rows]
 
         # Append virtual system notebooks with live counts
         base = notes.c.user_id == user_id
@@ -700,9 +705,11 @@ def create_notebook(user_id: str, title: str) -> dict:
     return {"id": nb_id, "title": title, "note_count": 0, "slug": None, "is_system": False}
 
 
-def update_notebook(user_id: str, notebook_id: str, title: str, slug=None) -> bool:
+def update_notebook(user_id: str, notebook_id: str, title: str, slug=None, visibility=None) -> bool:
     """slug=None → auto-derive from title. slug="" → clear slug to NULL. slug=str → use that slug."""
     values: dict = {"title": title}
+    if visibility is not None:
+        values["visibility"] = visibility
     if slug == "":
         # Explicitly clearing the public URL
         values["slug"] = None
