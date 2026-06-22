@@ -105,6 +105,7 @@ notebooks = Table(
     Column("title", String(512), nullable=False),
     Column("created_at", DateTime, nullable=False),
     Column("slug", String(255), nullable=True),
+    Column("access_code_hash", String(255), nullable=True),
 )
 
 note_notebooks = Table(
@@ -167,6 +168,8 @@ def _migrate_schema() -> None:
             with engine.begin() as conn:
                 if "slug" not in nb_existing:
                     conn.execute(text("ALTER TABLE notebooks ADD COLUMN slug VARCHAR(255) NULL"))
+                if "access_code_hash" not in nb_existing:
+                    conn.execute(text("ALTER TABLE notebooks ADD COLUMN access_code_hash VARCHAR(255) NULL"))
     except Exception as e:
         print(f"[db] migration warning: {e}")
 
@@ -524,8 +527,12 @@ def get_settings_by_list_token(list_token: str) -> dict | None:
     return dict(row) if row else None
 
 
-def list_published_notes(user_id: str) -> list:
-    """All published notes for a user, excluding those with includeInList=false."""
+def list_published_notes(user_id: str, for_notebook: bool = False) -> list:
+    """All published notes for a user.
+
+    for_notebook=False (default): excludes notes with includeInList=false (main feed).
+    for_notebook=True: excludes notes with includeInNotebooks=false (notebook view).
+    """
     stmt = select(
         notes.c.id,
         notes.c.title,
@@ -547,8 +554,12 @@ def list_published_notes(user_id: str) -> list:
     out = []
     for r in rows:
         opts = r["publish_options"] or {}
-        if opts.get("includeInList") is False:
-            continue
+        if for_notebook:
+            if opts.get("includeInNotebooks") is False:
+                continue
+        else:
+            if opts.get("includeInList") is False:
+                continue
         summary = r["summary"] or ""
         snippet = summary[:140] + ("…" if len(summary) > 140 else "")
         files = r["files"] or []
@@ -613,9 +624,9 @@ def get_notebook_by_slug(user_id: str, slug: str):
 
 
 def get_notebook_by_global_slug(slug: str):
-    """Look up a notebook by slug globally (any user). Returns {id, title, slug, user_id} or None."""
+    """Look up a notebook by slug globally (any user). Returns {id, title, slug, user_id, access_code_hash} or None."""
     stmt = select(
-        notebooks.c.id, notebooks.c.title, notebooks.c.slug, notebooks.c.user_id
+        notebooks.c.id, notebooks.c.title, notebooks.c.slug, notebooks.c.user_id, notebooks.c.access_code_hash
     ).where(notebooks.c.slug == slug).limit(1)
     with engine.connect() as conn:
         row = conn.execute(stmt).mappings().first()
@@ -645,18 +656,19 @@ def list_notebooks(user_id: str) -> list:
             notebooks.c.title,
             notebooks.c.created_at,
             notebooks.c.slug,
+            notebooks.c.access_code_hash,
             func.count(note_notebooks.c.note_id).label("note_count"),
         )
         .select_from(
             notebooks.outerjoin(note_notebooks, notebooks.c.id == note_notebooks.c.notebook_id)
         )
         .where(notebooks.c.user_id == user_id)
-        .group_by(notebooks.c.id, notebooks.c.title, notebooks.c.created_at, notebooks.c.slug)
+        .group_by(notebooks.c.id, notebooks.c.title, notebooks.c.created_at, notebooks.c.slug, notebooks.c.access_code_hash)
         .order_by(notebooks.c.created_at)
     )
     with engine.connect() as conn:
         rows = conn.execute(stmt).mappings().all()
-        result = [{"id": r["id"], "title": r["title"], "note_count": r["note_count"], "slug": r["slug"], "is_system": False} for r in rows]
+        result = [{"id": r["id"], "title": r["title"], "note_count": r["note_count"], "slug": r["slug"], "has_access_code": bool(r["access_code_hash"]), "is_system": False} for r in rows]
 
         # Append virtual system notebooks with live counts
         base = notes.c.user_id == user_id
@@ -716,6 +728,18 @@ def delete_notebook(user_id: str, notebook_id: str) -> bool:
         conn.execute(sa_delete(note_notebooks).where(note_notebooks.c.notebook_id == notebook_id))
         conn.execute(sa_delete(notebooks).where(notebooks.c.id == notebook_id))
     return True
+
+
+def set_notebook_access_code(user_id: str, notebook_id: str, code_hash) -> bool:
+    """Store or clear an access code hash for a notebook. Returns True if found."""
+    stmt = (
+        sa_update(notebooks)
+        .where(notebooks.c.id == notebook_id, notebooks.c.user_id == user_id)
+        .values(access_code_hash=code_hash)
+    )
+    with engine.begin() as conn:
+        result = conn.execute(stmt)
+    return result.rowcount > 0
 
 
 def set_note_notebooks(user_id: str, note_id: str, notebook_ids: list) -> bool:

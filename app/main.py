@@ -1,8 +1,10 @@
 import base64
+import hashlib
 import html as _html
 import json
 import os
 import re
+import secrets
 import shutil
 import uuid
 from datetime import date as _date, datetime, timezone
@@ -163,6 +165,23 @@ def require_user(authorization: str = Header(default="")):
         return verify_clerk_token(authorization[7:])
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+def _hash_access_code(code: str) -> str:
+    salt = secrets.token_hex(16)
+    dk = hashlib.pbkdf2_hmac("sha256", code.encode("utf-8"), salt.encode(), 100_000)
+    return f"pbkdf2:{salt}:{dk.hex()}"
+
+
+def _verify_access_code(code: str, stored_hash: str) -> bool:
+    try:
+        algo, salt, hex_dk = stored_hash.split(":", 2)
+        if algo != "pbkdf2":
+            return False
+        dk = hashlib.pbkdf2_hmac("sha256", code.encode("utf-8"), salt.encode(), 100_000)
+        return secrets.compare_digest(dk.hex(), hex_dk)
+    except Exception:
+        return False
 
 
 @app.post("/api/scan")
@@ -399,9 +418,15 @@ def update_settings_route(payload: dict = Body(...), _user: dict = Depends(requi
 
 
 @app.get("/api/published/{identifier}")
-def get_published_list(identifier: str, nb: str = "", authorization: str = Header(default="")):
+def get_published_list(
+    identifier: str,
+    nb: str = "",
+    authorization: str = Header(default=""),
+    x_notebook_access_code: str = Header(default="", alias="x-notebook-access-code"),
+):
     # Try as list_token UUID first; if not found, try as a notebook slug globally
     active_notebook = None
+    notebook_via_slug = False
     settings = db.get_settings_by_list_token(identifier)
     if not settings:
         # Try global notebook slug lookup
@@ -412,6 +437,12 @@ def get_published_list(identifier: str, nb: str = "", authorization: str = Heade
         if not settings or settings.get("list_public") != "true":
             raise HTTPException(status_code=404, detail="Not found")
         active_notebook = {"id": nb_row["id"], "title": nb_row["title"], "slug": nb_row["slug"]}
+        notebook_via_slug = True
+        # Enforce access code when set on this notebook
+        nb_code_hash = nb_row.get("access_code_hash")
+        if nb_code_hash:
+            if not x_notebook_access_code or not _verify_access_code(x_notebook_access_code, nb_code_hash):
+                raise HTTPException(status_code=403, detail="access_code_required")
     else:
         if settings.get("list_public") != "true":
             raise HTTPException(status_code=403, detail="This list is private")
@@ -426,14 +457,17 @@ def get_published_list(identifier: str, nb: str = "", authorization: str = Heade
         except Exception:
             pass
 
-    notes_list = db.list_published_notes(settings["user_id"])
-    if not is_owner:
-        allowed = {"public", "logged_in"} if is_authenticated else {"public"}
-        notes_list = [n for n in notes_list if (n.get("visibility") or "public") in allowed]
-
     # Resolve optional ?nb= slug filter (when using UUID list_token URL)
     if nb and not active_notebook:
         active_notebook = db.get_notebook_by_slug(settings["user_id"], nb)
+
+    # Fetch notes with appropriate includeIn* filter
+    is_notebook_view = active_notebook is not None
+    notes_list = db.list_published_notes(settings["user_id"], for_notebook=is_notebook_view)
+
+    if not is_owner:
+        allowed = {"public", "logged_in"} if is_authenticated else {"public"}
+        notes_list = [n for n in notes_list if (n.get("visibility") or "public") in allowed]
 
     # Server-side filter notes to notebook when active_notebook is set
     if active_notebook:
@@ -477,6 +511,11 @@ def update_notebook_route(notebook_id: str, payload: dict = Body(...), _user: di
     slug = payload.get("slug")  # None = auto-derive from title
     if not db.update_notebook(_user["sub"], notebook_id, title, slug=slug):
         raise HTTPException(status_code=404, detail="Notebook not found")
+    # Handle access code — only present in payload when user is actively setting/clearing it
+    if "access_code" in payload:
+        code = (payload.get("access_code") or "").strip()
+        code_hash = _hash_access_code(code) if code else None
+        db.set_notebook_access_code(_user["sub"], notebook_id, code_hash)
     nbs = db.list_notebooks(_user["sub"])
     nb = next((n for n in nbs if n["id"] == notebook_id), None)
     return nb or {"ok": True}

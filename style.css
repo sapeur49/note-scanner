@@ -2328,3 +2328,103 @@ body[data-template="magazine"] .pub-body { padding-top: 20px; }
   visibility: hidden;
   pointer-events: none;
 }
+
+/* ── Notebook access code row ── */
+.nb-access-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 8px;
+  flex-wrap: wrap;
+}
+.nb-access-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.nb-access-label-set {
+  color: var(--accent);
+}
+.nb-access-active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.nb-access-form-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 8px;
+  flex-wrap: wrap;
+}
+.nb-access-input {
+  flex: 1;
+  min-width: 160px;
+  max-width: 220px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: var(--bg);
+  color: var(--text);
+}
+.nb-access-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* ── Published list access gate ── */
+.pub-access-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  padding: 32px 16px;
+}
+.pub-access-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 36px 32px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+}
+.pub-access-title {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.pub-access-desc {
+  margin: 0 0 20px;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+.pub-access-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pub-access-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 1rem;
+  background: var(--bg);
+  color: var(--text);
+  box-sizing: border-box;
+  text-align: center;
+  letter-spacing: 0.1em;
+}
+.pub-access-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.pub-access-btn {
+  width: 100%;
+}
+.pub-access-error {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: var(--error);
+}

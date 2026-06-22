@@ -850,14 +850,15 @@ async function initResults() {
 
   function getPublishOptions() {
     return {
-      showImages:        document.getElementById('pub-images')?.checked ?? true,
-      showSectionTitles: document.getElementById('pub-section-titles')?.checked ?? true,
-      showSummary:       document.getElementById('pub-summary')?.checked ?? true,
-      showTranscription: document.getElementById('pub-transcription')?.checked ?? true,
-      showAdditional:    document.getElementById('pub-additional')?.checked ?? true,
-      includeInList:     document.getElementById('pub-in-list')?.checked ?? true,
-      imagePosition:     document.querySelector('input[name="pub-img-pos"]:checked')?.value ?? 'top',
-      excludedImages:    [...excludedImages],
+      showImages:         document.getElementById('pub-images')?.checked ?? true,
+      showSectionTitles:  document.getElementById('pub-section-titles')?.checked ?? true,
+      showSummary:        document.getElementById('pub-summary')?.checked ?? true,
+      showTranscription:  document.getElementById('pub-transcription')?.checked ?? true,
+      showAdditional:     document.getElementById('pub-additional')?.checked ?? true,
+      includeInList:      document.getElementById('pub-in-list')?.checked ?? true,
+      includeInNotebooks: document.getElementById('pub-in-notebooks')?.checked ?? true,
+      imagePosition:      document.querySelector('input[name="pub-img-pos"]:checked')?.value ?? 'top',
+      excludedImages:     [...excludedImages],
     };
   }
 
@@ -875,6 +876,7 @@ async function initResults() {
       setCheck('pub-transcription', opts.showTranscription);
       setCheck('pub-additional', opts.showAdditional);
       setCheck('pub-in-list', opts.includeInList);
+      setCheck('pub-in-notebooks', opts.includeInNotebooks);
       setRadio('pub-img-pos', opts.imagePosition);
       excludedImages.clear();
       (opts.excludedImages || []).forEach(p => excludedImages.add(Number(p)));
@@ -2087,9 +2089,61 @@ async function initPublished() {
   const urlParams = new URLSearchParams(location.search);
   const nbSlugParam = urlParams.get('nb') || '';
 
+  // Access code stored in sessionStorage after successful gate entry
+  const accessCodeKey = `nb_access_${listToken}`;
+  const savedCode = sessionStorage.getItem(accessCodeKey) || '';
+
+  function renderAccessGate(url) {
+    const pubView = document.getElementById('published-view');
+    if (!pubView) return;
+    pubView.innerHTML = `
+      <div class="pub-access-gate">
+        <div class="pub-access-card">
+          <h2 class="pub-access-title">Access code required</h2>
+          <p class="pub-access-desc">This notebook is protected. Enter the access code to continue.</p>
+          <form id="pub-access-form" class="pub-access-form">
+            <input type="password" id="pub-access-input" class="pub-access-input" placeholder="Access code" autocomplete="off" autofocus>
+            <button type="submit" class="btn-save pub-access-btn">Continue</button>
+          </form>
+          <div id="pub-access-error" class="pub-access-error" hidden>Incorrect code. Please try again.</div>
+        </div>
+      </div>`;
+    const form = document.getElementById('pub-access-form');
+    const input = document.getElementById('pub-access-input');
+    const errEl = document.getElementById('pub-access-error');
+    form?.addEventListener('submit', async e => {
+      e.preventDefault();
+      const code = input.value.trim();
+      if (!code) return;
+      const submitBtn = form.querySelector('button[type="submit"]');
+      submitBtn.disabled = true;
+      try {
+        const r = await fetch(url, { headers: { 'X-Notebook-Access-Code': code } });
+        if (r.ok) {
+          sessionStorage.setItem(accessCodeKey, code);
+          location.reload();
+        } else {
+          if (errEl) errEl.hidden = false;
+          input.value = '';
+          input.focus();
+          submitBtn.disabled = false;
+        }
+      } catch (_) { submitBtn.disabled = false; }
+    });
+  }
+
   try {
     const apiUrl = `/api/published/${encodeURIComponent(listToken)}` + (nbSlugParam ? `?nb=${encodeURIComponent(nbSlugParam)}` : '');
-    const resp = await fetch(apiUrl);
+    const fetchOpts = savedCode ? { headers: { 'X-Notebook-Access-Code': savedCode } } : {};
+    const resp = await fetch(apiUrl, fetchOpts);
+    if (resp.status === 403) {
+      const errBody = await resp.json().catch(() => ({}));
+      if (errBody.detail === 'access_code_required') {
+        if (loadingEl) loadingEl.hidden = true;
+        renderAccessGate(apiUrl);
+        return;
+      }
+    }
     if (!resp.ok) throw new Error('not found or private');
     let { settings, notes, notebooks: pubNbs, activeNotebook: activeNb } = await resp.json();
     let data = { settings, notes, notebooks: pubNbs || [], activeNotebook: activeNb || null };
@@ -2104,9 +2158,8 @@ async function initPublished() {
         if (navBtns) navBtns.hidden = false;
         pubClerkToken = await window.Clerk.session.getToken();
         const ownerApiUrl = `/api/published/${encodeURIComponent(listToken)}` + (nbSlugParam ? `?nb=${encodeURIComponent(nbSlugParam)}` : '');
-        const ownerResp = await fetch(ownerApiUrl, {
-          headers: { 'Authorization': `Bearer ${pubClerkToken}` },
-        });
+        const ownerHeaders = { 'Authorization': `Bearer ${pubClerkToken}`, ...(savedCode ? { 'X-Notebook-Access-Code': savedCode } : {}) };
+        const ownerResp = await fetch(ownerApiUrl, { headers: ownerHeaders });
         if (ownerResp.ok) {
           const ownerData = await ownerResp.json();
           if (ownerData.settings.isOwner) {
@@ -2536,6 +2589,81 @@ async function initNotebooks() {
     }
 
     renderSlugRow();
+
+    // Access code row — shown when notebook has a slug and list_token is known
+    if (!nb.is_system && window._pubListToken) {
+      const accessRow = document.createElement('div');
+      accessRow.className = 'nb-access-row';
+      card.appendChild(accessRow);
+
+      function renderAccessRow() {
+        accessRow.innerHTML = '';
+
+        const hasCode = !!nb.has_access_code;
+        const label = document.createElement('span');
+        label.className = 'nb-access-label';
+        label.textContent = hasCode ? 'Access code: set' : 'Access code: none';
+        if (hasCode) label.classList.add('nb-access-label-set');
+
+        const LOCK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = hasCode ? 'btn-outline btn-sm btn-icon-sm nb-access-active' : 'btn-outline btn-sm btn-icon-sm';
+        toggleBtn.title = hasCode ? 'Change or remove access code' : 'Set access code';
+        toggleBtn.innerHTML = LOCK_SVG;
+        toggleBtn.addEventListener('click', e => {
+          e.preventDefault();
+          const formRow = accessRow.querySelector('.nb-access-form-row');
+          if (formRow) { formRow.remove(); return; }
+          const row = document.createElement('div');
+          row.className = 'nb-access-form-row';
+
+          const inp = document.createElement('input');
+          inp.type = 'password';
+          inp.className = 'nb-access-input';
+          inp.placeholder = hasCode ? 'New code (leave blank to clear)' : 'New access code';
+          inp.maxLength = 128;
+          inp.autocomplete = 'off';
+
+          const saveBtn = document.createElement('button');
+          saveBtn.className = 'btn-save btn-sm';
+          saveBtn.textContent = 'Save';
+
+          const cancelBtn = document.createElement('button');
+          cancelBtn.className = 'btn-outline btn-sm';
+          cancelBtn.textContent = 'Cancel';
+
+          row.append(inp, saveBtn, cancelBtn);
+          accessRow.appendChild(row);
+          inp.focus();
+
+          async function doSave() {
+            const code = inp.value; // allow empty to clear
+            saveBtn.disabled = true;
+            try {
+              const resp = await fetch(`/api/notebooks/${nb.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', ...headers },
+                body: JSON.stringify({ title: nb.title, access_code: code }),
+              });
+              if (!resp.ok) throw new Error();
+              const updated = await resp.json();
+              nb.has_access_code = updated.has_access_code ?? (code.trim().length > 0);
+              row.remove();
+              renderAccessRow();
+            } catch (_) { saveBtn.disabled = false; }
+          }
+
+          saveBtn.addEventListener('click', doSave);
+          inp.addEventListener('keydown', e2 => { if (e2.key === 'Enter') doSave(); else if (e2.key === 'Escape') cancelBtn.click(); });
+          cancelBtn.addEventListener('click', () => row.remove());
+        });
+
+        accessRow.append(label, toggleBtn);
+      }
+
+      renderAccessRow();
+    }
 
     return card;
   }
