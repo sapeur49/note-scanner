@@ -1172,11 +1172,6 @@ async function initResults() {
         listEl.appendChild(label);
       });
 
-      const manageLink = document.createElement('a');
-      manageLink.href = 'notebooks.html';
-      manageLink.className = 'nb-manage-link';
-      manageLink.textContent = 'Manage notebooks →';
-      listEl.appendChild(manageLink);
     } catch (_) {}
   }
 
@@ -1701,6 +1696,7 @@ async function initShare() {
     const showTranscription = opts.showTranscription !== false;
     const showAdditional    = opts.showAdditional !== false;
     const imagePosition     = opts.imagePosition || 'top';
+    const includeInList     = opts.includeInList !== false;
 
     // Template and logo come from owner settings (data.template / data.logo_on / data.list_token)
     const template  = data.template || 'minimal';
@@ -1719,16 +1715,20 @@ async function initShare() {
     const logoTopA   = document.getElementById('sp-logo-top-a');
     const logoBottomA = document.getElementById('sp-logo-bottom-a');
     if (logoOn) {
-      if (listUrl) {
+      if (listUrl && includeInList) {
         if (logoTopA) logoTopA.href = listUrl;
         if (logoBottomA) logoBottomA.href = listUrl;
+      } else {
+        // Not linked — remove href so logo is non-clickable text
+        if (logoTopA) { logoTopA.removeAttribute('href'); logoTopA.style.cursor = 'default'; }
+        if (logoBottomA) { logoBottomA.removeAttribute('href'); logoBottomA.style.cursor = 'default'; }
       }
       if (logoTop) logoTop.hidden = false;
     }
 
-    // Home link
+    // Home link — only shown when note is included in the published list
     const homeLink = document.getElementById('share-home-link');
-    if (homeLink && listUrl) {
+    if (homeLink && listUrl && includeInList) {
       homeLink.href = listUrl;
       homeLink.hidden = false;
     }
@@ -1881,8 +1881,8 @@ async function initShare() {
       const editBtn = document.getElementById('sp-edit-btn');
       if (editBtn) { editBtn.href = `/results.html?id=${encodeURIComponent(noteId)}`; editBtn.hidden = false; }
 
-      // Globe = published list link (shown when owner has a public list)
-      if (data.list_token) {
+      // Globe = published list link (shown when owner has a public list and note is in it)
+      if (data.list_token && includeInList) {
         const listBtn = document.getElementById('sp-list-btn');
         if (listBtn) { listBtn.href = `/published/${encodeURIComponent(data.list_token)}`; listBtn.hidden = false; }
       }

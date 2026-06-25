@@ -2199,6 +2199,8 @@ body[data-template="magazine"] .sp-footer {
   gap: 4px;
   max-height: 220px;
   overflow-y: auto;
+  max-height: 220px;
+  overflow-y: auto;
 }
 .nb-picker-item {
   display: flex;
@@ -2219,6 +2221,12 @@ body[data-template="magazine"] .sp-footer {
   text-decoration: none;
 }
 .nb-manage-link:hover { text-decoration: underline; }
+.nb-manage-link--title {
+  margin-top: 0;
+  margin-left: auto;
+  font-size: 0.75rem;
+  font-weight: normal;
+}
 .notebooks-empty-msg {
   font-size: 0.875rem;
   color: var(--text-muted);
