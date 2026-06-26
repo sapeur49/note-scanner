@@ -2924,12 +2924,15 @@ async function initNotebooks() {
 
     toggleBtn.disabled = true;
 
-    // Lazy-load all notes once
+    // Lazy-load all notes once; use a fresh token in case the page-load token expired
     if (!allNotes) {
       try {
-        const resp = await fetch('/api/notes', { headers });
-        allNotes = resp.ok ? await resp.json() : [];
-      } catch (_) { allNotes = []; }
+        const freshToken = await getToken();
+        const freshHeaders = freshToken ? { 'Authorization': `Bearer ${freshToken}` } : {};
+        const resp = await fetch('/api/notes', { headers: freshHeaders });
+        if (resp.ok) allNotes = await resp.json();
+        // On failure, leave allNotes = null so the next open retries
+      } catch (_) {}
     }
 
     toggleBtn.disabled = false;

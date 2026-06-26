@@ -269,12 +269,21 @@ Include an "additional_notes" key in your JSON response addressing the additiona
 
     image_blocks.append({"type": "text", "text": prompt})
 
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=4096,
-        tools=[{"type": "web_search_20260209", "name": "web_search"}],
-        messages=[{"role": "user", "content": image_blocks}],
-    )
+    try:
+        response = client.messages.create(
+            model=MODEL,
+            max_tokens=4096,
+            tools=[{"type": "web_search_20260209", "name": "web_search"}],
+            messages=[{"role": "user", "content": image_blocks}],
+        )
+    except anthropic.BadRequestError as e:
+        raise HTTPException(status_code=400, detail=f"Images could not be processed: {e.message}")
+    except anthropic.RateLimitError:
+        raise HTTPException(status_code=429, detail="Claude API rate limit reached. Please try again shortly.")
+    except anthropic.APIStatusError as e:
+        raise HTTPException(status_code=502, detail=f"Claude API error ({e.status_code}): {e.message}")
+    except anthropic.APIConnectionError:
+        raise HTTPException(status_code=502, detail="Could not reach Claude API. Please try again.")
 
     # Web search responses may include non-text blocks (tool_use, tool_result);
     # extract the last text block which contains the final JSON output.
