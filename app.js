@@ -517,6 +517,23 @@ async function initResults() {
   if (cropRotateCcw) cropRotateCcw.addEventListener('click', () => { if (activeCropper) activeCropper.rotate(-90); });
   if (cropRotateCw)  cropRotateCw.addEventListener('click',  () => { if (activeCropper) activeCropper.rotate(90);  });
 
+  // Two-finger pan: Cropper handles pinch-zoom natively but doesn't translate
+  // the midpoint — we track midpoint delta and forward it as canvas move.
+  let cropTouchPrev = null;
+  const cropImgWrap = document.querySelector('.crop-img-wrap');
+  if (cropImgWrap) {
+    cropImgWrap.addEventListener('touchmove', e => {
+      if (e.touches.length !== 2 || !activeCropper) { cropTouchPrev = null; return; }
+      const t1 = e.touches[0], t2 = e.touches[1];
+      const mx = (t1.clientX + t2.clientX) / 2;
+      const my = (t1.clientY + t2.clientY) / 2;
+      if (cropTouchPrev) activeCropper.move(mx - cropTouchPrev.x, my - cropTouchPrev.y);
+      cropTouchPrev = { x: mx, y: my };
+    }, { passive: true });
+    cropImgWrap.addEventListener('touchend',   () => { cropTouchPrev = null; });
+    cropImgWrap.addEventListener('touchcancel', () => { cropTouchPrev = null; });
+  }
+
   cropRatioBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       cropRatioBtns.forEach(b => b.classList.remove('active'));
