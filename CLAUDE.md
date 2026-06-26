@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=58`, `app.js?v=76`). Update all nine HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution. `landing.html` uses self-contained inline CSS — no version bump needed.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=61`, `app.js?v=77`). Update all nine HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution. `landing.html` uses self-contained inline CSS — no version bump needed.
 
 ---
 
@@ -232,6 +232,7 @@ Slug helpers: `_slugify(title)` — lowercase, strip non-alnum to hyphens, trunc
 | `slug` | String(255) | URL slug; auto-generated on create; editable via `PUT /api/notebooks/{id}`; used in `?nb={slug}` published list URLs |
 | `created_at` | DateTime | UTC creation time |
 | `access_code_hash` | String(255) | PBKDF2-SHA256 hash of the optional access code (`pbkdf2:{salt}:{hex}`); NULL = no gate |
+| `visibility` | String(32) | `public` \| `logged_in` \| `me` — default visibility for notes in this notebook's published view |
 
 **`note_notebooks` table** — many-to-many join (created via `create_all`, no migration needed):
 | Column | Type | Purpose |
@@ -329,7 +330,7 @@ Notebook functions: `list_notebooks(user_id)` — returns user notebooks (LEFT J
 - **Publish visibility default**: `<option value="me" selected>` in `#pub-visibility` select in `results.html`. Change the `selected` attribute to change the default.
 - **Scan prompt for visual images**: `SCAN_PROMPT_BASE` in `app/main.py` — edit the "If primarily VISUAL" branch to change how non-text images are described.
 - **DB schema changes on `notes`**: add column to `notes` Table in `app/db.py` AND add an `ALTER TABLE` guard in `_migrate_schema()`. New tables: just add to `metadata` — `create_all()` handles them automatically.
-- **Tests**: add blocks inside `runTests()` in `test.html`
+- **Tests**: `test.html` runs 8 named browser test blocks (localStorage, FileReader, API payload shape, sessionStorage round-trip, share clipboard fallback, results render, JSON fence-strip, markdown rendering) on page load; click "▶ Run All Tests" to re-run. Add/modify blocks inside `runTests()` in `test.html`. No API key or server needed.
 - **PWA icons**: replace `icons/icon-192.png` and `icons/icon-512.png` with real branded art (192×192 and 512×512 PNG). Colors in `manifest.json` (`background_color`, `theme_color`) and the `<meta name="theme-color">` in all six HTML files should match the `--bg` and `--accent` CSS variables in `style.css`.
 - **Scan file limit**: `MAX_FILES = 10` constant in `addFiles()` in `app.js` (inside `initIndex()`); enforced server-side in `scan_notes()` in `app/main.py` with a 400 error. Change both values in sync.
 - **Daily scan limits**: per-user and global caps stored in `global_settings` table (`per_user_daily_limit`, `global_daily_limit`); enforced in `scan_notes()` before the Claude call; counts tracked in `scan_counts` table (user row + `__global__` row per date). Admin UI in the Advanced card in Settings (opti66 only); defaults 30/user, 500/global if keys absent.
