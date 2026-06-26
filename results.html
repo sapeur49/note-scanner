@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#2563eb">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs/dist/cropper.min.css">
-  <link rel="stylesheet" href="style.css?v=62">
+  <link rel="stylesheet" href="style.css?v=63">
 </head>
 <body>
   <div class="container">
@@ -285,7 +285,9 @@
   ></script>
   <div id="crop-modal" class="crop-modal" hidden>
     <div class="crop-dialog">
-      <img id="crop-img" src="" alt="Crop">
+      <div class="crop-img-wrap">
+        <img id="crop-img" src="" alt="Crop">
+      </div>
       <div class="crop-actions">
         <button id="crop-confirm-btn">Apply crop</button>
         <button id="crop-cancel-btn">Cancel</button>
@@ -295,6 +297,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs/dist/cropper.min.js"></script>
-  <script src="app.js?v=79"></script>
+  <script src="app.js?v=80"></script>
 </body>
 </html>

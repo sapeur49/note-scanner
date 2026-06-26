@@ -516,20 +516,30 @@ async function initResults() {
     activeCropPos   = position;
     activeCropLbIdx = lbIndex;
     activeCropFig   = figureEl;
-    cropImgEl.src   = lightboxSrcs[lbIndex];
     cropModal.hidden = false;
-    activeCropper = new Cropper(cropImgEl, {
-      viewMode: 1,
-      movable: true,
-      zoomable: true,
-      rotatable: true,
-      scalable: false,
-      autoCropArea: 1,
-    });
+
+    function initCropper() {
+      activeCropper = new Cropper(cropImgEl, {
+        viewMode: 1,
+        movable: true,
+        zoomable: true,
+        rotatable: true,
+        scalable: false,
+        autoCropArea: 1,
+      });
+    }
+
+    cropImgEl.src = lightboxSrcs[lbIndex];
+    if (cropImgEl.complete && cropImgEl.naturalWidth) {
+      initCropper();
+    } else {
+      cropImgEl.onload = () => { cropImgEl.onload = null; initCropper(); };
+    }
   }
 
   function closeCropModal() {
     if (activeCropper) { activeCropper.destroy(); activeCropper = null; }
+    cropImgEl.onload = null;
     cropModal.hidden = true;
     cropImgEl.src = '';
     activeCropPos = activeCropLbIdx = activeCropFig = null;
