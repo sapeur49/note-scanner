@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#2563eb">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1/dist/cropper.min.css">
-  <link rel="stylesheet" href="style.css?v=64">
+  <link rel="stylesheet" href="style.css?v=65">
 </head>
 <body>
   <div class="container">
@@ -291,12 +291,17 @@
       <div class="crop-ratio-bar">
         <button class="crop-ratio-btn active" data-ratio="NaN">Free</button>
         <button class="crop-ratio-btn" data-ratio="1">1:1</button>
+        <button class="crop-ratio-btn" data-ratio="1.5">3:2</button>
+        <button class="crop-ratio-btn" data-ratio="0.6667">2:3</button>
         <button class="crop-ratio-btn" data-ratio="1.3333">4:3</button>
-        <button class="crop-ratio-btn" data-ratio="1.7778">16:9</button>
         <button class="crop-ratio-btn" data-ratio="0.75">3:4</button>
+        <button class="crop-ratio-btn" data-ratio="1.7778">16:9</button>
         <button class="crop-ratio-btn" data-ratio="0.5625">9:16</button>
       </div>
       <div class="crop-actions">
+        <button id="crop-rotate-ccw" class="crop-rotate-btn" title="Rotate 90° left">↺</button>
+        <button id="crop-rotate-cw" class="crop-rotate-btn" title="Rotate 90° right">↻</button>
+        <span style="flex:1"></span>
         <button id="crop-confirm-btn">Apply crop</button>
         <button id="crop-cancel-btn">Cancel</button>
       </div>
@@ -305,6 +310,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1/dist/cropper.min.js"></script>
-  <script src="app.js?v=81"></script>
+  <script src="app.js?v=82"></script>
 </body>
 </html>

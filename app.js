@@ -507,10 +507,15 @@ async function initResults() {
   const cropConfirmBtn = document.getElementById('crop-confirm-btn');
   const cropCancelBtn  = document.getElementById('crop-cancel-btn');
   const cropRatioBtns  = document.querySelectorAll('.crop-ratio-btn');
+  const cropRotateCcw  = document.getElementById('crop-rotate-ccw');
+  const cropRotateCw   = document.getElementById('crop-rotate-cw');
   let activeCropper   = null;
   let activeCropPos   = null;
   let activeCropLbIdx = null;
   let activeCropFig   = null;
+
+  if (cropRotateCcw) cropRotateCcw.addEventListener('click', () => { if (activeCropper) activeCropper.rotate(-90); });
+  if (cropRotateCw)  cropRotateCw.addEventListener('click',  () => { if (activeCropper) activeCropper.rotate(90);  });
 
   cropRatioBtns.forEach(btn => {
     btn.addEventListener('click', () => {

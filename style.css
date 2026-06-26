@@ -915,6 +915,20 @@ details[open] .images-toggle::before {
   font-weight: 600;
 }
 
+.crop-rotate-btn {
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.crop-rotate-btn:hover { border-color: var(--text-muted); color: var(--text); }
+
 .crop-actions {
   display: flex;
   gap: 8px;
