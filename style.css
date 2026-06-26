@@ -842,6 +842,77 @@ details[open] .images-toggle::before {
   .thumb-delete-btn:hover { border-color: #b91c1c; color: #fca5a5; }
 }
 
+.thumb-crop-btn {
+  margin-top: 2px;
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.thumb-crop-btn:hover { border-color: var(--text-muted); color: var(--text); }
+
+/* ── Crop modal ── */
+
+.crop-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.crop-dialog {
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: min(90vw, 720px);
+  width: 100%;
+  max-height: 92vh;
+  overflow: hidden;
+}
+
+.crop-dialog img {
+  display: block;
+  max-width: 100%;
+  max-height: 62vh;
+}
+
+.crop-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+.crop-actions button {
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.crop-actions button:first-child {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.crop-actions button:first-child:hover { opacity: 0.88; }
+.crop-actions button:last-child:hover { border-color: var(--text-muted); }
+.crop-actions button:disabled { opacity: 0.5; cursor: default; }
+
 .pub-exclude-btn.excluded {
   background: #fee2e2;
   border-color: #f87171;

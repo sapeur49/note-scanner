@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=61`, `app.js?v=77`). Update all nine HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution. `landing.html` uses self-contained inline CSS — no version bump needed.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=62`, `app.js?v=79`). Update all nine HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution. `landing.html` uses self-contained inline CSS — no version bump needed.
 
 ---
 
@@ -135,6 +135,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `DELETE /api/notes/{id}` — delete note + remove volume files + clean up `note_notebooks` rows
 - `GET /api/notes/{id}/files/{position}` — serve an attached file (auth'd)
 - `POST /api/notes/{id}/files` — upload additional images/PDFs to a saved note; assigns positions continuing from existing max; extracts EXIF (auth'd)
+- `PUT /api/notes/{id}/files/{position}` — replace a single file's content in place; overwrites disk file, re-extracts EXIF, updates `files` JSON (auth'd); used by the Crop feature
 - `DELETE /api/notes/{id}/files/{position}` — delete a single file from a saved note; removes from disk and updates `files` JSON (auth'd)
 - `PUT /api/notes/{note_id}/notebooks` — set notebook memberships for a note; body: `{"notebook_ids": [...]}`. Replaces all existing memberships. Verifies note ownership and that all notebook IDs belong to the user (auth'd)
 - `POST /api/notes/{id}/publish` — generate/return share token + slug (idempotent, auth'd); returns `{"share_token": "...", "slug": "..."}`
@@ -311,7 +312,7 @@ Notebook functions: `list_notebooks(user_id)` — returns user notebooks (LEFT J
 - **Landing page**: edit `landing.html` directly — it is self-contained (inline CSS, no app.js/style.css dependency). Served at `/landing` and `/landing.html` by the static file mount with no explicit route needed.
 - **Share checkboxes** (title/date/images/summary/transcription/additional notes): `#share-card` in `results.html`; the `#share-btn` handler in `app.js` assembles checked sections and calls `share()`; additional notes only added to output when non-empty
 - **Publish options** (per-note): `#publish-card` in `results.html`; `getPublishOptions()`/`restorePublishOptions()` in `app.js`; stored in `notes.publish_options` JSON column. `savePublishOptions()` sends both text fields and publish_options together so title/summary edits are never lost when using publish actions.
-- **Image exclude/delete per tile**: `addImageTile()` in `app.js` — Exclude button toggles `excludedImages` Set; Delete button calls `DELETE /api/notes/{id}/files/{position}` (saved mode only)
+- **Image exclude/delete/crop per tile**: `addImageTile()` in `app.js` — Exclude button toggles `excludedImages` Set; Delete button calls `DELETE /api/notes/{id}/files/{position}` (saved mode only); Crop button opens the Cropper.js modal (`openCropModal()`). On crop confirm: in fresh unsaved mode updates IDB + sessionStorage; in saved mode (or after first save) PUTs the cropped blob to `PUT /api/notes/{id}/files/{position}`.
 - **Add images to saved note**: `enableAddImages(noteId)` in `app.js` — call after save or on saved-mode load. Button (`#add-images-btn`) wired to `input.click()` programmatically (iOS Safari does NOT open the file picker via `<label for>` on a `display:none` input — must use `element.click()`). Both `addImagesBtn.dataset.wired` and `addImagesInput.dataset.wired` guards prevent double-wiring.
 - **Global settings** (template/logo/list title): `settings.html` + `initSettings()` in `app.js`; stored in `user_settings` table via `PUT /api/settings`
 - **Share button on share page**: `#sp-share-btn` in `share.html`; always shown (not owner-gated); wired in `initShare()` after data loads; uses `navigator.share` with clipboard fallback

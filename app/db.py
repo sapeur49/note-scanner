@@ -413,6 +413,19 @@ def update_note_files(user_id: str, note_id: str, files: list) -> int:
     return result.rowcount
 
 
+def update_note_file_exif(user_id: str, note_id: str, position: int, exif) -> bool:
+    note = get_note(user_id, note_id)
+    if not note:
+        return False
+    files = list(note.get("files") or [])
+    for entry in files:
+        if int(entry.get("position", -1)) == position:
+            entry["exif"] = exif
+            break
+    update_note_files(user_id, note_id, files)
+    return True
+
+
 def delete_note(user_id: str, note_id: str) -> int:
     with engine.begin() as conn:
         conn.execute(sa_delete(note_notebooks).where(note_notebooks.c.note_id == note_id))

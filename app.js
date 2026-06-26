@@ -501,6 +501,99 @@ async function initResults() {
     else if (e.key === 'Escape') closeLightbox();
   });
 
+  // ── Crop modal ──
+  const cropModal     = document.getElementById('crop-modal');
+  const cropImgEl     = document.getElementById('crop-img');
+  const cropConfirmBtn = document.getElementById('crop-confirm-btn');
+  const cropCancelBtn  = document.getElementById('crop-cancel-btn');
+  let activeCropper   = null;
+  let activeCropPos   = null;
+  let activeCropLbIdx = null;
+  let activeCropFig   = null;
+
+  function openCropModal(position, lbIndex, figureEl) {
+    if (activeCropper) { activeCropper.destroy(); activeCropper = null; }
+    activeCropPos   = position;
+    activeCropLbIdx = lbIndex;
+    activeCropFig   = figureEl;
+    cropImgEl.src   = lightboxSrcs[lbIndex];
+    cropModal.hidden = false;
+    activeCropper = new Cropper(cropImgEl, {
+      viewMode: 1,
+      movable: true,
+      zoomable: true,
+      rotatable: true,
+      scalable: false,
+      autoCropArea: 1,
+    });
+  }
+
+  function closeCropModal() {
+    if (activeCropper) { activeCropper.destroy(); activeCropper = null; }
+    cropModal.hidden = true;
+    cropImgEl.src = '';
+    activeCropPos = activeCropLbIdx = activeCropFig = null;
+  }
+
+  async function applyCrop() {
+    if (!activeCropper) return;
+    cropConfirmBtn.disabled = true;
+    try {
+      const canvas = activeCropper.getCroppedCanvas({ maxWidth: 1500, maxHeight: 1500 });
+      const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+      // 150×150 square thumbnail for the tile
+      const tc = document.createElement('canvas');
+      tc.width = tc.height = 150;
+      tc.getContext('2d').drawImage(canvas, 0, 0, 150, 150);
+      const thumbDataUrl = tc.toDataURL('image/jpeg', 0.5);
+
+      lightboxSrcs[activeCropLbIdx] = croppedDataUrl;
+      const thumbImg = activeCropFig?.querySelector('.thumb');
+      if (thumbImg) thumbImg.src = thumbDataUrl;
+
+      if (!currentNoteId) {
+        // Fresh mode, not yet saved — update IDB + sessionStorage
+        try {
+          const arr = JSON.parse(sessionStorage.getItem(LIGHTBOX_KEY) || '[]');
+          arr[activeCropPos] = croppedDataUrl;
+          sessionStorage.setItem(LIGHTBOX_KEY, JSON.stringify(arr));
+        } catch (_) {}
+        try {
+          const scanId = sessionStorage.getItem(SCAN_ID_KEY);
+          if (scanId) {
+            const entries = await idbGet(scanId) || [];
+            const idx = entries.findIndex(e => e.position === activeCropPos);
+            if (idx !== -1) {
+              entries[idx].blob = dataURLtoBlob(croppedDataUrl);
+              await idbPut(scanId, entries);
+            }
+          }
+        } catch (_) {}
+      } else {
+        // Note already saved (saved mode or post-save fresh) — PUT to server
+        const authToken = await getToken();
+        const fd = new FormData();
+        fd.append('file', dataURLtoBlob(croppedDataUrl), `${activeCropPos}.jpg`);
+        await fetch(`${NOTES_URL}/${currentNoteId}/files/${activeCropPos}`, {
+          method: 'PUT',
+          headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
+          body: fd,
+        });
+      }
+    } catch (_) {}
+    cropConfirmBtn.disabled = false;
+    closeCropModal();
+  }
+
+  if (cropConfirmBtn) cropConfirmBtn.addEventListener('click', applyCrop);
+  if (cropCancelBtn)  cropCancelBtn.addEventListener('click', closeCropModal);
+  if (cropModal) cropModal.addEventListener('click', e => { if (e.target === cropModal) closeCropModal(); });
+  document.addEventListener('keydown', e => {
+    if (!cropModal || cropModal.hidden) return;
+    if (e.key === 'Escape') { e.stopPropagation(); closeCropModal(); }
+  });
+
   const shareFiles = [];  // File objects offered to the share sheet when "Image(s)" is checked
 
   const excludedImages = new Set(); // positions excluded from publishing
@@ -582,6 +675,14 @@ async function initResults() {
       savePublishOptions();
     });
     figure.appendChild(excludeBtn);
+
+    const cropBtn = document.createElement('button');
+    cropBtn.type = 'button';
+    cropBtn.className = 'thumb-crop-btn';
+    cropBtn.textContent = 'Crop';
+    cropBtn.title = 'Crop this image';
+    cropBtn.addEventListener('click', () => openCropModal(i, lbIndex, figure));
+    figure.appendChild(cropBtn);
 
     if (mode === 'saved') {
       const delBtn = document.createElement('button');

@@ -735,6 +735,29 @@ def share_note_image(token: str, position: int, authorization: str = Header(defa
     return FileResponse(path, media_type=entry.get("mime", "image/jpeg"))
 
 
+@app.put("/api/notes/{note_id}/files/{position}")
+async def replace_note_file(
+    note_id: str,
+    position: int,
+    file: UploadFile = File(...),
+    _user: dict = Depends(require_user),
+):
+    note = db.get_note(_user["sub"], note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    existing = note.get("files") or []
+    entry = next((f for f in existing if int(f.get("position", -1)) == position), None)
+    if not entry:
+        raise HTTPException(status_code=404, detail="File not found")
+    data = await file.read()
+    mime = file.content_type or "image/jpeg"
+    path = NOTES_DIR / note_id / entry["filename"]
+    path.write_bytes(data)
+    exif = _extract_exif(data, mime)
+    db.update_note_file_exif(_user["sub"], note_id, position, exif)
+    return {"ok": True}
+
+
 @app.delete("/api/notes/{note_id}/files/{position}")
 async def delete_note_file(note_id: str, position: int, _user: dict = Depends(require_user)):
     note = db.get_note(_user["sub"], note_id)
