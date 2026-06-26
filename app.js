@@ -506,10 +506,20 @@ async function initResults() {
   const cropImgEl     = document.getElementById('crop-img');
   const cropConfirmBtn = document.getElementById('crop-confirm-btn');
   const cropCancelBtn  = document.getElementById('crop-cancel-btn');
+  const cropRatioBtns  = document.querySelectorAll('.crop-ratio-btn');
   let activeCropper   = null;
   let activeCropPos   = null;
   let activeCropLbIdx = null;
   let activeCropFig   = null;
+
+  cropRatioBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      cropRatioBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const ratio = parseFloat(btn.dataset.ratio);
+      if (activeCropper) activeCropper.setAspectRatio(isNaN(ratio) ? NaN : ratio);
+    });
+  });
 
   function openCropModal(position, lbIndex, figureEl) {
     if (activeCropper) { activeCropper.destroy(); activeCropper = null; }
@@ -517,6 +527,7 @@ async function initResults() {
     activeCropLbIdx = lbIndex;
     activeCropFig   = figureEl;
     cropModal.hidden = false;
+    cropRatioBtns.forEach((b, i) => b.classList.toggle('active', i === 0));
 
     function initCropper() {
       activeCropper = new Cropper(cropImgEl, {

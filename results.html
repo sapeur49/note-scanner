@@ -8,7 +8,7 @@
   <meta name="theme-color" content="#2563eb">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1/dist/cropper.min.css">
-  <link rel="stylesheet" href="style.css?v=63">
+  <link rel="stylesheet" href="style.css?v=64">
 </head>
 <body>
   <div class="container">
@@ -288,6 +288,14 @@
       <div class="crop-img-wrap">
         <img id="crop-img" src="" alt="Crop">
       </div>
+      <div class="crop-ratio-bar">
+        <button class="crop-ratio-btn active" data-ratio="NaN">Free</button>
+        <button class="crop-ratio-btn" data-ratio="1">1:1</button>
+        <button class="crop-ratio-btn" data-ratio="1.3333">4:3</button>
+        <button class="crop-ratio-btn" data-ratio="1.7778">16:9</button>
+        <button class="crop-ratio-btn" data-ratio="0.75">3:4</button>
+        <button class="crop-ratio-btn" data-ratio="0.5625">9:16</button>
+      </div>
       <div class="crop-actions">
         <button id="crop-confirm-btn">Apply crop</button>
         <button id="crop-cancel-btn">Cancel</button>
@@ -297,6 +305,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/cropperjs@1/dist/cropper.min.js"></script>
-  <script src="app.js?v=80"></script>
+  <script src="app.js?v=81"></script>
 </body>
 </html>

@@ -889,6 +889,32 @@ details[open] .images-toggle::before {
   max-width: 100%;
 }
 
+.crop-ratio-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.crop-ratio-btn {
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.crop-ratio-btn:hover { border-color: var(--text-muted); color: var(--text); }
+
+.crop-ratio-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .crop-actions {
   display: flex;
   gap: 8px;
