@@ -646,13 +646,20 @@ async function initResults() {
     figure.className = 'thumb-figure';
     figure.dataset.position = i;
 
+    const handle = document.createElement('div');
+    handle.className = 'drag-handle';
+    handle.title = 'Drag to reorder';
+    handle.textContent = '⠿';
+    figure.appendChild(handle);
+
     const img = document.createElement('img');
     img.src = thumbSrc;
     img.className = 'thumb';
     img.alt = `Image ${i + 1}`;
     const lbIndex = lightboxSrcs.length;
+    figure.dataset.lbindex = lbIndex;
     lightboxSrcs.push(fullSrc || thumbSrc);
-    img.addEventListener('click', () => openLightbox(lbIndex));
+    img.addEventListener('click', () => openLightbox(parseInt(figure.dataset.lbindex)));
     figure.appendChild(img);
 
     if (exif) {
@@ -706,12 +713,13 @@ async function initResults() {
     excludeBtn.textContent = 'Exclude';
     excludeBtn.title = 'Exclude this image from published page';
     excludeBtn.addEventListener('click', () => {
-      if (excludedImages.has(i)) {
-        excludedImages.delete(i);
+      const pos = parseInt(figure.dataset.position);
+      if (excludedImages.has(pos)) {
+        excludedImages.delete(pos);
         excludeBtn.textContent = 'Exclude';
         excludeBtn.classList.remove('excluded');
       } else {
-        excludedImages.add(i);
+        excludedImages.add(pos);
         excludeBtn.textContent = 'Excluded';
         excludeBtn.classList.add('excluded');
       }
@@ -724,7 +732,7 @@ async function initResults() {
     cropBtn.className = 'thumb-crop-btn';
     cropBtn.textContent = 'Crop';
     cropBtn.title = 'Crop this image';
-    cropBtn.addEventListener('click', () => openCropModal(i, lbIndex, figure));
+    cropBtn.addEventListener('click', () => openCropModal(parseInt(figure.dataset.position), parseInt(figure.dataset.lbindex), figure));
     figure.appendChild(cropBtn);
 
     if (mode === 'saved') {
@@ -738,7 +746,7 @@ async function initResults() {
         delBtn.disabled = true;
         try {
           const authToken = await getToken();
-          const resp = await fetch(`${NOTES_URL}/${savedId}/files/${i}`, {
+          const resp = await fetch(`${NOTES_URL}/${savedId}/files/${parseInt(figure.dataset.position)}`, {
             method: 'DELETE',
             headers: authToken ? { 'Authorization': `Bearer ${authToken}` } : {},
           });
@@ -762,6 +770,96 @@ async function initResults() {
     strip.appendChild(tile);
   }
 
+  function applyReorder(figures) {
+    const newSrcs = [];
+    figures.forEach((fig, newPos) => {
+      const oldLbIdx = parseInt(fig.dataset.lbindex);
+      if (!isNaN(oldLbIdx)) {
+        fig.dataset.lbindex = newSrcs.length;
+        newSrcs.push(lightboxSrcs[oldLbIdx]);
+      }
+      fig.dataset.position = newPos;
+      strip.appendChild(fig);
+    });
+    lightboxSrcs.splice(0, lightboxSrcs.length, ...newSrcs);
+  }
+
+  async function persistReorder(origPositions) {
+    if (mode === 'fresh' || !savedId) {
+      const origThumbs   = JSON.parse(sessionStorage.getItem(IMAGES_KEY)   || '[]');
+      const origLightbox = JSON.parse(sessionStorage.getItem(LIGHTBOX_KEY) || '[]');
+      sessionStorage.setItem(IMAGES_KEY,   JSON.stringify(origPositions.map(p => origThumbs[p])));
+      sessionStorage.setItem(LIGHTBOX_KEY, JSON.stringify(origPositions.map(p => origLightbox[p])));
+      const scanId = sessionStorage.getItem(SCAN_ID_KEY);
+      if (scanId) {
+        try {
+          const entries = (await idbGet(scanId)) || [];
+          const byPos = Object.fromEntries(entries.map(e => [e.position, e]));
+          await idbPut(scanId, origPositions.map((p, newIdx) => ({ ...byPos[p], position: newIdx })));
+        } catch (_) {}
+      }
+    } else {
+      try {
+        const authToken = await getToken();
+        const opts = getPublishOptions();
+        opts.imageOrder = origPositions;
+        await fetch(`${NOTES_URL}/${savedId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}) },
+          body: JSON.stringify({ publish_options: opts }),
+        });
+      } catch (_) {}
+    }
+  }
+
+  function initDragSort() {
+    let dragging = null, placeholder = null;
+
+    strip.addEventListener('pointerdown', e => {
+      const handle = e.target.closest('.drag-handle');
+      if (!handle) return;
+      dragging = handle.closest('.thumb-figure');
+      if (!dragging) return;
+      dragging.setPointerCapture(e.pointerId);
+      dragging.classList.add('dragging');
+      placeholder = document.createElement('div');
+      placeholder.className = 'drag-placeholder';
+      strip.insertBefore(placeholder, dragging.nextSibling);
+    });
+
+    strip.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const target = el?.closest('.thumb-figure');
+      if (target && target !== dragging) {
+        const rect = target.getBoundingClientRect();
+        const after = e.clientX > rect.left + rect.width / 2;
+        strip.insertBefore(placeholder, after ? target.nextSibling : target);
+      }
+    });
+
+    strip.addEventListener('pointerup', () => {
+      if (!dragging) return;
+      strip.insertBefore(dragging, placeholder);
+      placeholder.remove();
+      dragging.classList.remove('dragging');
+      const figures = [...strip.querySelectorAll('.thumb-figure')];
+      const origPositions = figures.map(f => parseInt(f.dataset.position));
+      applyReorder(figures);
+      persistReorder(origPositions);
+      dragging = null;
+      placeholder = null;
+    });
+
+    strip.addEventListener('pointercancel', () => {
+      if (!dragging) return;
+      placeholder?.remove();
+      dragging.classList.remove('dragging');
+      dragging = null;
+      placeholder = null;
+    });
+  }
+
   if (mode === 'fresh') {
     const imagesRaw   = sessionStorage.getItem(IMAGES_KEY);
     const lightboxRaw = sessionStorage.getItem(LIGHTBOX_KEY);
@@ -777,11 +875,22 @@ async function initResults() {
         (fullImages || []).forEach((dataUrl, i) => {
           if (dataUrl) shareFiles.push(new File([dataURLtoBlob(dataUrl)], `image-${i + 1}.jpg`, { type: 'image/jpeg' }));
         });
-        if (stripMeta.length) document.getElementById('images-section').hidden = false;
+        if (stripMeta.length) {
+          document.getElementById('images-section').hidden = false;
+          initDragSort();
+        }
       } catch (_) {}
     }
   } else {
-    const files = data.files || [];
+    let files = data.files || [];
+    const imageOrder = data.publish_options?.imageOrder;
+    if (imageOrder?.length) {
+      const byPos = Object.fromEntries(files.map(f => [f.position, f]));
+      files = [
+        ...imageOrder.map(p => byPos[p]).filter(Boolean),
+        ...files.filter(f => !imageOrder.includes(f.position)),
+      ];
+    }
     if (files.length && strip) {
       const token = await getToken();
       for (const f of files) {
@@ -799,6 +908,7 @@ async function initResults() {
         } catch (_) {}
       }
       document.getElementById('images-section').hidden = false;
+      initDragSort();
     }
 
     // Show add-images UI in saved mode
@@ -1930,7 +2040,15 @@ async function initShare() {
       };
       const imgContainer = containerMap[imagePosition] || containerMap['top'];
       const excludedSet = new Set((opts.excludedImages || []).map(Number));
-      const imageFiles = (data.files || []).filter(f => f.kind === 'image' && !excludedSet.has(Number(f.position)));
+      let shareAllFiles = data.files || [];
+      if (opts.imageOrder?.length) {
+        const byPos = Object.fromEntries(shareAllFiles.map(f => [f.position, f]));
+        shareAllFiles = [
+          ...opts.imageOrder.map(p => byPos[p]).filter(Boolean),
+          ...shareAllFiles.filter(f => !opts.imageOrder.includes(f.position)),
+        ];
+      }
+      const imageFiles = shareAllFiles.filter(f => f.kind === 'image' && !excludedSet.has(Number(f.position)));
 
       if (imageFiles.length && imgContainer) {
         imgContainer.hidden = false;
