@@ -197,9 +197,9 @@ def _verify_access_code(code: str, stored_hash: str) -> bool:
 
 @app.post("/api/scan")
 async def scan_notes(
+    request: Request,
     files: List[UploadFile] = File(...),
     instructions: str = Form(default=""),
-    exif_sources: List[UploadFile] = File(default=[]),
     _user: dict = Depends(require_user),
 ):
     if not client:
@@ -219,10 +219,15 @@ async def scan_notes(
     if user_count >= per_user_limit:
         raise HTTPException(status_code=429, detail="You've reached your daily scan limit. Please try again tomorrow.")
 
-    # Read exif_sources upfront (original file slices for EXIF; empty for PDFs)
+    # Read exif_sources from cached form data — avoids dual List[UploadFile] multipart issues
+    form = await request.form()
+    exif_uploads = form.getlist('exif_sources')
     exif_source_data = []
-    for es in exif_sources:
-        exif_source_data.append(await es.read())
+    for es in exif_uploads:
+        if hasattr(es, 'read'):
+            exif_source_data.append(await es.read())
+        else:
+            exif_source_data.append(b'')
 
     # Read all files upfront so EXIF can be extracted before encoding
     file_data = []
