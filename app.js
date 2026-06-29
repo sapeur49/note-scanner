@@ -364,7 +364,9 @@ async function initIndex() {
       } catch (_) { sessionStorage.removeItem(SCAN_ID_KEY); }
 
       const formData = new FormData();
-      selectedFiles.forEach(file => formData.append('files', file));
+      persistFiles.forEach(pf => formData.append('files',
+        new File([pf.blob], pf.original_name,
+          { type: pf.kind === 'pdf' ? 'application/pdf' : 'image/jpeg' })));
       const instructions = document.getElementById('instructions')?.value.trim();
       if (instructions) formData.append('instructions', instructions);
 
