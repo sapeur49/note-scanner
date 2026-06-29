@@ -272,7 +272,7 @@ Include an "additional_notes" key in your JSON response addressing the additiona
     try:
         response = client.messages.create(
             model=MODEL,
-            max_tokens=4096,
+            max_tokens=8192,
             tools=[{"type": "web_search_20260209", "name": "web_search"}],
             messages=[{"role": "user", "content": image_blocks}],
         )
@@ -293,7 +293,10 @@ Include an "additional_notes" key in your JSON response addressing the additiona
     if not match:
         raise HTTPException(status_code=502, detail="Unexpected response from Claude")
 
-    result = json.loads(match.group())
+    try:
+        result = json.loads(match.group())
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=502, detail=f"Claude returned malformed JSON: {e}")
     result["scanned_at"] = datetime.now(timezone.utc).isoformat()
     result["file_exif"] = file_exif_list
     db.increment_scan_count(user_id, today_str)
