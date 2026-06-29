@@ -340,13 +340,13 @@ async function initIndex() {
       );
       const thumbsJson    = JSON.stringify(stripMeta);
       const lightboxJson  = JSON.stringify(lightboxImgs);
-      const totalSize = thumbsJson.length + lightboxJson.length;
-      if (totalSize < IMAGES_SIZE_LIMIT) {
-        sessionStorage.setItem(IMAGES_KEY, thumbsJson);
+      // Thumbnails are always tiny (~10KB each) — always store them.
+      // Only skip lightbox data URLs if the combined total exceeds the limit.
+      sessionStorage.setItem(IMAGES_KEY, thumbsJson);
+      if (thumbsJson.length + lightboxJson.length < IMAGES_SIZE_LIMIT) {
         sessionStorage.setItem(LIGHTBOX_KEY, lightboxJson);
       } else {
-        sessionStorage.removeItem(IMAGES_KEY);
-        sessionStorage.removeItem(LIGHTBOX_KEY);
+        sessionStorage.removeItem(LIGHTBOX_KEY); // too large; results page falls back to IDB
       }
 
       // Stash the to-be-saved artifacts in IndexedDB: 1500px JPEGs for images,
@@ -870,9 +870,26 @@ async function initResults() {
         const stripMeta  = JSON.parse(imagesRaw);
         const fullImages = lightboxRaw ? JSON.parse(lightboxRaw) : [];
         const exifList = data.file_exif || [];
+
+        // IDB fallback: lightboxRaw cleared when total was too large for sessionStorage.
+        // Build object URLs from IDB blobs so the lightbox still works.
+        let idbByPos = {};
+        if (!lightboxRaw) {
+          const scanId = sessionStorage.getItem(SCAN_ID_KEY);
+          if (scanId) {
+            try {
+              const entries = (await idbGet(scanId)) || [];
+              entries.forEach(e => { idbByPos[e.position] = URL.createObjectURL(e.blob); });
+            } catch (_) {}
+          }
+        }
+
         stripMeta.forEach((meta, i) => {
           if (meta && meta.pdf) addPdfTile(meta.name, null);
-          else if (meta) addImageTile(meta, fullImages[i], i, exifList[i] || null);
+          else if (meta) {
+            const fullSrc = fullImages[i] || idbByPos[i] || null;
+            addImageTile(meta, fullSrc, i, exifList[i] || null);
+          }
         });
         (fullImages || []).forEach((dataUrl, i) => {
           if (dataUrl) shareFiles.push(new File([dataURLtoBlob(dataUrl)], `image-${i + 1}.jpg`, { type: 'image/jpeg' }));
