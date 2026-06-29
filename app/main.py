@@ -199,6 +199,7 @@ def _verify_access_code(code: str, stored_hash: str) -> bool:
 async def scan_notes(
     files: List[UploadFile] = File(...),
     instructions: str = Form(default=""),
+    exif_sources: List[UploadFile] = File(default=[]),
     _user: dict = Depends(require_user),
 ):
     if not client:
@@ -218,14 +219,21 @@ async def scan_notes(
     if user_count >= per_user_limit:
         raise HTTPException(status_code=429, detail="You've reached your daily scan limit. Please try again tomorrow.")
 
+    # Read exif_sources upfront (original file slices for EXIF; empty for PDFs)
+    exif_source_data = []
+    for es in exif_sources:
+        exif_source_data.append(await es.read())
+
     # Read all files upfront so EXIF can be extracted before encoding
     file_data = []
     file_exif_list = []
-    for f in files:
+    for i, f in enumerate(files):
         data = await f.read()
         mime = f.content_type or "image/jpeg"
         file_data.append((data, mime))
-        file_exif_list.append(_extract_exif(data, mime))
+        # Use original file slice for EXIF when available (canvas-resized blobs have no EXIF)
+        exif_data = exif_source_data[i] if i < len(exif_source_data) and exif_source_data[i] else data
+        file_exif_list.append(_extract_exif(exif_data, mime))
 
     image_blocks = []
     for data, media_type in file_data:

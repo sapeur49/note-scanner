@@ -367,6 +367,9 @@ async function initIndex() {
       persistFiles.forEach(pf => formData.append('files',
         new File([pf.blob], pf.original_name,
           { type: pf.kind === 'pdf' ? 'application/pdf' : 'image/jpeg' })));
+      // Send first 128KB of each original file for EXIF extraction (canvas-resized blobs strip EXIF)
+      selectedFiles.forEach(f => formData.append('exif_sources',
+        f.type === 'application/pdf' ? new Blob([]) : f.slice(0, 131072), f.name));
       const instructions = document.getElementById('instructions')?.value.trim();
       if (instructions) formData.append('instructions', instructions);
 
