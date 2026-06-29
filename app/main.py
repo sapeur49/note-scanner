@@ -289,12 +289,13 @@ Include an "additional_notes" key in your JSON response addressing the additiona
     # extract the last text block which contains the final JSON output.
     text_blocks = [b for b in response.content if getattr(b, "type", None) == "text"]
     raw = text_blocks[-1].text if text_blocks else ""
-    match = re.search(r'\{[\s\S]*\}', raw)
-    if not match:
+    start = raw.find('{')
+    if start == -1:
         raise HTTPException(status_code=502, detail="Unexpected response from Claude")
-
     try:
-        result = json.loads(match.group())
+        # raw_decode parses exactly one JSON value and ignores any trailing content,
+        # avoiding "extra data" errors when Claude appends text after the JSON object.
+        result, _ = json.JSONDecoder().raw_decode(raw, start)
     except json.JSONDecodeError as e:
         raise HTTPException(status_code=502, detail=f"Claude returned malformed JSON: {e}")
     result["scanned_at"] = datetime.now(timezone.utc).isoformat()
