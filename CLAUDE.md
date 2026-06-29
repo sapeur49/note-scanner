@@ -20,7 +20,7 @@ No build step. QA is done via `test.html` in the browser (self-contained, no API
 
 **Live state**: `HANDOVER.md` is a session-to-session snapshot (features shipped, open Railway config items, end-to-end checklist). Read it at the start of a new thread to orient quickly.
 
-**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=62`, `app.js?v=79`). Update all nine HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution. `landing.html` uses self-contained inline CSS — no version bump needed.
+**Cache busting**: `?v=N` query strings on `app.js` and `style.css`. Bump when deploying JS/CSS changes — JS and CSS versions can differ (currently `style.css?v=66`, `app.js?v=87`). Update all nine HTML files: `index.html`, `results.html`, `notes.html`, `settings.html`, `notebooks.html`, `help.html` use relative paths; `share.html` and `published.html` use absolute paths (`/style.css?v=N`, `/app.js?v=N`) because their URL paths have two segments, which would break relative resolution. `landing.html` uses self-contained inline CSS — no version bump needed.
 
 ---
 
@@ -102,10 +102,10 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 
 ## Backend: app/main.py
 
-- `MODEL` constant selects the Claude model — currently `claude-sonnet-4-6`; `max_tokens=4096`
+- `MODEL` constant selects the Claude model — currently `claude-sonnet-4-6`; `max_tokens=8192`
 - The scan prompt is split into `SCAN_PROMPT_BASE` (the instructions) and `SCAN_PROMPT_JSON_SHAPE` (the JSON output requirement). Both are always concatenated before sending to Claude — this prevents custom prompts from accidentally omitting the JSON shape and causing a 502. `SCAN_PROMPT = SCAN_PROMPT_BASE + SCAN_PROMPT_JSON_SHAPE` for reference. The prompt is **adaptive**: text-dominant images get full transcription + summary; primarily visual images (photos, objects, scenes) get an analytical description in `summary` and any visible labels/text in `transcription`. `SCAN_PROMPT_BASE` also includes a `**Web search:**` paragraph instructing Claude to search when scanned content is time-sensitive.
 - `scanned_at` (ISO-8601 UTC) is added server-side; Claude never generates timestamps.
-- **Web search**: every scan request includes `tools=[{"type": "web_search_20260209", "name": "web_search"}]` (dynamic-filtering variant for Sonnet 4.6). Claude decides autonomously whether to invoke it based on the prompt instructions — no code logic determines this. Response parsing collects the **last text block** from `response.content` (not `content[0]`) to skip any web-search tool-use/result blocks that appear before the final JSON output.
+- **Web search**: every scan request includes `tools=[{"type": "web_search_20260209", "name": "web_search"}]` (dynamic-filtering variant for Sonnet 4.6). Claude decides autonomously whether to invoke it based on the prompt instructions — no code logic determines this. Response parsing collects the **last text block** from `response.content` (not `content[0]`) to skip any web-search tool-use/result blocks that appear before the final JSON output. JSON is parsed with `json.JSONDecoder().raw_decode(raw, start)` (not `json.loads`) so any trailing text or citations after the closing `}` are silently ignored — avoids "extra data" errors.
 
 **EXIF extraction** (`_extract_exif` in `app/main.py`):
 - Pillow reads two IFDs: the main IFD (Make, Model) and the ExifIFD sub-IFD via `raw.get_ifd(0x8769)` (DateTimeOriginal, FNumber, ExposureTime, ISOSpeedRatings, LensModel). Shooting data is in the sub-IFD, not the main IFD — this is why both must be read.
@@ -113,6 +113,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - EXIF (camera, date, GPS) is appended to the Claude prompt as `[Photo metadata: taken {dt}; Camera: {make} {model}; Location: {lat}, {lon}]`. GPS is included so Claude can assist with location-based analysis.
 - Scan response includes `file_exif`: array (one entry per file, `null` for PDFs/no-EXIF images).
 - EXIF per file is also stored inside the `files` JSON column (as an `exif` key on each file entry) when a note is saved.
+- **EXIF source trick**: the scan POST sends canvas-resized 1500px blobs as `files` (no EXIF after canvas round-trip) plus the first 128 KB of each original file as `exif_sources` form fields. The backend reads `exif_sources` via `request.form().getlist('exif_sources')` (NOT as a second `List[UploadFile]` parameter — that causes python-multipart to misroute entries and only the first scan file reaches Claude). PDFs send an empty blob for their `exif_sources` slot.
 
 **Scan response shape:**
 ```json
@@ -127,7 +128,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 ```
 
 **All API routes** (must be registered before the `StaticFiles` mount):
-- `POST /api/scan` — multipart/form-data: `files` + optional `instructions`
+- `POST /api/scan` — multipart/form-data: `files` (resized 1500px blobs or original for PDFs/resize-failures) + optional `instructions` + `exif_sources` (first 128 KB of each original file, empty blob for PDFs — used only for EXIF extraction, not sent to Claude)
 - `POST /api/notes` — save a scanned note with file attachments
 - `GET /api/notes` — list notes for the signed-in user (supports `?q=` search, `?notebook_id=` filter)
 - `GET /api/notes/{id}` — fetch a single note (includes `share_token` and `notebook_ids` fields)
@@ -334,6 +335,7 @@ Notebook functions: `list_notebooks(user_id)` — returns user notebooks (LEFT J
 - **Tests**: `test.html` runs 8 named browser test blocks (localStorage, FileReader, API payload shape, sessionStorage round-trip, share clipboard fallback, results render, JSON fence-strip, markdown rendering) on page load; click "▶ Run All Tests" to re-run. Add/modify blocks inside `runTests()` in `test.html`. No API key or server needed.
 - **PWA icons**: replace `icons/icon-192.png` and `icons/icon-512.png` with real branded art (192×192 and 512×512 PNG). Colors in `manifest.json` (`background_color`, `theme_color`) and the `<meta name="theme-color">` in all six HTML files should match the `--bg` and `--accent` CSS variables in `style.css`.
 - **Scan file limit**: `MAX_FILES = 10` constant in `addFiles()` in `app.js` (inside `initIndex()`); enforced server-side in `scan_notes()` in `app/main.py` with a 400 error. Change both values in sync.
+- **Scan image resize**: selected files are resized to 1500px JPEG (85% quality) client-side before the scan POST — these resized blobs are what Claude actually sees. This reduces input token cost significantly vs. sending 24–60MP originals. The resize happens in `resizeImage()` and the blobs are stored in `persistFiles` (also used for IDB/note-save). If resize fails (HEIC on mobile, canvas memory limits), falls back to the original File. **Do not** add a second `List[UploadFile]` parameter to `POST /api/scan` for any purpose — python-multipart misroutes multipart entries between two list params, causing only the first file to reach Claude. Use `request.form().getlist(field_name)` to access additional file fields instead.
 - **Daily scan limits**: per-user and global caps stored in `global_settings` table (`per_user_daily_limit`, `global_daily_limit`); enforced in `scan_notes()` before the Claude call; counts tracked in `scan_counts` table (user row + `__global__` row per date). Admin UI in the Advanced card in Settings (opti66 only); defaults 30/user, 500/global if keys absent.
 - **Welcome screen** (first-visit only): `#welcome-screen` div in `index.html`, shown to signed-out users whose browser has no `localStorage` key `rw_seen_welcome`. "Get Started" CTA sets the key and proceeds to Clerk sign-in. Styles in `.welcome-card` / `.welcome-headline` / `.welcome-body` in `style.css`. Body copy is a placeholder — edit directly in `index.html`.
 - **Pre-scan thumbnails**: `renderThumbs()` in `app.js` builds `#pre-scan-thumbs` (`index.html`) using `URL.createObjectURL()` for instant previews; revoked in `img.onload`. `.pre-scan-*` styles in `style.css`. × remove button filters `selectedFiles` by reference identity.
