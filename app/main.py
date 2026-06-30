@@ -51,6 +51,8 @@ SCAN_PROMPT_BASE = """You are processing images submitted for scanning and analy
 2. In "summary": provide a detailed analytical description — identify the subject, describe what is depicted, note relevant details, context, and any meaningful observations.
 3. Create a short descriptive title (max ~8 words) capturing the subject — plain text, no markdown.
 
+**Multiple images:** Each image is preceded by a text label "Image N:" identifying its position in the upload order — use those labels, not your own count, when referencing or numbering individual images. If "summary" describes the images as a list (e.g. one item per photo), number each item according to its "Image N" label so the numbers always increase by one with no repeats or skips, in the exact order the images were provided.
+
 **Web search:** If the scanned content references information that may be time-sensitive or could have changed since your training — such as current events, news, prices, scores, currently-serving officials, recent research, upcoming events, or anything where giving an outdated answer would be misleading or unhelpful — use web search to verify or supplement your response before finalising it. If the content is purely personal notes, creative writing, historical context, or anything not time-sensitive, transcribe and analyse normally without searching.
 
 **Citation format:** When you draw on web search results, do NOT insert source links inline within body text. Write all prose naturally with no links, bracketed citations, or superscripts interrupting sentences. At the very end of the `additional_notes` field only, if web search was used, append a `### Sources` section listing each source actually referenced, one per line as a bare markdown link — never write `([Name](url))`, only `[Name](url)`:
@@ -241,8 +243,11 @@ async def scan_notes(
         file_exif_list.append(_extract_exif(exif_data, mime))
 
     image_blocks = []
-    for data, media_type in file_data:
+    total = len(file_data)
+    for i, (data, media_type) in enumerate(file_data):
         b64 = base64.b64encode(data).decode()
+        if total > 1:
+            image_blocks.append({"type": "text", "text": f"Image {i + 1}:"})
         if media_type == "application/pdf":
             image_blocks.append({
                 "type": "document",
