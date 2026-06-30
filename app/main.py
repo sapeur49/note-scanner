@@ -51,7 +51,7 @@ SCAN_PROMPT_BASE = """You are processing images submitted for scanning and analy
 2. In "summary": provide a detailed analytical description — identify the subject, describe what is depicted, note relevant details, context, and any meaningful observations.
 3. Create a short descriptive title (max ~8 words) capturing the subject — plain text, no markdown.
 
-**Multiple images:** Each image is preceded by a text label "Image N of M:" identifying its position in the upload order — use those labels, not your own count, when referencing or numbering individual images. If "summary" describes the images as a list (e.g. one item per photo), number each item according to its "Image N of M" label so the numbers always increase by one with no repeats or skips, in the exact order the images were provided.
+**Multiple images:** Each image is preceded by a text label "Image N:" identifying its position in the upload order — use those labels, not your own count, when referencing or numbering individual images. If "summary" describes the images as a list (e.g. one item per photo), number each item according to its "Image N" label so the numbers always increase by one with no repeats or skips, in the exact order the images were provided.
 
 **Web search:** If the scanned content references information that may be time-sensitive or could have changed since your training — such as current events, news, prices, scores, currently-serving officials, recent research, upcoming events, or anything where giving an outdated answer would be misleading or unhelpful — use web search to verify or supplement your response before finalising it. If the content is purely personal notes, creative writing, historical context, or anything not time-sensitive, transcribe and analyse normally without searching.
 
@@ -247,7 +247,7 @@ async def scan_notes(
     for i, (data, media_type) in enumerate(file_data):
         b64 = base64.b64encode(data).decode()
         if total > 1:
-            image_blocks.append({"type": "text", "text": f"Image {i + 1} of {total}:"})
+            image_blocks.append({"type": "text", "text": f"Image {i + 1}:"})
         if media_type == "application/pdf":
             image_blocks.append({
                 "type": "document",
