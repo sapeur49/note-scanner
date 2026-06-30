@@ -480,7 +480,7 @@ def get_published_list(
         if not nb_row:
             raise HTTPException(status_code=404, detail="Not found")
         settings = db.get_settings(nb_row["user_id"])
-        if not settings or settings.get("list_public") != "true":
+        if not settings:
             raise HTTPException(status_code=404, detail="Not found")
         active_notebook = {"id": nb_row["id"], "title": nb_row["title"], "slug": nb_row["slug"], "visibility": nb_row.get("visibility") or "public"}
         notebook_via_slug = True
