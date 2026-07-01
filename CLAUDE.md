@@ -151,6 +151,7 @@ To update the Clerk publishable key: change `data-clerk-publishable-key` in `ind
 - `GET /api/default-scan-prompt` — returns `{"prompt": SCAN_PROMPT_BASE + SCAN_PROMPT_JSON_SHAPE}`; used by the admin Advanced card to display the default prompt read-only (auth'd)
 - `GET /api/admin/scan-limits` — returns `{per_user_daily_limit, global_daily_limit}` from `global_settings` table (defaults: 30, 500); auth'd but admin-only in the UI
 - `PUT /api/admin/scan-limits` — update per-user and/or global daily scan limits; body: `{"per_user_daily_limit": N, "global_daily_limit": N}`; auth'd
+- `GET /api/admin/scan-logs` — returns per-user token usage aggregated over last N days (default 30); query param `?days=N`; auth'd but admin-only in the UI
 - `GET /api/share/{token}` — `token` may be a UUID share token or a slug; tries UUID lookup first, then slug fallback. Returns note JSON + owner settings; checks `visibility`; adds `is_owner: true`; adds `prev_token`/`next_token` for adjacent published notes when the list is public
 - `GET /api/share/{token}/images/{position}` — serve a published note image; enforces `visibility` (no auth required for `public`)
 - `GET /api/published/{identifier}` — identifier may be a UUID `list_token` or a notebook slug; return published notes list + settings; 403 if `list_public != true`; accepts optional `Authorization` header (owner detection) and optional `X-Notebook-Access-Code` header (for notebook slug URLs with an access code — returns `403 {"detail":"access_code_required"}` when missing or wrong); **note filtering**: main feed uses `includeInList`, notebook view uses `includeInNotebooks`; **visibility filtering**: unauthenticated viewers see only `public` notes, authenticated non-owners see `public` + `logged_in`, owners see all
@@ -259,6 +260,19 @@ Composite primary key prevents duplicates. Notes not in any notebook simply have
 | `count` | Integer | Number of scans run |
 
 `get_scan_counts(user_id, today_str)` → `(user_count, global_count)`. `increment_scan_count(user_id, today_str)` increments both rows atomically. `get_global_setting(key, default)` / `set_global_setting(key, value)` manage `global_settings`. Defaults used when key is absent: per-user 30/day, global 500/day.
+
+**`scan_logs` table** (per-scan token usage; created via `create_all`):
+| Column | Type | Purpose |
+|---|---|---|
+| `id` | String(36) PK | UUID |
+| `user_id` | String(255) | Clerk user sub (indexed) |
+| `scanned_at` | DateTime | UTC timestamp of the scan |
+| `model` | String(64) | Claude model used |
+| `input_tokens` | Integer | Input tokens from `response.usage.input_tokens` |
+| `output_tokens` | Integer | Output tokens from `response.usage.output_tokens` |
+| `file_count` | Integer | Number of files in the scan |
+
+`log_scan(user_id, model, input_tokens, output_tokens, file_count)` writes a row after each successful scan; errors are caught and logged but do not fail the scan response. `get_scan_logs(days=30)` returns per-user aggregates (scan count, total tokens, last scan) ordered by input token volume — used by `GET /api/admin/scan-logs?days=N`.
 
 Key functions: `get_settings(user_id)`, `upsert_settings(user_id, fields)`, `get_settings_by_list_token(token)`, `list_published_notes(user_id, for_notebook=False)` — `for_notebook=False` (default, main feed) skips notes with `includeInList=false`; `for_notebook=True` (notebook view) skips notes with `includeInNotebooks=false`; returns notes with `notebook_ids` per note (batch query), ordered by `scanned_at desc`. `update_note_files(user_id, note_id, files)`, `get_adjacent_published_notes(user_id, note_id)` — returns `{prev_token, next_token}` for prev/next navigation on share pages (always uses main-feed variant). `list_published_notebooks(user_id)` — notebooks that contain at least one published note; returns `{id, title, slug}` (used by published list API to populate the filter dropdown).
 

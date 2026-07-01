@@ -133,6 +133,18 @@ scan_counts = Table(
     Column("count", Integer, nullable=False, default=0),
 )
 
+scan_logs = Table(
+    "scan_logs",
+    metadata,
+    Column("id", String(36), primary_key=True),
+    Column("user_id", String(255), nullable=False, index=True),
+    Column("scanned_at", DateTime, nullable=False),
+    Column("model", String(64), nullable=True),
+    Column("input_tokens", Integer, nullable=True),
+    Column("output_tokens", Integer, nullable=True),
+    Column("file_count", Integer, nullable=True),
+)
+
 
 def init_db() -> None:
     metadata.create_all(engine)
@@ -887,3 +899,38 @@ def increment_scan_count(user_id: str, today: str) -> None:
                 conn.execute(
                     insert(scan_counts).values(user_id=uid, scan_date=today, count=1)
                 )
+
+
+def log_scan(user_id: str, model: str, input_tokens: int, output_tokens: int, file_count: int) -> None:
+    """Record token usage for a completed scan."""
+    with engine.begin() as conn:
+        conn.execute(insert(scan_logs).values(
+            id=str(uuid.uuid4()),
+            user_id=user_id,
+            scanned_at=_utcnow(),
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            file_count=file_count,
+        ))
+
+
+def get_scan_logs(days: int = 30) -> list[dict]:
+    """Return per-user token usage aggregated over the last N days."""
+    from datetime import timedelta
+    cutoff = _utcnow() - timedelta(days=days)
+    with engine.connect() as conn:
+        rows = conn.execute(
+            select(
+                scan_logs.c.user_id,
+                func.count().label("scan_count"),
+                func.sum(scan_logs.c.input_tokens).label("total_input"),
+                func.sum(scan_logs.c.output_tokens).label("total_output"),
+                func.sum(scan_logs.c.file_count).label("total_files"),
+                func.max(scan_logs.c.scanned_at).label("last_scan"),
+            )
+            .where(scan_logs.c.scanned_at >= cutoff)
+            .group_by(scan_logs.c.user_id)
+            .order_by(func.sum(scan_logs.c.input_tokens).desc())
+        ).fetchall()
+        return [dict(r._mapping) for r in rows]

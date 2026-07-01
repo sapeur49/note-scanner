@@ -319,6 +319,16 @@ Include an "additional_notes" key in your JSON response addressing the additiona
     result["scanned_at"] = datetime.now(timezone.utc).isoformat()
     result["file_exif"] = file_exif_list
     db.increment_scan_count(user_id, today_str)
+    try:
+        db.log_scan(
+            user_id=user_id,
+            model=MODEL,
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+            file_count=len(file_data),
+        )
+    except Exception as e:
+        print(f"[scan_log] failed to write log: {e}")
     return result
 
 
@@ -440,6 +450,11 @@ def get_scan_limits(_user: dict = Depends(require_user)):
         "per_user_daily_limit": int(db.get_global_setting("per_user_daily_limit") or "30"),
         "global_daily_limit": int(db.get_global_setting("global_daily_limit") or "500"),
     }
+
+
+@app.get("/api/admin/scan-logs")
+def get_scan_logs(_user: dict = Depends(require_user), days: int = 30):
+    return db.get_scan_logs(days=days)
 
 
 @app.put("/api/admin/scan-limits")
