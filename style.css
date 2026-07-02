@@ -1539,19 +1539,18 @@ details[open] .images-toggle::before {
   border: 1px solid var(--border);
 }
 
-/* Gallery mode: hero + thumbs merge into one even grid, above the card body */
+/* Gallery mode: hero + thumbs merge into a full-width vertical stack, above the card body */
 .pub-card-images {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 4px;
 }
 .pub-card-images .pub-card-thumbs { display: contents; }
 .pub-card-images .pub-card-hero,
 .pub-card-images .pub-card-thumb {
   width: 100%;
-  height: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
+  height: auto;
+  object-fit: contain;
   border-radius: 0;
   border: none;
 }
@@ -1607,17 +1606,16 @@ details[open] .images-toggle::before {
 .sp-gallery-toggle[aria-pressed="true"] { background: var(--accent, #3d7eff); }
 
 .sp-images--gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 .sp-images--gallery .sp-image-thumbs { display: contents; }
 .sp-images--gallery .sp-image-hero,
 .sp-images--gallery .sp-image-thumb {
   width: 100%;
-  height: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
+  height: auto;
+  object-fit: contain;
   margin: 0;
 }
 
