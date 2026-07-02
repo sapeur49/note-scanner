@@ -1418,6 +1418,31 @@ details[open] .images-toggle::before {
 .pub-vis-btn:hover { border-color: var(--accent); color: var(--accent); }
 .pub-vis-btn.pub-vis-active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
 
+.pub-list-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.pub-list-controls .notes-search { margin-bottom: 0; flex: 1; }
+
+.pub-gallery-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--bg);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.pub-gallery-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.pub-gallery-toggle.pub-gallery-toggle-active { border-color: var(--accent); background: var(--accent-light); color: var(--accent); }
+
 /* Card title row with visibility icon */
 .pub-card-title-row {
   display: flex;
@@ -1514,6 +1539,23 @@ details[open] .images-toggle::before {
   border: 1px solid var(--border);
 }
 
+/* Gallery mode: hero + thumbs merge into one even grid, above the card body */
+.pub-card-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 4px;
+}
+.pub-card-images .pub-card-thumbs { display: contents; }
+.pub-card-images .pub-card-hero,
+.pub-card-images .pub-card-thumb {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 0;
+  border: none;
+}
+
 /* ════════════════════════════════════════════
    Share / Published page
    ════════════════════════════════════════════ */
@@ -1541,6 +1583,42 @@ details[open] .images-toggle::before {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  position: relative;
+}
+
+.sp-gallery-toggle {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.sp-gallery-toggle:hover { background: rgba(0, 0, 0, 0.75); }
+.sp-gallery-toggle[aria-pressed="true"] { background: var(--accent, #3d7eff); }
+
+.sp-images--gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+}
+.sp-images--gallery .sp-image-thumbs { display: contents; }
+.sp-images--gallery .sp-image-hero,
+.sp-images--gallery .sp-image-thumb {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  margin: 0;
 }
 
 .sp-image {

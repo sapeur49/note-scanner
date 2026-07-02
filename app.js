@@ -2084,6 +2084,19 @@ async function initShare() {
               return URL.createObjectURL(await r.blob());
             }))
           : imageFiles.map(f => `/api/share/${encodeURIComponent(token)}/images/${f.position}`);
+        if (imageFiles.length > 1) {
+          const galleryBtn = document.createElement('button');
+          galleryBtn.type = 'button';
+          galleryBtn.className = 'sp-gallery-toggle';
+          galleryBtn.setAttribute('aria-pressed', 'false');
+          galleryBtn.title = 'Gallery view';
+          galleryBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
+          galleryBtn.addEventListener('click', () => {
+            const on = imgContainer.classList.toggle('sp-images--gallery');
+            galleryBtn.setAttribute('aria-pressed', String(on));
+          });
+          imgContainer.appendChild(galleryBtn);
+        }
         if (imageFiles.length === 1) {
           const img = document.createElement('img');
           img.src = srcs[0];
@@ -2583,6 +2596,8 @@ async function initPublished() {
 
     const needsAuth = vis => pubClerkToken && (vis === 'logged_in' || vis === 'me');
 
+    let galleryMode = false;
+
     function createPubCard(n) {
       const positions = n.image_positions || [];
       const heroPos = positions.length > 0 ? positions[0] : null;
@@ -2604,7 +2619,21 @@ async function initPublished() {
             `<img id="${thumbIds[i]}" class="pub-card-thumb" src="" alt="" loading="lazy">`
           ).join('')}</div>`
         : '';
-      card.innerHTML = `
+      card.innerHTML = galleryMode
+        ? `
+        <div class="pub-card-images">
+          ${heroHtml}
+          ${thumbsHtml}
+        </div>
+        <div class="pub-card-body">
+          <div class="pub-card-title-row">
+            <div class="pub-card-title">${escapeHtml(n.title || 'Untitled')}</div>
+            ${visIconHtml}
+          </div>
+          <div class="pub-card-date">${escapeHtml(friendlyDate(n.scanned_at || n.created_at))}</div>
+          <div class="pub-card-snippet">${renderMarkdown(n.summary_snippet || '')}</div>
+        </div>`
+        : `
         ${heroHtml}
         <div class="pub-card-body">
           <div class="pub-card-title-row">
@@ -2691,6 +2720,17 @@ async function initPublished() {
           document.title = (settings.storyListTitle || 'Published Notes') + ' — ReadWrite';
           history.replaceState(null, '', `/published/${encodeURIComponent(listToken)}`);
         }
+        renderNotes(filteredNotes());
+      });
+    }
+
+    // Gallery mode toggle — visible to all visitors, resets on reload
+    const galleryToggleEl = document.getElementById('pub-gallery-toggle');
+    if (galleryToggleEl) {
+      galleryToggleEl.addEventListener('click', () => {
+        galleryMode = !galleryMode;
+        galleryToggleEl.classList.toggle('pub-gallery-toggle-active', galleryMode);
+        galleryToggleEl.setAttribute('aria-pressed', String(galleryMode));
         renderNotes(filteredNotes());
       });
     }

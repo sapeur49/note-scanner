@@ -6,7 +6,7 @@
   <title>Published Notes</title>
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#2563eb">
-  <link rel="stylesheet" href="/style.css?v=66">
+  <link rel="stylesheet" href="/style.css?v=67">
 </head>
 <body>
   <div id="pub-nav-btns" class="pub-nav-btns" hidden>
@@ -57,7 +57,13 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
-        <input type="search" id="pub-search" class="notes-search" placeholder="Search title, summary…" autocomplete="off">
+        <div class="pub-list-controls">
+          <input type="search" id="pub-search" class="notes-search" placeholder="Search title, summary…" autocomplete="off">
+          <button type="button" id="pub-gallery-toggle" class="pub-gallery-toggle" aria-pressed="false" title="Gallery view">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            Gallery
+          </button>
+        </div>
         <select id="pub-notebook-filter" class="notes-notebook-filter" hidden>
           <option value="">All notebooks</option>
         </select>
@@ -81,6 +87,6 @@
     src="https://clerk.readwrite.photo/npm/@clerk/clerk-js@5/dist/clerk.browser.js"
     type="text/javascript"
   ></script>
-  <script src="/app.js?v=87"></script>
+  <script src="/app.js?v=88"></script>
 </body>
 </html>
